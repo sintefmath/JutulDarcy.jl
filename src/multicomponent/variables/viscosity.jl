@@ -41,6 +41,8 @@ end
         p = Pressure[i]
         T = Temperature[i]
         μ = tab(p, T)
-        @. mu[:, i] = μ
+        for ph in eachindex(μ)
+            mu[ph, i] = μ[ph]
+        end
     end
 end

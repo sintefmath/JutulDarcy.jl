@@ -6,6 +6,10 @@ function setup_reservoir_model_co2_brine(reservoir::DataDomain;
         co2_source = missing,
         co2_density = :nist,
         extra_out = false,
+        constant_heat_capacities = true,
+        override_heat_capacities = true,
+        const_p = 101325.0,
+        const_T = 298.15,
         parameters = Dict{Symbol, Any}(),
         salt_names = String[],
         salt_mole_fractions = Float64[],
@@ -21,7 +25,16 @@ function setup_reservoir_model_co2_brine(reservoir::DataDomain;
     rho = JutulDarcy.BrineCO2MixingDensities(tables[:density])
     mu = JutulDarcy.PTViscosities(tables[:viscosity])
     if thermal
-        c_v = JutulDarcy.PressureTemperatureDependentVariable(tables[:heat_capacity_constant_volume])
+        if constant_heat_capacities
+            c_h2o, c_co2 = tables[:heat_capacity_constant_volume](const_p, const_T)
+            if override_heat_capacities
+                nc = number_of_cells(reservoir)
+                reservoir[:component_heat_capacity] = repeat([c_h2o, c_co2], 1, nc)
+            end
+            c_v = missing
+        else
+            c_v = JutulDarcy.PressureTemperatureDependentVariable(tables[:heat_capacity_constant_volume])
+        end
     end
     rhoS = JutulDarcy.reference_densities(:co2brine)
     phases = JutulDarcy.get_phases(:co2brine)
@@ -69,9 +82,11 @@ function setup_reservoir_model_co2_brine(reservoir::DataDomain;
                 )
             end
             if thermal
-                set_secondary_variables!(m;
-                    ComponentHeatCapacity = c_v,
-                )
+                if !ismissing(c_v)
+                    set_secondary_variables!(m;
+                        ComponentHeatCapacity = c_v,
+                    )
+                end
             elseif !is_compositional
                 set_parameters!(m, Temperature = JutulDarcy.Temperature())
             end

@@ -12,6 +12,8 @@ using Test, JutulDarcy, Jutul, MultiComponentFlash
             nph = JutulDarcy.number_of_phases(sys)
 
             @test nph == length(phases) == nc
+            @test typeof(sys).parameters[end] ==
+                JutulDarcy.get_reference_phase_index(sys)
             allocs_c = @allocations JutulDarcy.number_of_components(sys)
             allocs_ph = @allocations JutulDarcy.number_of_phases(sys)
 
@@ -39,6 +41,8 @@ using Test, JutulDarcy, Jutul, MultiComponentFlash
             nph = JutulDarcy.number_of_phases(sys)
 
             @test nph == length(phases) == nc
+            @test typeof(sys).parameters[end] ==
+                JutulDarcy.get_reference_phase_index(sys)
             allocs_c = @allocations JutulDarcy.number_of_components(sys)
             allocs_ph = @allocations JutulDarcy.number_of_phases(sys)
         end
@@ -66,8 +70,29 @@ using Test, JutulDarcy, Jutul, MultiComponentFlash
 
             @test nph == length(phases)
             @test nc == length(components) + include_water
+            @test typeof(sys).parameters[end] ==
+                JutulDarcy.get_reference_phase_index(sys)
+            overridden = MultiPhaseCompositionalSystemLV(eos, phases;
+                reference_phase_index = 1)
+            @test JutulDarcy.get_reference_phase_index(overridden) == 1
+            @test typeof(overridden).parameters[end] == 1
             allocs_c = @allocations JutulDarcy.number_of_components(sys)
             allocs_ph = @allocations JutulDarcy.number_of_phases(sys)
         end
+    end
+end
+
+@testset "Reference phase overrides" begin
+    single_phase = SinglePhaseSystem()
+    @test JutulDarcy.get_reference_phase_index(single_phase) == 1
+    @test typeof(single_phase).parameters[end] == 1
+    phases = (AqueousPhase(), LiquidPhase(), VaporPhase())
+    immiscible = ImmiscibleSystem(phases; reference_phase_index = 1)
+    black_oil = StandardBlackOilSystem(
+        phases = phases, reference_phase_index = 1)
+    well = JutulDarcy.SimpleWellSystem(immiscible)
+    for system in (immiscible, black_oil, well)
+        @test JutulDarcy.get_reference_phase_index(system) == 1
+        @test typeof(system).parameters[end] == 1
     end
 end

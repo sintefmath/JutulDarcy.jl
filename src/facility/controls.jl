@@ -5,7 +5,19 @@ function Jutul.initialize_extra_state_fields!(state, domain::WellGroup, model; T
     state[:WellGroupConfiguration] = WellGroupConfiguration(domain.well_symbols)
 end
 
-function Jutul.update_before_step_multimodel!(storage_g, model_g::MultiModel, model::WellGroupModel, dt, forces_g, key;
+function Jutul.update_before_step_multimodel!(
+        storage_g, model_g::MultiModel, model::WellGroupModel,
+        dt, forces_g, key; kwarg...)
+    Jutul.update_before_step_multimodel_backend!(
+        storage_g, model_g, storage_g, model_g,
+        model, dt, forces_g, key; kwarg...)
+    return nothing
+end
+
+function Jutul.update_before_step_multimodel_backend!(
+        storage_g, model_g::MultiModel,
+        backend_storage, backend_model,
+        model::WellGroupModel, dt, forces_g, key;
         time = NaN,
         recorder = ProgressRecorder(),
         update_explicit = true
@@ -68,9 +80,10 @@ function Jutul.update_before_step_multimodel!(storage_g, model_g::MultiModel, mo
     end
     cfg.step_index = current_step
     for wname in model.domain.well_symbols
-        wmodel = model_g[wname]
-        wstate = storage_g[wname].state
-        forces_w = forces_g[wname]
+        wkey = WellMerging.merged_well_key(model_g, wname)
+        wmodel = model_g[wkey]
+        wstate = storage_g[wkey].state
+        forces_w = forces_g[wkey]
         if isnothing(forces_w) || !haskey(forces_w, :mask)
             mask = nothing
         else
@@ -78,8 +91,16 @@ function Jutul.update_before_step_multimodel!(storage_g, model_g::MultiModel, mo
         end
         rmodel = model_g[:Reservoir]
         rstate = storage_g.Reservoir.state
-        update_before_step_well!(wstate, wmodel, rstate, rmodel, op_ctrls[wname], mask, update_explicit = update_explicit)
+        update_before_step_well!(wstate, wmodel, rstate, rmodel,
+            op_ctrls[wname], mask;
+            well_symbol = wname,
+            update_explicit = update_explicit,
+            backend_well_state = backend_storage[wkey].state,
+            backend_well_model = backend_model[wkey],
+            backend_reservoir_state = backend_storage.Reservoir.state,
+            backend_reservoir_model = backend_model[:Reservoir])
     end
+    return nothing
 end
 
 
@@ -526,4 +547,3 @@ function facility_surface_mass_rate_for_well(model::SimulationModel, wsym, fstat
 end
 
 bottom_hole_pressure(ws) = ws.Pressure[1]
-

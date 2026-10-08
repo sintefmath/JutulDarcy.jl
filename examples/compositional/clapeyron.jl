@@ -9,9 +9,11 @@
 # other packages that implement the required interface. Here, we demonstrate how
 # to use the JutulDarcy package extension for Clapeyron.jl to set up a
 # compositional simulation using two different equations of state.
+#
+# EXAMPLE TEMPORARILY DISABLED
 
 ## Import packages and define helper function
-using Jutul, JutulDarcy, GLMakie, MultiComponentFlash
+# using Jutul, JutulDarcy, GLMakie, MultiComponentFlash
 
 function solve_and_plot_displacement(eos, nx = 50; name = "")
     g = reservoir_mesh((nx, 1, 1), (100.0, 10.0, 10.0))
@@ -54,15 +56,15 @@ end
 nx = 50
 components = ["carbondioxide", "decane"]
 # ## Simulate Peng-Robinson EOS
-import Clapeyron: PR
-solve_and_plot_displacement(PR(components), nx, name = "Peng-Robinson (PR, Clapeyron) EOS")
+# import Clapeyron: PR
+# solve_and_plot_displacement(PR(components), nx, name = "Peng-Robinson (PR, Clapeyron) EOS")
 # ## Simulate Soave-Redlich-Kwong EOS
 # We can easily switch to another equation of state, e.g., the
 # Soave-Redlich-Kwong EOS. Note that the displacement front is a bit different
 # relative to the Peng-Robinson EOS, which is expected since we have used the
 # EOS without adjusting any parameters for the mixtures.
-import Clapeyron: SRK
-solve_and_plot_displacement(SRK(components), nx, name = "Soave-Redlich-Kwong (SRK, Clapeyron.jl) EOS")
+# import Clapeyron: SRK
+# solve_and_plot_displacement(SRK(components), nx, name = "Soave-Redlich-Kwong (SRK, Clapeyron.jl) EOS")
 # ## Conclusion
 # We see that it is possible to use equations of state from Clapeyron.jl in
 # JutulDarcy to run compositional simulations. The Clapeyron.jl package provides

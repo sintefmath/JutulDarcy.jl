@@ -1,9 +1,23 @@
-@jutul_secondary function update_deck_viscosity!(b, ρ::DeckPhaseViscosities, model, Pressure, ix)
+@generated function foreach_phase_pvt(f, pvt::P) where {P<:Tuple}
+    calls = [:(f(Val($phase), getfield(pvt, $phase)))
+        for phase in 1:fieldcount(P)]
+    return Expr(:block, calls..., :(nothing))
+end
+
+@inline phase_index(::Val{phase}) where phase = phase
+@inline phase_tuple_entry(tuple, ::Val{phase}) where phase =
+    getfield(tuple, phase)
+
+@inline scalar_for_pressure(value::AbstractFloat, pressure) =
+    convert(typeof(Jutul.value(pressure)), value)
+@inline scalar_for_pressure(value, pressure) = value
+
+@jutul_secondary function update_deck_viscosity!(b,
+        ρ::DeckPhaseViscosities, model, Pressure, ix)
     pvt, reg = ρ.pvt, ρ.regions
     # Note immiscible assumption
-    nph = number_of_phases(model.system)
-    for ph in 1:nph
-        pvt_ph = pvt[ph]
+    foreach_phase_pvt(pvt) do phase, pvt_ph
+        ph = phase_index(phase)
         for i in ix
             p = Pressure[i]
             @inbounds b[ph, i] = viscosity(pvt_ph, reg, p, i)
@@ -13,15 +27,15 @@ end
 
 @jutul_secondary function update_deck_viscosity!(mu, μ::DeckPhaseViscosities{<:Any, Ttab, <:Any}, model, Pressure, Temperature, ix) where Ttab<:DeckThermalViscosityTable
     pvt, reg = μ.pvt, μ.regions
-    nph = number_of_phases(model.system)
-    for ph in 1:nph
-        pvt_ph = pvt[ph]
+    foreach_phase_pvt(pvt) do phase, pvt_ph
+        ph = phase_index(phase)
+        thermal_tables = phase_tuple_entry(μ.thermal.visc_tab, phase)
         for i in ix
             r_i = region(μ, i)
             p = Pressure[i]
             T = Temperature[i]
-            pvt_thermal = table_by_region(μ.thermal.visc_tab[ph], r_i)
-            p_ref = table_by_region(μ.thermal.p_ref[ph], r_i)
+            pvt_thermal = table_by_region(thermal_tables, r_i)
+            p_ref = table_by_region(μ.thermal.p_ref, r_i)
             mu_thermal = pvt_thermal(T)
             if isfinite(p_ref)
                 # We have pressure dependence in addition to temperature
@@ -35,17 +49,18 @@ end
     end
 end
 
-@jutul_secondary function update_deck_density!(rho, ρ::DeckPhaseMassDensities, model, Pressure, ix)
+@jutul_secondary function update_deck_density!(rho,
+        ρ::DeckPhaseMassDensities, model, Pressure, ix)
     rhos = reference_densities(model.system)
     pvt, reg = ρ.pvt, ρ.regions
-    nph = number_of_phases(model.system)
     # Note immiscible assumption
-    @inbounds for ph in 1:nph
-        rhos_ph = rhos[ph]
-        pvt_ph = pvt[ph]
+    foreach_phase_pvt(pvt) do phase, pvt_ph
+        ph = phase_index(phase)
+        rhos_ph = phase_tuple_entry(rhos, phase)
         @inbounds for i in ix
             p = Pressure[i]
-            rho[ph, i] = rhos_ph*shrinkage(pvt_ph, reg, p, i)
+            rho_ref = scalar_for_pressure(rhos_ph, p)
+            rho[ph, i] = rho_ref*shrinkage(pvt_ph, reg, p, i)
         end
     end
 end
@@ -60,16 +75,16 @@ end
         p = Pressure[i]
         T = Temperature[i]
         for ph in axes(rho, 1)
-            rhos_ph = rhos[ph]
+            rhos_ph = scalar_for_pressure(rhos[ph], p)
             pvt_ph = pvt[ph]
             if phases[ph] == AqueousPhase()
                 T_ref, c1, c2 = ρ.watdent.tab[r_i]
                 pvtw = pvt_ph.tab[r_i]
                 p_ref = pvtw.p_ref
-                B_pref = 1.0/shrinkage(pvt_ph, reg, p_ref, i)
+                B_pref = inv(shrinkage(pvt_ph, reg, p_ref, i))
                 Δp = pvtw.b_c*(p - p_ref)
                 ΔT = T - T_ref
-                B_w = B_pref*(1.0 - Δp)*(1.0 + c1*ΔT + c2*ΔT^2)
+                B_w = B_pref*(one(Δp) - Δp)*(one(ΔT) + c1*ΔT + c2*ΔT^2)
                 rho[ph, i] = rhos_ph/B_w
             else
                 rho[ph, i] = rhos_ph*shrinkage(pvt_ph, reg, p, i)
@@ -78,12 +93,12 @@ end
     end
 end
 
-@jutul_secondary function update_deck_shrinkage!(b, ρ::DeckShrinkageFactors, model, Pressure, ix)
+@jutul_secondary function update_deck_shrinkage!(b,
+        ρ::DeckShrinkageFactors, model, Pressure, ix)
     pvt, reg = ρ.pvt, ρ.regions
     # Note immiscible assumption
-    nph, = size(b, 1)
-    for ph in 1:nph
-        pvt_ph = pvt[ph]
+    foreach_phase_pvt(pvt) do phase, pvt_ph
+        ph = phase_index(phase)
         for i in ix
             p = Pressure[i]
             @inbounds b[ph, i] = shrinkage(pvt_ph, reg, p, i)
@@ -94,11 +109,14 @@ end
 @jutul_secondary function update_pore_volume!(pv, Φ::LinearlyCompressiblePoreVolume, model, Pressure, StaticFluidVolume, ix)
     @inbounds for i in ix
         reg = region(Φ.regions, i)
-        p_r = table_by_region(Φ.reference_pressure, reg)
-        c_r = table_by_region(Φ.expansion, reg)
         p = Pressure[i]
+        F = typeof(Jutul.value(p))
+        p_r = scalar_for_pressure(
+            table_by_region(Φ.reference_pressure, reg), p)
+        c_r = scalar_for_pressure(
+            table_by_region(Φ.expansion, reg), p)
         x = c_r*(p-p_r)
-        mult = 1.0 + x + 0.5*(x^2)
+        mult = one(x) + x + convert(F, 0.5)*(x^2)
         pv[i] = StaticFluidVolume[i]*mult
     end
 end

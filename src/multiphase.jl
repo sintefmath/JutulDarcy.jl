@@ -407,7 +407,7 @@ end
 domain_fluid_volume(g) = missing
 
 function Jutul.apply_forces_to_equation!(acc, storage, model::SimulationModel{D, S}, eq::ConservationLaw, eq_s, force::V, time) where {V <: AbstractVector{SourceTerm{I, F, T}}, D, S<:MultiPhaseSystem} where {I, F, T}
-    state = storage.state
+    state = Jutul.evaluation_state(storage)
     if haskey(state, :RelativePermeabilities)
         kr = state.RelativePermeabilities
     else
@@ -460,18 +460,20 @@ end
 function insert_phase_sources!(acc, model, kr, mu, rhoS, sources)
     nph = size(acc, 1)
     M = global_map(model.domain)
-    for src in sources
+    Jutul.threaded_loop(length(sources), model.context) do index
+        @inbounds src = sources[index]
         c = Jutul.full_cell(src.cell, M)
         for ph = 1:nph
             q_ph = phase_source(c, src, rhoS[ph], kr, mu, ph)
             @inbounds acc[ph, src.cell] -= q_ph
         end
     end
+    return acc
 end
 
 function convergence_criterion(model::SimulationModel{D, S}, storage, eq::ConservationLaw{:TotalMasses}, eq_s, r; dt = 1, update_report = missing) where {D, S<:MultiPhaseSystem}
     M = global_map(model.domain)
-    v = x -> as_value(Jutul.active_view(x, M, for_variables = false))
+    v = x -> Jutul.active_view(x, M, for_variables = false)
     Φ = v(storage.state.FluidVolume)
     ρ = v(storage.state.PhaseMassDensities)
 
@@ -496,31 +498,30 @@ function convergence_criterion(model::SimulationModel{D, S}, storage, eq::Conser
     return R
 end
 
-function cnv_mb_errors(r, Φ, ρ, dt, ::Val{N}) where N
-    nc = length(Φ)
-    mb = @MVector zeros(N)
-    cnv = @MVector zeros(N)
-    avg_density = @MVector zeros(N)
+function cnv_error_for_phase(r, Φ, ρ, dt, phase)
+    residual = view(r, phase, :)
+    density = view(ρ, phase, :)
+    function normalized_residual(residual, density, pore_volume)
+        return dt*abs(value(residual))/(value(density)*value(pore_volume))
+    end
+    return mapreduce(normalized_residual, max, residual, density, Φ)
+end
 
-    pv_t = 0.0
-    @inbounds for c in 1:nc
-        pv_c = Φ[c]
-        pv_t += pv_c
-        @inbounds for ph = 1:N
-            r_ph = r[ph, c]
-            ρ_ph = ρ[ph, c]
-            # MB
-            mb[ph] += r_ph
-            avg_density[ph] += abs(ρ_ph)
-            # CNV
-            cnv[ph] = max(cnv[ph], dt*abs(r_ph)/(ρ_ph*pv_c))
-        end
-    end
-    @inbounds for ph = 1:N
-        ρ_avg = avg_density[ph]/nc
-        mb[ph] = (dt/pv_t)*abs(mb[ph])/ρ_avg
-    end
-    return (Tuple(cnv), Tuple(mb))
+function mb_error_for_phase(r, total_pore_volume, ρ, dt, phase)
+    residual = view(r, phase, :)
+    density = view(ρ, phase, :)
+    residual_sum = sum(value, residual)
+    average_density = sum(x -> abs(value(x)), density)/length(density)
+    return (dt/total_pore_volume)*abs(residual_sum)/average_density
+end
+
+function cnv_mb_errors(r, Φ, ρ, dt, ::Val{N}) where N
+    @assert size(r, 1) == size(ρ, 1) == N
+    total_pore_volume = sum(value, Φ)
+    cnv = ntuple(phase -> cnv_error_for_phase(r, Φ, ρ, dt, phase), Val(N))
+    mb = ntuple(phase ->
+        mb_error_for_phase(r, total_pore_volume, ρ, dt, phase), Val(N))
+    return cnv, mb
 end
 
 function cpr_weights_no_partials!(w, model::SimulationModel{R, S}, state, r, n, bz, scaling) where {R, S<:ImmiscibleSystem}
@@ -547,9 +548,7 @@ end
     return(pc, ref_index)
 end
 
-function get_reference_phase_index(::SinglePhaseSystem)
-    return 1
-end
+@inline get_reference_phase_index(::SinglePhaseSystem{P, F, Ref}) where {P, F, Ref} = Ref
 
 """
     get_reference_phase_index(system::JutulSystem)
@@ -566,6 +565,10 @@ end
 function get_reference_phase_index(sys::MultiPhaseSystem)
     return sys.reference_phase_index
 end
+
+@inline get_reference_phase_index(::MultiPhaseCompositionalSystemLV{E, T, O, R, N, C, Ref}) where {E, T, O, R, N, C, Ref} = Ref
+@inline get_reference_phase_index(::StandardBlackOilSystem{D, V, W, R, F, T, P, Num, Ref}) where {D, V, W, R, F, T, P, Num, Ref} = Ref
+@inline get_reference_phase_index(::ImmiscibleSystem{T, F, Ref}) where {T, F, Ref} = Ref
 
 """
     get_reference_phase_index(mphases)

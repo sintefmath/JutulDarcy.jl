@@ -64,13 +64,15 @@ function Jutul.update_parameter_before_step!(p_max, ::MaxPressure, storage, mode
 end
 
 function update_max_hysteresis_value!(v_max, v)
-    for i in eachindex(v_max, v)
-        v_prev = v_max[i]
-        v_now = value(v[i])
-        if v_now > v_prev
-            v_max[i] = replace_value(v_prev, v_now)
+    map!(v_max, v_max, v) do v_prev, v_current
+        v_now = value(v_current)
+        if v_now > value(v_prev)
+            return replace_value(v_prev, v_now)
+        else
+            return v_prev
         end
     end
+    return v_max
 end
 
 struct MinPressure <: ScalarVariable end
@@ -84,13 +86,15 @@ function Jutul.update_parameter_before_step!(p_min, ::MinPressure, storage, mode
 end
 
 function update_min_hysteresis_value!(v_min, v)
-    for i in eachindex(v_min, v)
-        v_prev = v_min[i]
-        v_now = value(v[i])
-        if v_now < v_prev
-            v_min[i] = replace_value(v_prev, v_now)
+    map!(v_min, v_min, v) do v_prev, v_current
+        v_now = value(v_current)
+        if v_now < value(v_prev)
+            return replace_value(v_prev, v_now)
+        else
+            return v_prev
         end
     end
+    return v_min
 end
 
 function hysteresis_is_active(x::AbstractRelativePermeabilities)
@@ -124,7 +128,7 @@ function hysteresis_impl(t::CarlsonHysteresis, drain, imb, s, s_max)
     if imb isa PhaseRelativePermeability
         s_meet = Jutul.linear_interp(imb.k.F, imb.k.X, kr_at_max)
     else
-        ϵ = 1e-4
+        ϵ = convert(typeof(value(s_max)), 1e-4)
         F = s -> imb(s) - kr_at_max
         s_meet = find_zero(
             F,
@@ -138,15 +142,17 @@ function hysteresis_impl(t::CarlsonHysteresis, drain, imb, s, s_max)
 end
 
 function hysteresis_impl(h_model::KilloughHysteresis, drain, imb, S, S_max)
-    if S < h_model.s_min
+    F = typeof(value(S))
+    if S < convert(F, h_model.s_min)
         kr = drain(S)
     else
         S_crit_imbibition = imb.critical
         S_crit_drainage = drain.critical
         # TODO: Check that this matches that of imbibition?
         kr_s_max = drain.s_max
-        K = 1.0/(S_crit_imbibition - S_crit_drainage) - 1.0/(kr_s_max - S_crit_drainage)
-        M = 1.0 + h_model.tol*(kr_s_max - S_max)
+        K = inv(S_crit_imbibition - S_crit_drainage) -
+            inv(kr_s_max - S_crit_drainage)
+        M = one(S_max) + convert(F, h_model.tol)*(kr_s_max - S_max)
         S_crit = S_crit_drainage + (S_max - S_crit_drainage)/(M + K*(S_max - S_crit_drainage))
         S_norm = S_crit_imbibition + (S - S_crit)*(kr_s_max - S_crit_imbibition)/(S_max - S_crit)
         kr = imb(S_norm)*drain(S_max)/drain(kr_s_max)

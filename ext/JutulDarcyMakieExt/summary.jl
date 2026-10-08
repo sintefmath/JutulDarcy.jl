@@ -26,8 +26,28 @@ function JutulDarcy.plot_summary_impl(arg...;
     )
     lookup = JutulDarcy.summary_key_lookup()
 
-    if length(arg) == 1 && only(arg) isa AbstractVector
-        arg = only(arg)
+    # Single input - trivial
+    # Single input - Dict of results
+    # Multiple inputs - array of summaries
+    if length(arg) == 1
+        uarg = only(arg)
+        if uarg isa AbstractVector
+            arg = uarg
+        elseif uarg isa AbstractDict
+            if haskey(uarg, "VALUES")
+                arg = [uarg]
+                if ismissing(names)
+                    names = ["Summary 1"]
+                end
+            else
+                arg = collect(values(uarg))
+                if ismissing(names)
+                    names = String.(collect(keys(uarg)))
+                end
+            end
+        end
+    else
+        arg = collect(arg)
     end
     if ismissing(names)
         names = ["Summary $i" for i in 1:length(arg)]

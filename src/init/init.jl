@@ -962,7 +962,7 @@ function phase_pressure_depth_table(depth, zmin, zmax, datum_pressure, density_f
 end
 
 function integrate_phase_density(z_datum, z_end, p0, density_f, phase; n = 1000, g = Jutul.gravity_constant)
-    @assert isfinite(p0) "Pressure at contact must be finite"
+    @assert isfinite(p0) "Pressure at contact must be finite, was $p0"
     z_datum, z_end, p0, g = promote(z_datum, z_end, p0, g)
     T = typeof(p0)
     dz = (z_end - z_datum)/n

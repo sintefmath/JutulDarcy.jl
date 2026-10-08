@@ -15,6 +15,8 @@ include("wells/wells.jl")
 include("controls.jl")
 include("wellgroups.jl")
 include("cross_terms.jl")
+include("wells/merge.jl")
+using .WellMerging: merge_similar_wells
 include("well_presolve.jl")
 include("gradients.jl")
 
@@ -22,6 +24,7 @@ function Jutul.select_minimum_output_variables!(vars, domain::WellGroup, model)
     for k in keys(model.primary_variables)
         push!(vars, k)
     end
+    push!(vars, :SurfaceWellConditions)
     push!(vars, :WellGroupConfiguration)
     return vars
 end

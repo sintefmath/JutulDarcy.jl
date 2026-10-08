@@ -555,7 +555,12 @@ end
             pv_frac = 5.0,
         )
 
-        sim_args = (info_level = -1, initial_dt = 5.0)
+        # This compares temperature more closely than the default nonlinear
+        # convergence tolerances guarantee.
+        sim_args = (info_level = -1, initial_dt = 5.0,
+            tol_cnv = 1e-5, tol_cnve = 1e-6)
+        _, cfg = setup_reservoir_simulator(setup.case_dfm; sim_args...)
+        @test cfg[:tolerances][:Reservoir][:energy_conservation].CNV == sim_args.tol_cnve
         res_fd  = simulate_reservoir(setup.case_fd;  sim_args...)
         res_dfm = simulate_reservoir(setup.case_dfm; sim_args...)
 
@@ -579,7 +584,7 @@ end
         T_fd  = states_fd[nstates][:Temperature]
         T_dfm = states_recon[nstates][:Temperature]
         rms_T = sqrt(sum((T_fd .- T_dfm) .^ 2) / length(T_fd))
-        @test rms_T < 7e-2 # within 10 K
+        @test rms_T < 7e-2 # within 0.07 K
 
         # Compare final-step pressure: relative RMS should be small
         p_fd  = states_fd[nstates][:Pressure]

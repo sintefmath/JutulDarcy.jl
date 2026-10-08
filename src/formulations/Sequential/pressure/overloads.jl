@@ -60,13 +60,15 @@ function Jutul.update_cross_term_in_entity!(out, i,
         well::PressureModel, facility,
         ct::JutulDarcy.WellFromFacilityFlowCT, eq, dt, ldisc = local_discretization(ct, i)
     )
-    well_symbol = ct.well
-    q_t, mix = JutulDarcy.cross_term_total_surface_mass_rate_and_mixture(facility, well, state_facility, state_well, well_symbol)
+    well_symbol = ct.wells[i]
+    facility_cell = ct.facility_cells[i]
+    top_node = ct.well_cells[i]
+    q_t, mix = JutulDarcy.cross_term_total_surface_mass_rate_and_mixture(
+        facility, well, state_facility, state_well, well_symbol, facility_cell, top_node)
     @assert length(out) == 1
     val = zero(eltype(out))
-    top_node = JutulDarcy.well_top_node()
-    for i in eachindex(mix)
-        val += mix[i]*state_well.PressureReductionFactors[i, top_node]
+    for component in eachindex(mix)
+        val += mix[component]*state_well.PressureReductionFactors[component, top_node]
     end
     out[1] = -val*q_t
     return out
@@ -167,9 +169,9 @@ function Jutul.declare_pattern(model, peq::PressureEquation{ConservationLaw{A, B
     return (I, J)
 end
 
-function Jutul.align_to_jacobian!(eq_s::PressureEquationTPFAStorage, p_eq::PressureEquation, jac, model, u::Cells; equation_offset = 0, variable_offset = 0, row_offset = 0, col_offset = 0)
+function Jutul.align_to_jacobian!(eq_s::PressureEquationTPFAStorage, p_eq::PressureEquation, jac, model, u::Cells; equation_offset = 0, variable_offset = 0, row_offset = 0, column_offset = 0)
     @assert row_offset == 0 "Non-zero row and column offsets are not yet supported for pressure equation"
-    @assert col_offset == 0 "Non-zero row and column offsets are not yet supported for pressure equation"
+    @assert column_offset == 0 "Non-zero row and column offsets are not yet supported for pressure equation"
     eq = p_eq.conservation
     fd = eq.flow_discretization
     M = global_map(model.domain)

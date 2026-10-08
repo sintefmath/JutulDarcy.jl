@@ -456,8 +456,8 @@ import Jutul.DictOptimization: finite_difference_gradient_entry
     end
     phys = :compositional_2ph_3c
     @testset "$phys" begin
-        test_physics(phys; block_backend = true, case_broken = true, di_broken = true)
-        test_physics(phys; block_backend = false, case_broken = true, di_broken = true)
+        test_physics(phys; block_backend = true)
+        test_physics(phys; block_backend = false)
     end
     phys = :bo_spe1
     @testset "$phys" begin

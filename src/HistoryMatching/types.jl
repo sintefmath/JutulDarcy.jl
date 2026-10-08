@@ -141,6 +141,8 @@ struct GlobalHistoryMatchObjective <: Jutul.AbstractGlobalObjective
     evaluation_count
 end
 
+Jutul.objective_depends_on_parameters(::GlobalHistoryMatchObjective) = false
+
 function Base.show(io::IO, obj::GlobalHistoryMatchObjective)
     print(io, "GlobalHistoryMatchObjective:\n")
     Base.show(io, obj.match)
@@ -155,6 +157,8 @@ function Base.show(io::IO, obj::SumHistoryMatchObjective)
     println(io, "SumHistoryMatchObjective")
     Base.show(io, obj.match)
 end
+
+Jutul.objective_depends_on_parameters(::SumHistoryMatchObjective) = false
 
 function Base.show(io::IO, hm::HistoryMatch)
     tstr = Jutul.get_tstr(sum(hm.case.dt))

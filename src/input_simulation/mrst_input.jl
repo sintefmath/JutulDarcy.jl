@@ -240,33 +240,37 @@ function get_well_from_mrst_data(
     end
     # W_domain = discretized_domain_well(W)
     wmodel = SimulationModel(W, wsys; kwarg...)
-    if haskey(mrst_data["deck"], "SOLUTION")
-        sol = mrst_data["deck"]["SOLUTION"]
-        if haskey(sol, "FIELDSEP")
-            fsep = sol["FIELDSEP"]
-            stage = Int.(fsep[:, 1])
-            T = fsep[:, 2]
-            p = fsep[:, 3]
-            liquid_dest = Int.(fsep[:, 4])
-            vapor_dest = Int.(fsep[:, 5])
-            n = length(stage)
-            for i in eachindex(stage)
-                cond = (p = p[i], T = T[i])
-                l = liquid_dest[i]
-                if l == 0 && i < n
-                    l = i+1
-                end
-                v = vapor_dest[i]
-                add_separator_stage!(wmodel, cond, (l, v), clear = i == 1)
-            end
-        end
-    end
     if extraout
         out = (wmodel, W_mrst, vec(reservoir_cells))
     else
         out = wmodel
     end
     return out
+end
+
+function add_mrst_separator_stages!(facility::FacilityModel, mrst_data)
+    haskey(mrst_data["deck"], "SOLUTION") || return facility
+    sol = mrst_data["deck"]["SOLUTION"]
+    haskey(sol, "FIELDSEP") || return facility
+    fsep = sol["FIELDSEP"]
+    stage = Int.(fsep[:, 1])
+    T = fsep[:, 2]
+    p = fsep[:, 3]
+    liquid_dest = Int.(fsep[:, 4])
+    vapor_dest = Int.(fsep[:, 5])
+    n = length(stage)
+    for well in facility.domain.well_symbols
+        for i in eachindex(stage)
+            cond = (p = p[i], T = T[i])
+            liquid = liquid_dest[i]
+            if liquid == 0 && i < n
+                liquid = i + 1
+            end
+            vapor = vapor_dest[i]
+            add_separator_stage!(facility, cond, (liquid, vapor); well = well, clear = i == 1)
+        end
+    end
+    return facility
 end
 
 function simple_ms_setup(n, volume, well_cell_volume, rc, ref_depth, z_res)
@@ -583,6 +587,13 @@ function deck_relperm(runspec, props; oil, water, gas, satnum = nothing)
     check(water && oil, tables_krow, "Phases water and oil", "KROW")
     check(gas, tables_krg, "Phase gas", "KRG")
 
+    has_water_tables = length(tables_krw) > 0
+    has_oil_tables = length(tables_krog) > 0
+    water_and_oil_swapped = oil && !water && has_water_tables && !has_oil_tables
+    if water_and_oil_swapped
+        tables_krw, tables_krog = tables_krog, tables_krw
+    end
+
     tables_krw = convert_to_tuple_or_nothing(tables_krw, water)
     tables_krow = convert_to_tuple_or_nothing(tables_krow, water && oil)
     tables_krog = convert_to_tuple_or_nothing(tables_krog, gas && oil)
@@ -612,7 +623,7 @@ function flat_region_expand(x::AbstractMatrix, n = nothing)
     return x
 end
 
-function flat_region_expand(x::Vector{Float64}, n = nothing)
+function flat_region_expand(x::Vector{<:AbstractFloat}, n = nothing)
     return [x]
 end
 
@@ -657,6 +668,7 @@ function deck_pc(props; oil, water, gas, satnum = nothing, is_co2 = false)
         end
         push!(pc_impl, interp_ow)
     else
+        push!(pc_impl, nothing)
         found_pcow = false
     end
     if oil && gas
@@ -664,10 +676,16 @@ function deck_pc(props; oil, water, gas, satnum = nothing, is_co2 = false)
             interp_og, found_pcog = get_pc(props["SGOF"], 4)
         elseif haskey(props, "SLGOF")
             interp_og, found_pcog = get_pc(props["SLGOF"], 4, sgn = -1)
-        else
+        elseif haskey(props, "SGFN")
             interp_og, found_pcog = get_pc(props["SGFN"], 3)
+        else
+            found_pcog = false
         end
-        push!(pc_impl, interp_og)
+        if found_pcog
+            push!(pc_impl, interp_og)
+        else
+            push!(pc_impl, nothing)
+        end
     else
         found_pcog = false
     end
@@ -679,12 +697,13 @@ function deck_pc(props; oil, water, gas, satnum = nothing, is_co2 = false)
             end
             push!(pc_impl, interp_wg)
         else
+            push!(pc_impl, nothing)
             found_pcwg = false
         end
     else
         found_pcwg = false
     end
-    found = found_pcow || found_pcog
+    found = found_pcow || found_pcog || found_pcwg
     if found
         return SimpleCapillaryPressure(tuple(pc_impl...), regions = satnum)
     else
@@ -1246,13 +1265,18 @@ function setup_case_from_mrst(casename;
     end
     #
     mode = FacilitySystem(sys)
-    F0 = Dict(:TotalSurfaceMassRate => 0.0)
+    F0 = Dict(
+        :TotalSurfaceMassRate => 0.0,
+        :SurfacePhaseRates => 0.0,
+        :SurfaceComponentRates => 0.0
+    )
 
     facility_symbols = []
     facility_owned_wells = []
     function add_facility!(wsymbols, sym)
         g = WellGroup(wsymbols)
         WG = SimulationModel(g, mode)
+        add_mrst_separator_stages!(WG, mrst_data)
         ctrls = facility_subset(wsymbols, controls)
         facility_forces = setup_forces(WG, control = ctrls)
         # Specifics

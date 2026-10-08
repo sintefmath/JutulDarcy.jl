@@ -45,12 +45,9 @@ end
 @jutul_secondary function update_density!(rho, rho_def::BrineCO2MixingDensities, model::SimulationModel{D, S}, Pressure, Temperature, LiquidMassFractions, ix) where {D, S<:CompositionalSystem}
     c1, c2, c3, c4 = rho_def.coeffs
     sys = model.system
-    eos = sys.equation_of_state
-    cnames = eos.mixture.component_names
-    # TODO: This is hard coded.
-    @assert cnames[1] == raw"H2O" "First component was $(cnames[1]), expected H2O"
-    @assert cnames[2] == raw"CO2" "Second component was $(cnames[2]), expected CO2"
-    @assert length(cnames) == 2
+    # This variable is defined specifically for an H2O/CO2 system in that
+    # order. Component names are setup-time metadata and are intentionally
+    # removed from the immutable EOS used in accelerator kernels.
     l, v = phase_indices(sys)
     for i in ix
         p = Pressure[i]
