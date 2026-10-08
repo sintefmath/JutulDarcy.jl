@@ -86,6 +86,12 @@ function setup_reservoir_model_co2_brine(reservoir::DataDomain;
                     set_secondary_variables!(m;
                         ComponentHeatCapacity = c_v,
                     )
+                elseif override_heat_capacities && k != :Reservoir
+                    # Well domains otherwise retain the generic heat capacity,
+                    # giving injected enthalpy a different energy model from the
+                    # reservoir even for a pure CO2 stream.
+                    nc = number_of_cells(m.data_domain)
+                    m.data_domain[:component_heat_capacity] = repeat([c_h2o, c_co2], 1, nc)
                 end
             elseif !is_compositional
                 set_parameters!(m, Temperature = JutulDarcy.Temperature())
