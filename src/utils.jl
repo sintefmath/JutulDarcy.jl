@@ -69,13 +69,24 @@ system makes use of!
 | Name                         | Explanation                                | Unit         | Default |
 |------------------------------|--------------------------------------------|--------------|---------|
 | `net_to_gross`               | Magnitude of porosity available to flow    | -            | 1.0     |
-| `diffusion`                  | Diffusion coefficient for each component   | ``m^2/s``    | 0.0     |
+| `diffusion`                  | Legacy diffusion coefficient per phase     | ``m^2/s``    | 0.0     |
+| `liquid_diffusion`           | Component diffusion in the liquid phase    | ``m^2/s``    | 0.0     |
+| `vapor_diffusion`            | Component diffusion in the vapor phase     | ``m^2/s``    | 0.0     |
+| `aqueous_diffusion`          | Component diffusion in the aqueous phase   | ``m^2/s``    | 0.0     |
 | `transmissibility_override`  | Transmissibility override for each face    | ``m^2``      | NaN     |
 | `transmissibility_multiplier`| Transmissibility multiplier for each face  | -            | 1.0     |
 
 These values are optional and will only be added if specified. For e.g.
 net-to-gross and transmissibility multipliers a default value of 1.0 will be
 assumed in the code if it is not present.
+
+Phase-specific diffusion matrices have one row per component and one column per
+cell. A scalar or cell vector applies to every component of that phase. Legacy
+`diffusion` matrices have one row per phase; each row is expanded over components
+when setting up parameters. For conductances that already include porosity and
+geometric area/distance, set `liquid_diffusivities`, `vapor_diffusivities`, or
+`aqueous_diffusivities` on `Faces()` in the data domain instead. Phase-specific
+data takes precedence over legacy data. See [`Diffusivities`](@ref).
 
 The transmissibility override can be used to override the transmissibility
 calculated from geometry and other properties. This is useful for example if you
@@ -564,9 +575,7 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
             unique!(rmodel.output_variables)
         end
     end
-    if haskey(reservoir, :diffusion) || haskey(reservoir, :diffusivity)
-        rmodel.parameters[:Diffusivities] = Diffusivities()
-    end
+    set_diffusivity_parameters!(rmodel)
     models[:Reservoir] = rmodel
     # Then we set up all the wells
     facility_system = FacilitySystem(system)

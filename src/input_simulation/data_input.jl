@@ -114,6 +114,9 @@ function setup_case_from_parsed_data(datafile;
         repair_zcorn = repair_zcorn,
         process_pinch = process_pinch
     )
+    if get(rs, "DIFFUSE", false) && is_compositional
+        set_deck_diffusivities!(domain, props, sys, is_wg)
+    end
     msg("Complete in $(round(t_domain, sigdigits = 3)) seconds.")
     pvt_reg = reservoir_regions(domain, :pvtnum)
     has_pvt = isnothing(pvt_reg)
@@ -218,10 +221,6 @@ function setup_case_from_parsed_data(datafile;
             end
             if k == :Reservoir
                 set_deck_specialization!(submodel, rs, props, domain[:satnum], oil, water, gas)
-                if get(rs, "DIFFUSE", false) && is_compositional
-                    diffusivities = deck_molar_diffusivities(props, sys, is_wg)
-                    set_parameters!(submodel; MolarDiffusivities = diffusivities)
-                end
             end
         end
     end
@@ -1436,21 +1435,24 @@ function set_scaling_arguments!(out, active, data_file)
     return out
 end
 
-function deck_molar_diffusivities(props, sys, is_gaswat)
-    ncomp = MultiComponentFlash.number_of_components(sys.equation_of_state)
-    coefficients = zeros(ncomp, number_of_phases(sys))
+function set_deck_diffusivities!(domain, props, sys, is_gaswat)
     if is_gaswat
         liquid_keyword = "DIFFCWAT"
     else
         liquid_keyword = "DIFFCOIL"
     end
-    for (keyword, phase) in ((liquid_keyword, liquid_phase_index(sys)),
-                            ("DIFFCGAS", vapor_phase_index(sys)))
-        if haskey(props, keyword)
-            coefficients[:, phase] .= props[keyword]
+    ncomp = number_of_components(sys)
+    nc = number_of_cells(domain)
+    for (keyword, phase) in ((liquid_keyword, LiquidPhase()),
+                            ("DIFFCGAS", VaporPhase()), ("DIFFCWAT", AqueousPhase()))
+        if hasphase(sys, phase) && haskey(props, keyword)
+            coefficients = zeros(ncomp)
+            values = props[keyword]
+            coefficients[1:length(values)] .= values
+            domain[diffusivity_keys(phase).cells, Cells()] = repeat(coefficients, 1, nc)
         end
     end
-    return MolarDiffusivities(Tuple(vec(coefficients)))
+    return domain
 end
 
 function parse_physics_types(datafile; pvt_region = missing)

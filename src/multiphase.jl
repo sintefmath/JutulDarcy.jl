@@ -241,59 +241,99 @@ function replace_bad_trans!(T, symb; replace = 0.0)
     return T
 end
 
+"""
+    Diffusivities()
+
+One diffusive face conductance per component. Use the parameter names
+`LiquidDiffusivities`, `VaporDiffusivities`, and `AqueousDiffusivities` for
+phases present in the model. The corresponding data-domain keys are
+`liquid_diffusion` on cells or `liquid_diffusivities` on faces, with the same
+prefixes for vapor and aqueous phases. Matrices have one row per component,
+in the system's component order. Fluxes use phase mass-fraction gradients.
+
+Unprefixed `diffusion` and `diffusivities` retain the legacy per-phase format;
+each phase row is expanded over components during parameter initialization.
+"""
 struct Diffusivities <: VectorVariables end
 Jutul.variable_scale(::Diffusivities) = 1e-10
 Jutul.minimum_value(::Diffusivities) = 0.0
-
 Jutul.associated_entity(::Diffusivities) = Faces()
-Jutul.values_per_entity(model, ::Diffusivities) = number_of_phases(model.system)
+Jutul.values_per_entity(model, ::Diffusivities) = number_of_components(model.system)
 
-function Jutul.default_parameter_values(data_domain, model, param::Diffusivities, symb)
-    nf = number_of_faces(model.domain)
-    nph = number_of_phases(model.system)
-    if haskey(data_domain, :diffusivities, Faces())
-        # This takes precedence
-        T = data_domain[:diffusivities]
-    elseif haskey(data_domain, :diffusion, Cells())
-        T = zeros(nph, nf)
-        ϕ = data_domain[:porosity]
-        D = data_domain[:diffusion]
-        U = ϕ'.*D
-        g = physical_representation(data_domain)
-        if U isa AbstractVector
-            T_i = compute_face_trans(g, U)
-            for i in 1:nph
-                T[i, :] .= T_i
-            end
-        else
-            for i in 1:nph
-                T_i = compute_face_trans(g, U[i, :])
-                T[i, :] .= T_i
-            end
-        end
-        if any(x -> x < 0, T)
-            c = count(x -> x < 0, T)
-            @warn "$c negative diffusivities detected."
-        end
+function diffusivity_keys(phase)
+    name = phase_name(phase)
+    prefix = lowercase(name)
+    return (parameter = Symbol(name, "Diffusivities"),
+        cells = Symbol(prefix, "_diffusion"), faces = Symbol(prefix, "_diffusivities"))
+end
+
+phase_diffusivities(state, ::LiquidPhase) = phase_diffusivities(state, Val(:LiquidDiffusivities))
+phase_diffusivities(state, ::VaporPhase) = phase_diffusivities(state, Val(:VaporDiffusivities))
+phase_diffusivities(state, ::AqueousPhase) = phase_diffusivities(state, Val(:AqueousDiffusivities))
+
+function phase_diffusivities(state, ::Val{key}) where key
+    if haskey(state, key)
+        return getproperty(state, key)
     else
-        error(":diffusion or :diffusivities symbol must be present in DataDomain to initialize parameter $symb, had keys: $(keys(data_domain))")
+        return nothing
     end
-    @assert size(T) == (nph, nf)
+end
+
+function set_diffusivity_parameters!(model)
+    domain = model.data_domain
+    legacy = haskey(domain, :diffusion, Cells()) || haskey(domain, :diffusivities, Faces())
+    for phase in get_phases(model.system)
+        keys = diffusivity_keys(phase)
+        if legacy || haskey(domain, keys.cells, Cells()) || haskey(domain, keys.faces, Faces())
+            set_parameters!(model; (keys.parameter => Diffusivities(),)...)
+        end
+    end
+    return model
+end
+
+function expand_diffusivities(values, model, phase, nentity; per_phase = false)
+    ncomp = number_of_components(model.system)
+    if values isa AbstractVector
+        return repeat(reshape(values, 1, nentity), ncomp, 1)
+    elseif per_phase && size(values, 1) == number_of_phases(model.system)
+        row = findfirst(isequal(phase), get_phases(model.system))
+        return repeat(values[row:row, :], ncomp, 1)
+    elseif size(values) == (1, nentity)
+        return repeat(values, ncomp, 1)
+    end
+    size(values) == (ncomp, nentity) || throw(ArgumentError("Diffusion data must have one row per component and $nentity columns."))
+    return copy(values)
+end
+
+function Jutul.default_parameter_values(domain, model, param::Diffusivities, symb)
+    phase = only(p for p in get_phases(model.system) if diffusivity_keys(p).parameter == symb)
+    keys = diffusivity_keys(phase)
+    nf = number_of_faces(model.domain)
+    nc = number_of_cells(domain)
+    if haskey(domain, keys.faces, Faces())
+        T = expand_diffusivities(domain[keys.faces], model, phase, nf)
+    elseif !haskey(domain, keys.cells, Cells()) && haskey(domain, :diffusivities, Faces())
+        T = expand_diffusivities(domain[:diffusivities], model, phase, nf; per_phase = true)
+    else
+        if haskey(domain, keys.cells, Cells())
+            D = expand_diffusivities(domain[keys.cells], model, phase, nc)
+        elseif haskey(domain, :diffusion, Cells())
+            D = expand_diffusivities(domain[:diffusion], model, phase, nc; per_phase = true)
+        else
+            throw(ArgumentError("No diffusion data found for $symb."))
+        end
+        T = zeros(eltype(D), size(D, 1), nf)
+        g = physical_representation(domain)
+        porosity = domain[:porosity]
+        for i in axes(D, 1)
+            T[i, :] .= compute_face_trans(g, porosity.*view(D, i, :))
+        end
+    end
+    if any(x -> x < 0, T)
+        count_negative = count(x -> x < 0, T)
+        @warn "$count_negative negative diffusivities detected for $symb."
+    end
     return T
-end
-
-"""Component diffusion transmissibilities for the deck's mole-fraction formulation."""
-struct MolarDiffusivities{C} <: VectorVariables
-    coefficients::C
-end
-Jutul.associated_entity(::MolarDiffusivities) = Faces()
-Jutul.values_per_entity(model, p::MolarDiffusivities) = length(p.coefficients)
-Jutul.minimum_value(::MolarDiffusivities) = 0.0
-
-function Jutul.default_parameter_values(domain, model, p::MolarDiffusivities, symb)
-    # Diffusive conductance uses area/distance and porosity, rather than permeability.
-    trans = compute_face_trans(physical_representation(domain), domain[:porosity])
-    return collect(p.coefficients).*trans'
 end
 
 """

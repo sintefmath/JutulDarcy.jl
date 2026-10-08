@@ -116,27 +116,35 @@ TSTEP
         @test JutulDarcy.number_of_components(sys) == 3
         @test sys.equation_of_state.type isa SoreideWhitson
         @test !haskey(model.primary_variables, :ImmiscibleSaturation)
-        @test haskey(case.parameters[:Reservoir], :MolarDiffusivities)
+        @test haskey(case.parameters[:Reservoir], :VaporDiffusivities)
+        @test haskey(model.data_domain, :vapor_diffusion, Cells())
         @test case.forces[end][:Facility].limits[:WELL].bhp ≈ 5e6
-        # Different component coefficients act on mole fractions. Reverse the
+        # Different component coefficients act on mass fractions. Reverse the
         # face orientation and remove gas to check conservation and phase cutoff.
         mw = MultiComponentFlash.molar_masses(sys.equation_of_state)
         x = [1.0, 0.0, 0.0]
         yl, yr = [0.01, 0.89, 0.10], [0.01, 0.79, 0.20]
-        flash(y) = FlashedMixture2Phase(MultiComponentFlash.two_phase_lv,
-            ones(3), 0.5, x, y, 1.0, 1.0)
+        mass_fraction(z) = mw.*z/sum(mw.*z)
         diffusion_state = (
-            FlashResults = [flash(yl), flash(yr)],
-            MolarDiffusivities = case.parameters[:Reservoir][:MolarDiffusivities],
-            PhaseMassDensities = [1000.0 1000.0; 100*sum(mw.*yl) 200*sum(mw.*yr)],
+            LiquidMassFractions = hcat(mass_fraction(x), mass_fraction(x)),
+            VaporMassFractions = hcat(mass_fraction(yl), mass_fraction(yr)),
+            VaporDiffusivities = case.parameters[:Reservoir][:VaporDiffusivities],
+            PhaseMassDensities = [1000.0 1000.0; 5.0 7.0],
             Saturations = [0.2 0.4; 0.8 0.6])
         q0 = JutulDarcy.SVector{3}(0.0, 0.0, 0.0)
-        flux(gradient, state = diffusion_state) = JutulDarcy.add_molar_diffusive_flux(
-            q0, 1, state, model, gradient, Val(3))
+        function flux(gradient, state = diffusion_state)
+            D = (JutulDarcy.phase_diffusivities(state, LiquidPhase()),
+                 JutulDarcy.phase_diffusivities(state, VaporPhase()))
+            return JutulDarcy.add_diffusive_component_flux(q0, state.Saturations,
+                state.PhaseMassDensities, state.LiquidMassFractions,
+                state.VaporMassFractions, D, 1, gradient, (1, 2), Val(3))
+        end
         q = flux(TPFA(1, 2, 1))
-        @test q[1] == 0.0
+        @test q[1] > 0.0
         @test q[2] > 0.0 && q[3] < 0.0
-        @test (q[2]/mw[2])/(q[3]/mw[3]) ≈ -0.013/0.052
+        Y = diffusion_state.VaporMassFractions
+        expected = -diffusion_state.VaporDiffusivities[:, 1].*0.6.*6.0.*(Y[:, 2] - Y[:, 1])
+        @test q ≈ expected
         @test flux(TPFA(2, 1, -1)) ≈ -q
         @test all(iszero, flux(TPFA(1, 2, 1),
             merge(diffusion_state, (Saturations = [0.2 1.0; 0.8 0.0],))))
@@ -161,6 +169,14 @@ TSTEP
         @test length(result.states) == 3
         @test all(s -> all(isfinite, s[:Pressure]), result.states)
         @test all(s -> maximum(abs, sum(s[:Saturations]; dims = 1) .- 1) < 1e-8, result.states)
+        # Phase-prefixed component arrays must also reach the kernel flux.
+        kernel_result = simulate_reservoir(case; mode = :ka, linear_solver = nothing,
+            info_level = -1, initial_dt = 864.0, tol_cnv = 1e-5)
+        @test length(kernel_result.states) == length(result.states)
+        for (state, reference) in zip(kernel_result.states, result.states)
+            @test state[:Pressure] ≈ reference[:Pressure] rtol = 1e-7
+            @test state[:OverallMoleFractions] ≈ reference[:OverallMoleFractions] rtol = 1e-7
+        end
     end
 end
 

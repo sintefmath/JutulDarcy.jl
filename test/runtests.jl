@@ -88,6 +88,10 @@ end
     include("compositional.jl")
 end
 
+@testitem "Component diffusion parameters and fluxes" begin
+    include("diffusion.jl")
+end
+
 @testitem "GASWAT deck physics" begin
     include("gas_water.jl")
 end
