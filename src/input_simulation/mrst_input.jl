@@ -659,6 +659,15 @@ function deck_pc(props; oil, water, gas, satnum = nothing, is_co2 = false)
         out = Tuple(PC)
         return (out, found)
     end
+    if water && gas && !oil
+        if haskey(props, "GSF")
+            interp_wg, found = get_pc(props["GSF"], 3)
+            if found
+                return SimpleCapillaryPressure((interp_wg,), regions = satnum)
+            end
+        end
+        return nothing
+    end
     pc_impl = Vector{Any}()
     if water && oil
         if haskey(props, "SWOF")
@@ -689,21 +698,7 @@ function deck_pc(props; oil, water, gas, satnum = nothing, is_co2 = false)
     else
         found_pcog = false
     end
-    if water && gas && !oil
-        if haskey(props, "WSF") && false
-            interp_wg, found_pcwg = get_pc(props["WSF"], 3, sgn = -1)
-            if found_pcwg
-                jutul_message("WSF", "WSF capillary pressure is not well tested.", color = :yellow)
-            end
-            push!(pc_impl, interp_wg)
-        else
-            push!(pc_impl, nothing)
-            found_pcwg = false
-        end
-    else
-        found_pcwg = false
-    end
-    found = found_pcow || found_pcog || found_pcwg
+    found = found_pcow || found_pcog
     if found
         return SimpleCapillaryPressure(tuple(pc_impl...), regions = satnum)
     else

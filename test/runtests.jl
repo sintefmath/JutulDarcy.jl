@@ -88,6 +88,10 @@ end
     include("compositional.jl")
 end
 
+@testitem "GASWAT deck physics" begin
+    include("gas_water.jl")
+end
+
 @testitem "Two-phase flash derivatives" begin
     include("flash_implicit_derivatives.jl")
 end

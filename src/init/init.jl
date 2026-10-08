@@ -448,7 +448,38 @@ function equilibrium_phase_density(p, z, ::Val{ph}, rho, T_z, fake_state, model,
     return phase_density
 end
 
+function equil_temperature_function(datafile, ereg)
+    props = datafile["PROPS"]
+    sol = datafile["SOLUTION"]
+    if haskey(props, "RTEMP") || haskey(sol, "RTEMP")
+        if haskey(props, "RTEMP")
+            rtmp = first(props["RTEMP"])
+        else
+            rtmp = first(sol["RTEMP"])
+        end
+        temperature = convert_to_si(rtmp, :Celsius)
+        return z -> temperature
+    end
+    T_z = missing
+    for section in (props, sol)
+        if haskey(section, "TEMPVD") || haskey(section, "RTEMPVD")
+            if haskey(section, "TEMPVD")
+                table = section["TEMPVD"][ereg]
+            else
+                table = section["RTEMPVD"][ereg]
+            end
+            depths = table[:, 1]
+            temperatures = convert_to_si.(table[:, 2], :Celsius)
+            T_z = get_1d_interpolator(depths, temperatures)
+        end
+    end
+    return T_z
+end
+
 function parse_state0_equil(model, datafile; normalize = :sum, cell_nz = 1)
+    if haskey(datafile["RUNSPEC"], "GASWAT")
+        return parse_state0_gas_water_equil(model, datafile; cell_nz = cell_nz)
+    end
     sys = model.system
     d = model.data_domain
 
@@ -538,29 +569,7 @@ function parse_state0_equil(model, datafile; normalize = :sum, cell_nz = 1)
     inits = []
     inits_cells = []
     for ereg in 1:nequil
-        T_z = missing
-        if haskey(sol, "RTEMP") || haskey(props, "RTEMP")
-            if haskey(props, "RTEMP")
-                rtmp = props["RTEMP"][1]
-            else
-                rtmp = sol["RTEMP"][1]
-            end
-            Ti = convert_to_si(rtmp, :Celsius)
-            T_z = z -> Ti
-        else
-            for sect in [props, sol]
-                if haskey(sect, "TEMPVD") || haskey(sect, "RTEMPVD")
-                    if haskey(sect, "TEMPVD")
-                        tvd_kw = sect["TEMPVD"][ereg]
-                    else
-                        tvd_kw = sect["RTEMPVD"][ereg]
-                    end
-                    z = vec(tvd_kw[:, 1])
-                    Tvd = vec(tvd_kw[:, 2] .+ 273.15)
-                    T_z = get_1d_interpolator(z, Tvd)
-                end
-            end
-        end
+        T_z = equil_temperature_function(datafile, ereg)
         eq = equil[ereg]
         cells_eqlnum = findall(isequal(ereg), eqlnum)
         for sreg in 1:nsat
@@ -1358,3 +1367,5 @@ function equil_setup_density_function(rho, T_z, fake_state, model, rs, rv, compo
     end
     return F
 end
+
+include("gas_water.jl")

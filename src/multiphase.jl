@@ -282,6 +282,20 @@ function Jutul.default_parameter_values(data_domain, model, param::Diffusivities
     return T
 end
 
+"""Component diffusion transmissibilities for the deck's mole-fraction formulation."""
+struct MolarDiffusivities{C} <: VectorVariables
+    coefficients::C
+end
+Jutul.associated_entity(::MolarDiffusivities) = Faces()
+Jutul.values_per_entity(model, p::MolarDiffusivities) = length(p.coefficients)
+Jutul.minimum_value(::MolarDiffusivities) = 0.0
+
+function Jutul.default_parameter_values(domain, model, p::MolarDiffusivities, symb)
+    # Diffusive conductance uses area/distance and porosity, rather than permeability.
+    trans = compute_face_trans(physical_representation(domain), domain[:porosity])
+    return collect(p.coefficients).*trans'
+end
+
 """
     TwoPointGravityDifference()
 

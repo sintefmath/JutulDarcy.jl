@@ -17,6 +17,31 @@
     mass_fluxes = darcy_phase_mass_fluxes(face, state, model, flux_type, kgrad, upw)
     q = compositional_fluxes!(q, face, state, S, ρ, X, Y, D, model,
         flux_type, kgrad, mass_fluxes, upw, aqua, ph_ix, component_count)
+    if haskey(state, :MolarDiffusivities)
+        q = add_molar_diffusive_flux(q, face, state, model, kgrad, component_count)
+    end
+    return q
+end
+
+function add_molar_diffusive_flux(q, face, state, model, grad, ::Val{N}) where N
+    eos = model.system.equation_of_state
+    mw = MultiComponentFlash.molar_masses(eos)
+    D = state.MolarDiffusivities
+    left, right = Jutul.cell_pair(grad)
+    for (phase, phase_name) in ((liquid_phase_index(model.system), Val(:liquid)),
+                              (vapor_phase_index(model.system), Val(:vapor)))
+        function concentration(cell)
+            fractions = phase_data(state.FlashResults[cell], phase_name).mole_fractions
+            return state.PhaseMassDensities[phase, cell]/sum(mw .* fractions)
+        end
+        c = face_average(concentration, grad)
+        s = min(state.Saturations[phase, left], state.Saturations[phase, right])
+        for i in 1:N
+            mole_fraction(cell) = phase_data(state.FlashResults[cell], phase_name).mole_fractions[i]
+            dq = -D[(phase - 1)*N + i, face]*s*c*mw[i]*gradient(mole_fraction, grad)
+            q = setindex(q, q[i] + dq, i)
+        end
+    end
     return q
 end
 

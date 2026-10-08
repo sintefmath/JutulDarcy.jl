@@ -218,6 +218,10 @@ function setup_case_from_parsed_data(datafile;
             end
             if k == :Reservoir
                 set_deck_specialization!(submodel, rs, props, domain[:satnum], oil, water, gas)
+                if get(rs, "DIFFUSE", false) && is_compositional
+                    diffusivities = deck_molar_diffusivities(props, sys, is_wg)
+                    set_parameters!(submodel; MolarDiffusivities = diffusivities)
+                end
             end
         end
     end
@@ -1432,11 +1436,29 @@ function set_scaling_arguments!(out, active, data_file)
     return out
 end
 
+function deck_molar_diffusivities(props, sys, is_gaswat)
+    ncomp = MultiComponentFlash.number_of_components(sys.equation_of_state)
+    coefficients = zeros(ncomp, number_of_phases(sys))
+    if is_gaswat
+        liquid_keyword = "DIFFCWAT"
+    else
+        liquid_keyword = "DIFFCOIL"
+    end
+    for (keyword, phase) in ((liquid_keyword, liquid_phase_index(sys)),
+                            ("DIFFCGAS", vapor_phase_index(sys)))
+        if haskey(props, keyword)
+            coefficients[:, phase] .= props[keyword]
+        end
+    end
+    return MolarDiffusivities(Tuple(vec(coefficients)))
+end
+
 function parse_physics_types(datafile; pvt_region = missing)
     runspec = datafile["RUNSPEC"]
     props = datafile["PROPS"]
     has(name) = haskey(runspec, name) && runspec[name] == true
     has_wat = has("WATER")
+    is_gaswat = has("GASWAT")
     has_oil = has("OIL")
     has_gas = has("GAS")
     has_disgas = has("DISGAS")
@@ -1500,7 +1522,7 @@ function parse_physics_types(datafile; pvt_region = missing)
         scaling = missing
     end
 
-    if has_wat
+    if has_wat && !is_gaswat
         water_pvt = deck_pvt_water(props, scaling = scaling)
         push!(pvt, water_pvt)
         push!(phases, AqueousPhase())
@@ -1510,7 +1532,11 @@ function parse_physics_types(datafile; pvt_region = missing)
     if is_compositional
         push!(pvt, missing)
         push!(phases, LiquidPhase())
-        push!(rhoS, rhoOS)
+        if is_gaswat
+            push!(rhoS, rhoWS)
+        else
+            push!(rhoS, rhoOS)
+        end
         push!(pvt, missing)
         push!(phases, VaporPhase())
         push!(rhoS, rhoGS)
@@ -1558,6 +1584,11 @@ function parse_physics_types(datafile; pvt_region = missing)
             end
         else
             eos_type = PengRobinson()
+        end
+        if is_gaswat
+            eos_type isa PengRobinson || throw(ArgumentError("GASWAT requires the Peng-Robinson EOS."))
+            eos_type = MultiComponentFlash.SoreideWhitson(mixture;
+                molality = get(props, "SALINITY", 0.0))
         end
         if haskey(props, "SSHIFT")
             vshift = Tuple(first(props["SSHIFT"]))
@@ -1708,12 +1739,14 @@ function parse_control_steps(runspec, props, schedule, sys)
         push!(cstep, ctrl_ix)
     end
 
-    skip = ("WELLSTRE", "WINJGAS", "GINJGAS", "GRUPINJE", "WELLINJE", "WEFAC", "WTEMP", "WPIMULT", "WPOLYMER")
+    skip = ("WELLSTRE", "WINJGAS", "GINJGAS", "GRUPINJE", "WELLINJE", "WEFAC", "WTEMP", "WPIMULT", "WPOLYMER", "FBHPDEF")
     bad_kw = Dict{String, Bool}()
     streams = setup_well_streams()
+    default_bhp = nothing
     for (ctrl_ix, step) in enumerate(steps)
         found_time = false
         streams = parse_well_streams_for_step!(streams, step, props)
+        default_bhp = get(step, "FBHPDEF", default_bhp)
         if haskey(step, "WEFAC")
             for wk in step["WEFAC"]
                 well_factor[wk[1]] = wk[2]
@@ -1823,6 +1856,7 @@ function parse_control_steps(runspec, props, schedule, sys)
                 for wk in kword
                     name = wk[1]
                     controls[name], limits[name], status[name] = keyword_to_control(sys, streams, wk, key,
+                        default_bhp = default_bhp,
                         factor = well_factor[name],
                         temperature = well_temp[name],
                         polymer = polymer[name],
@@ -1924,11 +1958,16 @@ function parse_well_streams_for_step!(streams, step, props)
     return (streams = streams, wells = well_streams)
 end
 
-function keyword_to_control(sys, streams, kw, k::String; kwarg...)
-    return keyword_to_control(sys, streams, kw, Val(Symbol(k)); kwarg...)
+function keyword_to_control(sys, streams, kw, k::String; default_bhp = nothing, kwarg...)
+    keyword = Val(Symbol(k))
+    if k in ("WCONINJE", "WCONPROD")
+        return keyword_to_control(sys, streams, kw, keyword; default_bhp, kwarg...)
+    else
+        return keyword_to_control(sys, streams, kw, keyword; kwarg...)
+    end
 end
 
-function keyword_to_control(sys, streams, kw, ::Val{:WCONPROD}; kwarg...)
+function keyword_to_control(sys, streams, kw, ::Val{:WCONPROD}; default_bhp = nothing, kwarg...)
     rho_s = reference_densities(sys)
     phases = get_phases(sys)
 
@@ -1940,6 +1979,9 @@ function keyword_to_control(sys, streams, kw, ::Val{:WCONPROD}; kwarg...)
     lrat = kw[7]
     resv = kw[8]
     bhp = kw[9]
+    if !isnothing(default_bhp) && !isfinite(bhp)
+        bhp = default_bhp[1]
+    end
     return producer_control(sys, flag, ctrl, orat, wrat, grat, lrat, bhp; resv = resv, kwarg...)
 end
 
@@ -2211,7 +2253,7 @@ function select_injector_mixture_spec(sys::Symbol, name, streams, type)
     return select_injector_mixture_spec(Val(sys), name, streams, type)
 end
 
-function keyword_to_control(sys, streams, kw, ::Val{:WCONINJE}; kwarg...)
+function keyword_to_control(sys, streams, kw, ::Val{:WCONINJE}; default_bhp = nothing, kwarg...)
     # TODO: Expand to handle mixture etc.
     name = kw[1]
     type = kw[2]
@@ -2220,6 +2262,9 @@ function keyword_to_control(sys, streams, kw, ::Val{:WCONINJE}; kwarg...)
     surf_rate = kw[5]
     res_rate = kw[6]
     bhp = kw[7]
+    if !isnothing(default_bhp) && !isfinite(bhp)
+        bhp = default_bhp[2]
+    end
     return injector_control(sys, streams, name, flag, type, ctype, surf_rate, res_rate, bhp; kwarg...)
 end
 
