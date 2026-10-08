@@ -251,8 +251,9 @@ phases present in the model. The corresponding data-domain keys are
 prefixes for vapor and aqueous phases. Matrices have one row per component,
 in the system's component order. Fluxes use phase mass-fraction gradients.
 
-Unprefixed `diffusion` and `diffusivities` retain the legacy per-phase format;
-each phase row is expanded over components during parameter initialization.
+Unprefixed `diffusion` and `diffusivities` retain the pre-0.4 JutulDarcy
+per-phase format; each phase row is expanded over components during parameter
+initialization.
 """
 struct Diffusivities <: VectorVariables end
 Jutul.variable_scale(::Diffusivities) = 1e-10
