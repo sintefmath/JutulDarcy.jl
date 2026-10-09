@@ -232,6 +232,14 @@ module JutulDarcy
     include("DFM/utils.jl")
     export fracture_domain, setup_fractured_reservoir_model
 
+    # Embedded Fracture Models
+    include("EFM/EFM.jl")
+    using .EFM
+    export AbstractEmbeddedFracture, PolygonFracture, RectangleFracture
+    export EllipticalFracture, EllipsoidFracture, fracture_polygon
+    export embedded_fracture_domain, embedded_fracture_mesh
+    export combined_fracture_domain, setup_embedded_fracture_model
+
     # Tracers
     include("Tracers/Tracers.jl")
     import JutulDarcy.Tracers: SinglePhaseTracer, MultiPhaseTracer, add_tracers_to_model!, number_of_tracers

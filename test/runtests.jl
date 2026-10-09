@@ -124,5 +124,9 @@ end
     include("dfm.jl")
 end
 
+@testitem "EFM" begin
+    include("efm.jl")
+end
+
 @run_package_tests
 nothing

@@ -361,6 +361,7 @@ function build_jutul_darcy_docs(
                 ],
                 "Fundamentals" => [
                     "man/highlevel.md",
+                    "man/embedded_fractures.md",
                     "man/basics/units.md",
                     "man/basics/input_files.md",
                     "man/basics/systems.md",
