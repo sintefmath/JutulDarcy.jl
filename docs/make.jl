@@ -392,6 +392,7 @@ function build_jutul_darcy_docs(
         "Examples" => examples_markdown,
         "Validation" => [
             "man/validation.md",
+            "man/efm_report.md",
             "Models" => sort(validation_markdown),
         ]
     ]

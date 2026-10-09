@@ -101,6 +101,9 @@ preserves the original mesh, and rejects nonpositive remaining cell volumes.
 
 ## Examples and validation
 
+See the [EFM results report](efm_report.md) for the main validation findings
+and remaining limitations.
+
 See `examples/fractures/embedded_fractures.jl` for model setup and simulation.
 `examples/fractures/efm_cornerpoint_benchmark.jl` provides a seeded benchmark
 with 1,200 rectangles, ellipses, and concave polygons on a full corner-point
