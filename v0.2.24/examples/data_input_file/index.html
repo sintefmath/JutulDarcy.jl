@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Simulating Eclipse/DATA input files · JutulDarcy.jl</title><meta name="title" content="Simulating Eclipse/DATA input files · JutulDarcy.jl"/><meta property="og:title" content="Simulating Eclipse/DATA input files · JutulDarcy.jl"/><meta property="twitter:title" content="Simulating Eclipse/DATA input files · JutulDarcy.jl"/><meta name="description" content="Documentation for JutulDarcy.jl."/><meta property="og:description" content="Documentation for JutulDarcy.jl."/><meta property="twitter:description" content="Documentation for JutulDarcy.jl."/><meta property="og:url" content="https://sintefmath.github.io/JutulDarcy.jl/examples/data_input_file/"/><meta property="twitter:url" content="https://sintefmath.github.io/JutulDarcy.jl/examples/data_input_file/"/><link rel="canonical" href="https://sintefmath.github.io/JutulDarcy.jl/examples/data_input_file/"/><script data-outdated-warner src="../../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../search_index.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script><link href="../../assets/citations.css" rel="stylesheet" type="text/css"/></head><body><div id="documenter"><nav class="docs-sidebar"><a class="docs-logo" href="../../"><img src="../../assets/logo.png" alt="JutulDarcy.jl logo"/></a><div class="docs-package-name"><span class="docs-autofit"><a href="../../">JutulDarcy.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><span class="tocitem">Introduction</span><ul><li><a class="tocitem" href="../../">JutulDarcy.jl</a></li><li><a class="tocitem" href="../../man/intro/">Getting started</a></li></ul></li><li><span class="tocitem">Examples</span><ul><li><a class="tocitem" href="../two_phase_gravity_segregation/">Gravity segregation</a></li><li><a class="tocitem" href="../two_phase_buckley_leverett/">Two-phase Buckley-Leverett</a></li><li><a class="tocitem" href="../two_phase_unstable_gravity/">Gravity circulation with CPR preconditioner</a></li><li><a class="tocitem" href="../wells_intro/">Intro to wells</a></li><li><a class="tocitem" href="../co2_sloped/">CO2 injection in saline aquifer</a></li><li class="is-active"><a class="tocitem" href>Simulating Eclipse/DATA input files</a><ul class="internal"><li><a class="tocitem" href="#Set-up-and-run-a-simulation"><span>Set up and run a simulation</span></a></li><li><a class="tocitem" href="#Show-the-input-data"><span>Show the input data</span></a></li><li><a class="tocitem" href="#Plot-the-simulation-model"><span>Plot the simulation model</span></a></li><li><a class="tocitem" href="#Plot-the-well-responses"><span>Plot the well responses</span></a></li><li><a class="tocitem" href="#Example-on-GitHub"><span>Example on GitHub</span></a></li></ul></li><li><a class="tocitem" href="../five_spot_ensemble/">Quarter-five-spot with variation</a></li><li><a class="tocitem" href="../co2_brine_2d_vertical/">Intro to compositional flow</a></li><li><a class="tocitem" href="../compositional_5components/">Compositional with five components</a></li><li><a class="tocitem" href="../optimize_simple_bl/">Parameter optimization of Buckley-Leverett</a></li><li><a class="tocitem" href="../validation_spe1/">Validation: SPE1</a></li><li><a class="tocitem" href="../validation_spe9/">Validation: SPE9</a></li><li><a class="tocitem" href="../validation_egg/">Validation: Egg</a></li><li><a class="tocitem" href="../validation_olympus_1/">Validation: OLYMPUS 1</a></li><li><a class="tocitem" href="../validation_norne_nohyst/">Validation: Norne</a></li><li><a class="tocitem" href="../validation_mrst/">Validation: MRST input files</a></li></ul></li><li><span class="tocitem">Manual</span><ul><li><a class="tocitem" href="../../man/highlevel/">High-level API</a></li><li><a class="tocitem" href="../../man/basics/input_files/">Input formats</a></li><li><a class="tocitem" href="../../man/basics/forces/">Driving forces</a></li><li><a class="tocitem" href="../../man/basics/systems/">Supported physical systems</a></li><li><a class="tocitem" href="../../man/basics/wells/">Wells and controls</a></li><li><a class="tocitem" href="../../man/basics/solution/">Solving the equations</a></li><li><a class="tocitem" href="../../man/basics/primary/">Primary variables</a></li><li><a class="tocitem" href="../../man/basics/secondary/">Secondary variables (properties)</a></li><li><a class="tocitem" href="../../man/basics/parameters/">Parameters</a></li><li><a class="tocitem" href="../../man/basics/plotting/">Plotting and visualization</a></li></ul></li><li><span class="tocitem">Advanced usage</span><ul><li><a class="tocitem" href="../../man/advanced/mpi/">Multi-threading and MPI support</a></li><li><a class="tocitem" href="../../man/advanced/compiled/">Standalone reservoir simulator</a></li></ul></li><li><span class="tocitem">Reference</span><ul><li><a class="tocitem" href="../../ref/jutul/">Jutul functions</a></li></ul></li><li><span class="tocitem">Additional information </span><ul><li><a class="tocitem" href="../../extras/refs/">References</a></li><li><a class="tocitem" href="../../extras/faq/">FAQ</a></li></ul></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Examples</a></li><li class="is-active"><a href>Simulating Eclipse/DATA input files</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Simulating Eclipse/DATA input files</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/sintefmath/JutulDarcy.jl/blob/main/examples/data_input_file.jl#" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="Simulating-Eclipse/DATA-input-files"><a class="docs-heading-anchor" href="#Simulating-Eclipse/DATA-input-files">Simulating Eclipse/DATA input files</a><a id="Simulating-Eclipse/DATA-input-files-1"></a><a class="docs-heading-anchor-permalink" href="#Simulating-Eclipse/DATA-input-files" title="Permalink"></a></h1><p>The DATA format is commonly used in reservoir simulation. JutulDarcy can set up cases on this format and includes a fully featured grid builder for corner-point grids. Once a case has been set up, it uses the same types as a regular JutulDarcy simulation, allowing modification and use of the case in differentiable workflows.</p><p>We begin by loading the SPE9 dataset via the GeoEnergyIO package.</p><pre><code class="language-julia hljs">using JutulDarcy
+pth = JutulDarcy.GeoEnergyIO.test_input_file_path(&quot;SPE9&quot;, &quot;SPE9.DATA&quot;)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">&quot;/home/runner/.julia/artifacts/c1063fdc96b21cbc18ea8a3bd1a1281aa04ffa3f/SPE9.DATA&quot;</code></pre><h2 id="Set-up-and-run-a-simulation"><a class="docs-heading-anchor" href="#Set-up-and-run-a-simulation">Set up and run a simulation</a><a id="Set-up-and-run-a-simulation-1"></a><a class="docs-heading-anchor-permalink" href="#Set-up-and-run-a-simulation" title="Permalink"></a></h2><p>If we do not need the case, we could also have done: ws, states = simulate<em>data</em>file(pth)</p><pre><code class="language-julia hljs">case = setup_case_from_data_file(pth)
+ws, states = simulate_reservoir(case)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">ReservoirSimResult with 90 entries:
+
+  wells (26 present):
+    :INJE1
+    :PRODU25
+    :PRODU16
+    :PRODU20
+    :PRODU10
+    :PRODU12
+    :PRODU22
+    :PRODU14
+    :PRODU6
+    :PRODU7
+    :PRODU9
+    :PRODU24
+    :PRODU3
+    :PRODU23
+    :PRODU5
+    :PRODU11
+    :PRODU17
+    :PRODU4
+    :PRODU15
+    :PRODU2
+    :PRODU19
+    :PRODU21
+    :PRODU13
+    :PRODU8
+    :PRODU26
+    :PRODU18
+    Results per well:
+       :wrat =&gt; Vector{Float64} of size (90,)
+       :Aqueous_mass_rate =&gt; Vector{Float64} of size (90,)
+       :orat =&gt; Vector{Float64} of size (90,)
+       :bhp =&gt; Vector{Float64} of size (90,)
+       :lrat =&gt; Vector{Float64} of size (90,)
+       :mass_rate =&gt; Vector{Float64} of size (90,)
+       :rate =&gt; Vector{Float64} of size (90,)
+       :Vapor_mass_rate =&gt; Vector{Float64} of size (90,)
+       :control =&gt; Vector{Symbol} of size (90,)
+       :Liquid_mass_rate =&gt; Vector{Float64} of size (90,)
+       :grat =&gt; Vector{Float64} of size (90,)
+
+  states (Vector with 90 entries, reservoir variables for each state)
+    :BlackOilUnknown =&gt; Vector{BlackOilX{Float64}} of size (9000,)
+    :Saturations =&gt; Matrix{Float64} of size (3, 9000)
+    :Pressure =&gt; Vector{Float64} of size (9000,)
+    :Rs =&gt; Vector{Float64} of size (9000,)
+    :ImmiscibleSaturation =&gt; Vector{Float64} of size (9000,)
+    :TotalMasses =&gt; Matrix{Float64} of size (3, 9000)
+
+  time (report time for each state)
+     Vector{Float64} of length 90
+
+  result (extended states, reports)
+     SimResult with 90 entries
+
+  extra
+     Dict{Any, Any} with keys :simulator, :config
+
+  Completed at Jun. 05 2024 14:06 after 11 seconds, 408 milliseconds, 703.6 microseconds.</code></pre><h2 id="Show-the-input-data"><a class="docs-heading-anchor" href="#Show-the-input-data">Show the input data</a><a id="Show-the-input-data-1"></a><a class="docs-heading-anchor-permalink" href="#Show-the-input-data" title="Permalink"></a></h2><p>The input data takes the form of a Dict:</p><pre><code class="language-julia hljs">case.input_data</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">Dict{String, Any} with 6 entries:
+  &quot;RUNSPEC&quot;  =&gt; OrderedDict{String, Any}(&quot;TITLE&quot;=&gt;&quot;SPE 9&quot;, &quot;DIMENS&quot;=&gt;[24, 25, 1…
+  &quot;GRID&quot;     =&gt; OrderedDict{String, Any}(&quot;cartDims&quot;=&gt;(24, 25, 15), &quot;CURRENT_BOX…
+  &quot;PROPS&quot;    =&gt; OrderedDict{String, Any}(&quot;PVTW&quot;=&gt;Any[[2.48211e7, 1.0034, 4.3511…
+  &quot;SUMMARY&quot;  =&gt; OrderedDict{String, Any}()
+  &quot;SCHEDULE&quot; =&gt; Dict{String, Any}(&quot;STEPS&quot;=&gt;OrderedDict{String, Any}[OrderedDict…
+  &quot;SOLUTION&quot; =&gt; OrderedDict{String, Any}(&quot;EQUIL&quot;=&gt;Any[[2753.87, 2.48211e7, 3032…</code></pre><p>We can also examine the RUNSPEC section</p><pre><code class="language-julia hljs">case.input_data[&quot;RUNSPEC&quot;]</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">OrderedCollections.OrderedDict{String, Any} with 13 entries:
+  &quot;TITLE&quot;    =&gt; &quot;SPE 9&quot;
+  &quot;DIMENS&quot;   =&gt; [24, 25, 15]
+  &quot;OIL&quot;      =&gt; true
+  &quot;WATER&quot;    =&gt; true
+  &quot;GAS&quot;      =&gt; true
+  &quot;DISGAS&quot;   =&gt; true
+  &quot;FIELD&quot;    =&gt; true
+  &quot;START&quot;    =&gt; DateTime(&quot;2015-01-01T00:00:00&quot;)
+  &quot;WELLDIMS&quot; =&gt; [26, 5, 1, 26, 5, 10, 5, 4, 3, 0, 1, 1, 10, 201]
+  &quot;TABDIMS&quot;  =&gt; [1, 1, 40, 20, 1, 20, 20, 1, 1, -1  …  -1, 10, 10, 10, -1, 5, 5…
+  &quot;EQLDIMS&quot;  =&gt; [1, 100, 50, 1, 50]
+  &quot;UNIFIN&quot;   =&gt; true
+  &quot;UNIFOUT&quot;  =&gt; true</code></pre><h2 id="Plot-the-simulation-model"><a class="docs-heading-anchor" href="#Plot-the-simulation-model">Plot the simulation model</a><a id="Plot-the-simulation-model-1"></a><a class="docs-heading-anchor-permalink" href="#Plot-the-simulation-model" title="Permalink"></a></h2><p>These plot are interactive when run outside of the documentations.</p><pre><code class="language-julia hljs">using GLMakie
+plot_reservoir(case.model, states)</code></pre><img src="a4f0baf3.png" alt="Example block output"/><h2 id="Plot-the-well-responses"><a class="docs-heading-anchor" href="#Plot-the-well-responses">Plot the well responses</a><a id="Plot-the-well-responses-1"></a><a class="docs-heading-anchor-permalink" href="#Plot-the-well-responses" title="Permalink"></a></h2><pre><code class="language-julia hljs">plot_well_results(ws)</code></pre><img src="9fa54d6f.png" alt="Example block output"/><h2 id="Example-on-GitHub"><a class="docs-heading-anchor" href="#Example-on-GitHub">Example on GitHub</a><a id="Example-on-GitHub-1"></a><a class="docs-heading-anchor-permalink" href="#Example-on-GitHub" title="Permalink"></a></h2><p>If you would like to run this example yourself, it can be downloaded from the JutulDarcy.jl GitHub repository <a href="https://github.com/sintefmath/JutulDarcy.jl/blob/main/examples/data_input_file.jl">as a script</a>, or as a <a href="https://github.com/sintefmath/JutulDarcy.jl/blob/gh-pages/dev/examples/data_input_file.ipynb">Notebook</a></p><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../co2_sloped/">« CO2 injection in saline aquifer</a><a class="docs-footer-nextpage" href="../five_spot_ensemble/">Quarter-five-spot with variation »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.4.1 on <span class="colophon-date" title="Wednesday 5 June 2024 14:49">Wednesday 5 June 2024</span>. Using Julia version 1.10.4.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
