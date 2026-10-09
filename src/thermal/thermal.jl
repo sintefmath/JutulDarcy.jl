@@ -112,7 +112,7 @@ struct PressureTemperatureDependentInternalEnergy{T, R} <: PhaseVariables
     tab::T
     regions::R
     function PressureTemperatureDependentInternalEnergy(tab; regions = nothing)
-        tab = region_wrap(tab, regions)
+        tab = region_wrap(remove_constant_temperature_caps(tab), regions)
         new{typeof(tab), typeof(regions)}(tab, regions)
     end
     function PressureTemperatureDependentInternalEnergy(tab::T, regions::R,
@@ -137,7 +137,58 @@ of `cell`. Returns per-phase values (immiscible) or per-component values
 """
 function tabulated_internal_energy(var::PressureTemperatureDependentInternalEnergy, p, T, cell)
     interpolator = table_by_region(var.tab, region(var.regions, cell))
-    return interpolator(p, T)
+    return internal_energy_with_temperature_extrapolation(interpolator, p, T)
+end
+
+"""
+    remove_constant_temperature_caps(tab)
+
+Tables are often padded with a duplicate first/last temperature column to get
+constant extrapolation. For internal energy, this gives zero heat capacity
+(dU/dT = 0) in the padded interval and a singular energy equation if the
+temperature enters it. Replace such columns with linear extrapolation from the
+neighbouring interval.
+"""
+remove_constant_temperature_caps(tab) = tab
+remove_constant_temperature_caps(tab::Union{Tuple, AbstractVector}) = map(remove_constant_temperature_caps, tab)
+
+function remove_constant_temperature_caps(tab::Jutul.BilinearInterpolant)
+    Y = tab.Y
+    n = length(Y)
+    n >= 3 || return tab
+    F = copy(tab.F)
+    if all(F[:, 1] .== F[:, 2])
+        F[:, 1] = F[:, 2] .- (F[:, 3] .- F[:, 2]).*((Y[2] - Y[1])/(Y[3] - Y[2]))
+    end
+    if all(F[:, n] .== F[:, n-1])
+        F[:, n] = F[:, n-1] .+ (F[:, n-1] .- F[:, n-2]).*((Y[n] - Y[n-1])/(Y[n-1] - Y[n-2]))
+    end
+    return Jutul.BilinearInterpolant(tab.X, Y, F)
+end
+
+function internal_energy_with_temperature_extrapolation(tab, p, T)
+    return tab(p, T)
+end
+
+function internal_energy_with_temperature_extrapolation(tab::Jutul.BilinearInterpolant, p, T)
+    # Tables are constant outside their range, which gives zero heat capacity
+    # (dU/dT = 0) and a singular energy equation if the temperature leaves the
+    # table during the nonlinear iterations. Extrapolate linearly in temperature
+    # using the slope of the first/last table interval instead.
+    Y = tab.Y
+    T_lo, T_hi = first(Y), last(Y)
+    if T < T_lo
+        U_lo = tab(p, T_lo)
+        dUdT = (tab(p, Y[2]) - U_lo)/(Y[2] - T_lo)
+        U = U_lo + dUdT*(T - T_lo)
+    elseif T > T_hi
+        U_hi = tab(p, T_hi)
+        dUdT = (U_hi - tab(p, Y[end-1]))/(T_hi - Y[end-1])
+        U = U_hi + dUdT*(T - T_hi)
+    else
+        U = tab(p, T)
+    end
+    return U
 end
 
 struct TemperatureDependentVariable{T, R, N} <: VectorVariables
@@ -616,7 +667,7 @@ function add_thermal_to_facility!(facility)
 end
 
 """
-    set_tabulated_internal_energy!(model, tab; regions = nothing)
+    set_tabulated_internal_energy!(model, tab; regions = nothing, temperature_min = 200.0)
 
 Use tabulated fluid internal energy `tab(p, T)` (see
 [`PressureTemperatureDependentInternalEnergy`](@ref)) for the reservoir and all
@@ -624,6 +675,14 @@ wells in `model`. The `ComponentHeatCapacity` variable is removed as it is no
 longer used, so that it cannot be mixed with the tabulated values. Note that
 `tab` must give the internal energy (not the enthalpy) and that all models must
 use the same table so that the reference state is consistent.
+
+The hard lower limit of the `Temperature` primary variable is lowered to
+`temperature_min` (if it is higher). With a realistic internal energy, the
+temperature can drop below 0 °C during the nonlinear iterations, for instance
+from cooling when liquid is compressed at constant enthalpy (Joule-Thomson
+effect) during large transient pressure changes. A limit at 0 °C then makes the
+energy equation impossible to satisfy. The internal energy is extrapolated
+linearly outside the table range so that such iterates are well-defined.
 """
 function set_tabulated_internal_energy!(model::MultiModel, tab; kwarg...)
     for (k, m) in pairs(model.models)
@@ -634,7 +693,7 @@ function set_tabulated_internal_energy!(model::MultiModel, tab; kwarg...)
     return model
 end
 
-function set_tabulated_internal_energy!(model::SimulationModel, tab; regions = nothing)
+function set_tabulated_internal_energy!(model::SimulationModel, tab; regions = nothing, temperature_min = 200.0)
     if !haskey(Jutul.get_secondary_variables(model), :FluidInternalEnergy)
         throw(ArgumentError("Model does not have FluidInternalEnergy, is it thermal?"))
     end
@@ -645,6 +704,16 @@ function set_tabulated_internal_energy!(model::SimulationModel, tab; regions = n
     U = PressureTemperatureDependentInternalEnergy(tab, regions = regions)
     set_secondary_variables!(model, FluidInternalEnergy = U)
     Jutul.delete_variable!(model, :ComponentHeatCapacity)
+    T_var = get(Jutul.get_primary_variables(model), :Temperature, nothing)
+    if T_var isa Temperature && T_var.min > temperature_min
+        T_new = Temperature(
+            min = temperature_min,
+            max = T_var.max,
+            max_rel = T_var.max_rel,
+            max_abs = T_var.max_abs
+        )
+        set_primary_variables!(model, Temperature = T_new)
+    end
     return model
 end
 

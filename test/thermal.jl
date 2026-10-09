@@ -332,6 +332,21 @@ end
         # Joule-Thomson effects.
         @test all(x -> abs(x - T0) < 0.5, res[:Temperature])
     end
+    @testset "table edges" begin
+        U = JutulDarcy.PressureTemperatureDependentInternalEnergy(tables[:internal_energy])
+        T_lo, T_hi = first(tables[:internal_energy].Y), last(tables[:internal_energy].Y)
+        u(T) = JutulDarcy.tabulated_internal_energy(U, 5e5, T, 1)
+        dudT(T) = (u(T + 0.01) - u(T - 0.01))/0.02
+        # The tables are padded with a constant first column. This should not
+        # give zero heat capacity inside the table, and the internal energy
+        # should be extrapolated linearly outside it.
+        for T in [T_lo - 20.0, T_lo + 0.5, 273.15, T_hi + 20.0]
+            @test dudT(T) > 1000.0
+        end
+        # Temperature limit is lowered so that sub-zero iterates are allowed
+        model = setup_reservoir_model(reservoir_domain(CartesianMesh((2, 1, 1))), :geothermal)
+        @test Jutul.get_primary_variables(model[:Reservoir])[:Temperature].min == 200.0
+    end
     @testset "co2-brine $physics" for physics in (:kvalue, :immiscible)
         T0 = 320.0
         result, model = solve_isothermal_injection(:co2brine, T0,
