@@ -350,9 +350,11 @@ function forces_from_constraints(well_setup, observation_data, streams, date, sy
                         enthalpy = missing
                     else
                         p = enthalpy_info["Pressure"]
-                        c_p = tab[:heat_capacity_constant_pressure](p, T)
+                        # Consistent with the tabulated internal energy
+                        # used in the model
+                        U = tab[:internal_energy](p, T)
                         rho = tab[:density](p, T)
-                        enthalpy = c_p * T - p/rho
+                        enthalpy = U + p/rho
                     end
                 end
                 ctrl = JutulDarcy.setup_injector_control(val, ctrl_type, mix,

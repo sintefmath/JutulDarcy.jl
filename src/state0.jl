@@ -313,6 +313,13 @@ function setup_reservoir_state(model::MultiModel, equil::Union{Missing, Vector, 
         end
     end
 
+    if is_thermal && !haskey(res_state, :Enthalpy)
+        # The surface enthalpy is initialized from the fluid enthalpy, which is
+        # a secondary variable that is not evaluated by setup_state.
+        res_eval = Jutul.evaluate_all_secondary_variables(rmodel, res_state)
+    else
+        res_eval = res_state
+    end
     for (k, W) in pairs(model.models)
         if W.domain isa WellGroup
             # Facility or well group
@@ -339,10 +346,10 @@ function setup_reservoir_state(model::MultiModel, equil::Union{Missing, Vector, 
                     end
                     if haskey(res_state, :Enthalpy)
                         enth[i] = res_state[:Enthalpy][wc]
-                    elseif haskey(res_state, :FluidEnthalpy)
-                        H = res_state[:FluidEnthalpy]
-                        if haskey(res_state, :Saturations)
-                            S = res_state[:Saturations]
+                    elseif haskey(res_eval, :FluidEnthalpy)
+                        H = res_eval[:FluidEnthalpy]
+                        if haskey(res_eval, :Saturations)
+                            S = res_eval[:Saturations]
                             enth_i = zero(H[1, wc])
                             for ph in axes(H, 1)
                                 enth_i += H[ph, wc]*S[ph, wc]

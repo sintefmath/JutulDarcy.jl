@@ -118,11 +118,11 @@ function setup_pvt_variables_single_phase_water(d, sys, reservoir, fluid_model)
         pvt_vars[:PhaseMassDensities] = rho
         emodel = get_wtm("LiquidEnthalpyModel")
         if emodel == "STEAM_TABLE"
-            c_p = JutulDarcy.PressureTemperatureDependentVariable(tables[:heat_capacity_constant_pressure])
+            U = JutulDarcy.PressureTemperatureDependentInternalEnergy(tables[:internal_energy])
         else
             error("Only STEAM_TABLE liquid enthalpy model is implemented")
         end
-        pvt_vars[:ComponentHeatCapacity] = c_p
+        pvt_vars[:FluidInternalEnergy] = U
         if haskey(wtm, "LiquidViscosityModel")
             viscosity_model = get_wtm("LiquidViscosityModel")
             if viscosity_model == "STEAM_TABLE"

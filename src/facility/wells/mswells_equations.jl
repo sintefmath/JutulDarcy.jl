@@ -174,12 +174,19 @@ function Jutul.update_equation_in_entity!(eq_buf::AbstractVector{T_e}, self_cell
     end
 end
 
-function Jutul.update_equation_in_entity!(eq_buf::AbstractVector{T_e}, self_cell, state, state0, eq::ConservationLaw{:TotalThermalEnergy, <:WellSegmentFlow}, model, dt, ldisc = local_discretization(eq, self_cell)) where T_e
+const WellSegmentEnergyConservation = Union{
+    ConservationLaw{:TotalThermalEnergy, <:WellSegmentFlow},
+    ConservationLaw{:TotalEnergy, <:WellSegmentFlow}
+}
+
+function Jutul.update_equation_in_entity!(eq_buf::AbstractVector{T_e}, self_cell, state, state0, eq_type::WellSegmentEnergyConservation, model, dt, ldisc = local_discretization(eq_type, self_cell)) where T_e
     (; cells, faces, signs) = ldisc
     nph = number_of_phases(model.system)
     λm = state.MaterialThermalConductivities
-    energy = state.TotalThermalEnergy
-    energy0 = state0.TotalThermalEnergy
+    energy_name = conserved_symbol(eq_type)
+    energy = state[energy_name]
+    energy0 = state0[energy_name]
+    include_potential = energy_name == :TotalEnergy
     density = state.PhaseMassDensities
     S = state.Saturations
     H_f = state.FluidEnthalpy
@@ -200,8 +207,13 @@ function Jutul.update_equation_in_entity!(eq_buf::AbstractVector{T_e}, self_cell
                 ME_self = H_f[ph, self_cell]*f_self
                 eq += v_f*upw_flux(v_f, ME_self, ME_other)
             end
+            if include_potential
+                # Advection of potential energy
+                Φ = state.UnitPotentialEnergy
+                eq += v_f*upw_flux(v_f, Φ[self_cell], Φ[cell])
+            end
             λm_f = λm[face]
-            if λm_f >= 0.0
+            if λm_f > 0.0
                 # Account for heat conduction in well material
                 eq -= λm_f*(T[cell] - T[self_cell])
             end

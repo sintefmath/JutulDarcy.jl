@@ -50,6 +50,43 @@ end
     end
 end
 
+@jutul_secondary function update_fluid_internal_energy!(U, var::PressureTemperatureDependentInternalEnergy, model, Pressure, Temperature, ix)
+    for i in ix
+        U_i = tabulated_internal_energy(var, Pressure[i], Temperature[i], i)
+        for ph in axes(U, 1)
+            U[ph, i] = U_i[ph]
+        end
+    end
+end
+
+@jutul_secondary function update_fluid_internal_energy!(U, var::PressureTemperatureDependentInternalEnergy, model::CompositionalModel, Pressure, Temperature, LiquidMassFractions, VaporMassFractions, ix)
+    fsys = model.system
+    X = LiquidMassFractions
+    Y = VaporMassFractions
+    if has_other_phase(fsys)
+        a, l, v = phase_indices(fsys)
+        offset = 1
+    else
+        l, v = phase_indices(fsys)
+        offset = 0
+    end
+    for i in ix
+        U_i = tabulated_internal_energy(var, Pressure[i], Temperature[i], i)
+        if has_other_phase(fsys)
+            U[a, i] = U_i[1]
+        end
+        U_l = zero(eltype(U))
+        U_v = zero(eltype(U))
+        for c in axes(X, 1)
+            U_c = U_i[c+offset]
+            U_l += U_c*X[c, i]
+            U_v += U_c*Y[c, i]
+        end
+        U[l, i] = U_l
+        U[v, i] = U_v
+    end
+end
+
 @jutul_secondary function update_fluid_enthalpy!(H, fe::FluidEnthalpy, model, FluidInternalEnergy, Pressure, PhaseMassDensities, ix)
     for i in ix
         p = Pressure[i]
@@ -90,5 +127,21 @@ end
 @jutul_secondary function update_material_internal_energy!(U_m, e::MaterialInternalEnergy, model::MSWellFlowModel, MaterialHeatCapacities, Temperature, ix)
     for i in ix
         U_m[i] = MaterialHeatCapacities[i]*Temperature[i]
+    end
+end
+
+@jutul_secondary function update_potential_energy!(E_p, pe::PotentialEnergy, model, UnitPotentialEnergy, TotalMasses, ix)
+    for i in ix
+        M = zero(eltype(TotalMasses))
+        for c in axes(TotalMasses, 1)
+            M += TotalMasses[c, i]
+        end
+        E_p[i] = M*UnitPotentialEnergy[i]
+    end
+end
+
+@jutul_secondary function update_total_energy!(E_total, te::TotalEnergy, model, TotalThermalEnergy, PotentialEnergy, ix)
+    for i in ix
+        E_total[i] = TotalThermalEnergy[i] + PotentialEnergy[i]
     end
 end

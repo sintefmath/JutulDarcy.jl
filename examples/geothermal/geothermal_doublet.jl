@@ -72,7 +72,7 @@ plot_reservoir(case_simple.model, results_simple.states)
 # ## Realistic fluid physics
 # Next, we repeat the simulation with more realistic fluid physics. We use a
 # formulation from [NIST](https://webbook.nist.gov/chemistry/fluid/) where
-# density, viscosity and heat capacity depend on pressure and temperature. 
+# density, viscosity and internal energy depend on pressure and temperature. 
 case_real = setup_doublet(:geothermal)
 results_real = simulate_reservoir(case_real);
 # Interactive plot of the reservoir state

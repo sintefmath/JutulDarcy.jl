@@ -246,6 +246,11 @@ function update_cross_term_in_entity!(out, i,
 
     λ_t = sum(perforation_reservoir_mobilities(state_res, state_well, sys, reservoir_cell, well_cell))
     qh = perforation_phase_thermal_flux(λ_t, conn, state_res, state_well, nph)
+    if eq isa ConservationLaw{:TotalEnergy}
+        # Account for the upwinded potential energy of the mass crossing the
+        # perforation.
+        qh += perforation_potential_energy_flux(λ_t, conn, state_res, state_well, nph)
+    end
     out[] = qh
 
 end
@@ -272,6 +277,21 @@ function perforation_phase_thermal_flux(λ_t, conn, state_res, state_well, nph)
 
     conductive_heat_flux = -WIth*(T_well - T_res)
     return advective_heat_flux + conductive_heat_flux
+end
+
+function perforation_potential_energy_flux(λ_t, conn, state_res, state_well, nph)
+    q = 0
+    for ph in 1:nph
+        q_ph = perforation_phase_mass_flux(λ_t, conn, state_res, state_well, ph)
+        if q_ph < 0
+            # Injection
+            Φ = state_well.UnitPotentialEnergy[conn.well]
+        else
+            Φ = state_res.UnitPotentialEnergy[conn.reservoir]
+        end
+        q += Φ*q_ph
+    end
+    return q
 end
 
 function Base.show(io::IO, d::ReservoirFromWellThermalCT)
@@ -327,7 +347,13 @@ function update_cross_term_in_entity!(out, i,
     qT += 0*state_well.Pressure[cell]
 
     H = get_target_enthalpy(ctrl, ctrl.target, facility, state_facility, well, state_well, cell)
-    out[] = -qT*H
+    Q = -qT*H
+    if eq isa ConservationLaw{:TotalEnergy}
+        # Mass entering/leaving through the top node carries the potential
+        # energy of that node
+        Q -= qT*state_well.UnitPotentialEnergy[cell]
+    end
+    out[] = Q
 end
 
 function get_target_enthalpy(ctrl, target, facility, state_facility, model, state_well, cell)
@@ -403,18 +429,10 @@ end
 
 function well_top_node_enthalpy(ctrl::InjectorControl, model, state_well, T, cell)
     p = state_well.Pressure[cell]
-    # density = ctrl.mixture_density
-    # T = ctrl.temperature
     H_w = ctrl.enthalpy
     if ismissing(H_w)
-        H = 0.0
-        for ph in axes(state_well.Saturations, 1)
-            # Define it via the volume weighted internal energy
-            S = state_well.Saturations[ph, cell]
-            dens = state_well.PhaseMassDensities[ph, cell]
-            C = state_well.ComponentHeatCapacity[ph, cell]
-            H += S*(C*T + p/dens)
-        end
+        U_def = Jutul.get_secondary_variables(model)[:FluidInternalEnergy]
+        H = injection_enthalpy(U_def, ctrl, model, state_well, p, T, cell)
     elseif H_w isa Real
         H = H_w
     elseif H_w isa Function
@@ -427,6 +445,71 @@ end
 
 function well_top_node_enthalpy(ctrl, model, state_well, T, cell)
     return well_top_node_enthalpy(model, state_well, cell)
+end
+
+"""
+    injection_enthalpy(U_def, ctrl, model, state_well, p, T, cell)
+
+Specific enthalpy of the injected fluid at the well top node pressure `p` and
+injection temperature `T`, when not explicitly given in the
+[`InjectorControl`](@ref). Dispatches on the definition of the fluid internal
+energy `U_def` so that the injected enthalpy is consistent with the internal
+energy used in the model.
+"""
+function injection_enthalpy(U_def, ctrl, model, state_well, p, T, cell)
+    # Default internal energy C*T: Volume weighted by the saturations at the
+    # top node.
+    H = 0.0
+    for ph in axes(state_well.Saturations, 1)
+        S = state_well.Saturations[ph, cell]
+        dens = state_well.PhaseMassDensities[ph, cell]
+        C = state_well.ComponentHeatCapacity[ph, cell]
+        H += S*(C*T + p/dens)
+    end
+    return H
+end
+
+function injection_enthalpy(U_def::PressureTemperatureDependentInternalEnergy, ctrl, model, state_well, p, T, cell)
+    # Tabulated internal energy: Evaluate at injection conditions and weight by
+    # the injected mass fractions.
+    U = tabulated_internal_energy(U_def, p, T, cell)
+    x = ctrl.injection_mixture
+    ρ_def = Jutul.get_secondary_variables(model)[:PhaseMassDensities]
+    if model isa CompositionalModel
+        # Ideal mixing of component internal energies. The specific volume is
+        # taken from the mixture at the top node.
+        sys = model.system
+        offset = Int(has_other_phase(sys))
+        length(x) == length(U) - offset || throw(ArgumentError("Injection mixture must have one entry per component (excluding the immiscible phase) for tabulated internal energy."))
+        U_inj = zero(p)
+        for c in eachindex(x)
+            U_inj += x[c]*U[c + offset]
+        end
+        ρ = 0.0
+        for ph in axes(state_well.Saturations, 1)
+            ρ += state_well.Saturations[ph, cell]*state_well.PhaseMassDensities[ph, cell]
+        end
+        H = U_inj + p/ρ
+    else
+        length(x) == length(U) || throw(ArgumentError("Injection mixture must have one entry per phase for tabulated internal energy."))
+        H = zero(p)
+        for ph in eachindex(x)
+            ρ_ph = injection_phase_density(ρ_def, state_well, p, T, cell, ph)
+            H += x[ph]*(U[ph] + p/ρ_ph)
+        end
+    end
+    return H
+end
+
+function injection_phase_density(ρ_def, state_well, p, T, cell, ph)
+    # General case: Use the density at the top node.
+    return state_well.PhaseMassDensities[ph, cell]
+end
+
+function injection_phase_density(ρ_def::PressureTemperatureDependentVariable, state_well, p, T, cell, ph)
+    # Density depends on p and T: Evaluate at injection conditions.
+    interpolator = table_by_region(ρ_def.tab, region(ρ_def.regions, cell))
+    return interpolator(p, T)[ph]
 end
 
 struct FacilityFromWellTemperatureCT <: Jutul.AdditiveCrossTerm

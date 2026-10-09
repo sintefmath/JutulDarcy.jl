@@ -33,6 +33,12 @@ function JutulDarcy.setup_reservoir_model(afi::AFIInputFile;
             end
         end
     end
+    if get(pvars, :FluidInternalEnergy, nothing) isa JutulDarcy.PressureTemperatureDependentInternalEnergy
+        # Tabulated internal energy replaces the heat capacity
+        for submodel in values(model.models)
+            Jutul.delete_variable!(submodel, :ComponentHeatCapacity)
+        end
+    end
     if haskey(svars, :CapillaryPressure)
         # This should be added to the reservoir model even it is not already a value, check why it does not work.
         model[:Reservoir].secondary_variables[:CapillaryPressure] = svars[:CapillaryPressure]

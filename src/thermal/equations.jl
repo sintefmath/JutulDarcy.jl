@@ -1,20 +1,51 @@
-@inline function Jutul.face_flux!(Q, left, right, face, face_sign, eq::ConservationLaw{:TotalThermalEnergy, <:Any}, state, model, dt, flow_disc::TwoPointPotentialFlowHardCoded)
+const EnergyConservationLaw = Union{
+    ConservationLaw{:TotalThermalEnergy, <:Any},
+    ConservationLaw{:TotalEnergy, <:Any}
+}
+
+@inline function Jutul.face_flux!(Q, left, right, face, face_sign, eq::EnergyConservationLaw, state, model, dt, flow_disc::TwoPointPotentialFlowHardCoded)
     # Specific version for tpfa flux
     # TODO: Add general version for thermal
     grad = TPFA(left, right, face_sign)
     upw = SPU(left, right)
     # TODO: This could be inconsistent if we use flux_type for something.
     flux_type = Jutul.flux_type(eq)
-    q = thermal_heat_flux(face, state, model, grad, upw, flux_type)
+    q = energy_flux(face, state, model, grad, upw, flux_type, eq)
     return setindex(Q, q, 1)
 end
 
-@inline function Jutul.face_flux!(q_i, face, eq::ConservationLaw{:TotalThermalEnergy, <:Any}, state, model, dt, flow_disc::PotentialFlow, ldisc)
+@inline function Jutul.face_flux!(q_i, face, eq::EnergyConservationLaw, state, model, dt, flow_disc::PotentialFlow, ldisc)
     # Inner version, for generic flux
     kgrad, upw = ldisc.face_disc(face)
     ft = Jutul.flux_type(eq)
-    q = thermal_heat_flux(face, state, model, kgrad, upw, ft)
+    q = energy_flux(face, state, model, kgrad, upw, ft, eq)
     return setindex(q_i, q, 1)
+end
+
+function energy_flux(face, state, model, grad, upw, flux_type, eq::ConservationLaw{:TotalThermalEnergy})
+    return thermal_heat_flux(face, state, model, grad, upw, flux_type)
+end
+
+function energy_flux(face, state, model, grad, upw, flux_type, eq::ConservationLaw{:TotalEnergy})
+    q = thermal_heat_flux(face, state, model, grad, upw, flux_type)
+    return q + potential_energy_flux(face, state, model, grad, upw, flux_type)
+end
+
+"""
+    potential_energy_flux(face, state, model, grad, upw, flux_type)
+
+Advective flux of gravitational potential energy over a face, i.e. the sum
+over phases of the phase mass flux times the upwinded potential energy per unit
+mass (see [`UnitPotentialEnergy`](@ref)).
+"""
+function potential_energy_flux(face, state, model, grad, upw, flux_type)
+    Φ = state.UnitPotentialEnergy
+    mass_fluxes = darcy_phase_mass_fluxes(face, state, model, flux_type, grad, upw)
+    q = zero(eltype(mass_fluxes))
+    for F_α in mass_fluxes
+        q += F_α*upwind(upw, Φ, F_α)
+    end
+    return q
 end
 
 """
@@ -61,7 +92,8 @@ end
 """
     Jutul.convergence_criterion(model, storage, eq::ConservationLaw{:TotalThermalEnergy}, eq_s, r; dt = 1.0, update_report = missing)
 
-Calculate the convergence criterion for the total thermal energy conservation law.
+Calculate the convergence criterion for the total thermal energy conservation
+law. The same criterion is used for the `:TotalEnergy` formulation.
 
 # Arguments
 - `model`: The model object containing the simulation parameters and state.
@@ -75,8 +107,11 @@ Calculate the convergence criterion for the total thermal energy conservation la
 # Returns
 - The convergence criterion values for the total thermal energy conservation law (maximum).
 """
-function Jutul.convergence_criterion(model, storage, eq::ConservationLaw{:TotalThermalEnergy}, eq_s, r; dt = 1.0, update_report = missing)
+function Jutul.convergence_criterion(model, storage, eq::EnergyConservationLaw, eq_s, r; dt = 1.0, update_report = missing)
     M = global_map(model.domain)
+    # Note: The total energy formulation is also scaled by the thermal energy,
+    # as the potential energy depends on the choice of datum and can be zero or
+    # negative.
     E0 = Jutul.active_view(storage.state0.TotalThermalEnergy, M;
         for_variables = false)
     residual = view(r, 1, :)
