@@ -249,7 +249,10 @@ One diffusive face conductance per component. Use the parameter names
 phases present in the model. The corresponding data-domain keys are
 `liquid_diffusion` on cells or `liquid_diffusivities` on faces, with the same
 prefixes for vapor and aqueous phases. Matrices have one row per component,
-in the system's component order. Fluxes use phase mass-fraction gradients.
+in the system's component order. Coefficients use the mole-fraction Fick law.
+The resulting component molar flux is multiplied by the component's molar mass
+for the mass conservation equations. Black-oil diffusion requires component
+molar masses in kg/mol as `component_molar_masses` on `nothing` in the data domain.
 
 Unprefixed `diffusion` and `diffusivities` retain the pre-0.4 JutulDarcy
 per-phase format; each phase row is expanded over components during parameter
@@ -289,7 +292,30 @@ function set_diffusivity_parameters!(model)
             set_parameters!(model; (keys.parameter => Diffusivities(),)...)
         end
     end
+    sys = model.system
+    if sys isa BlackOilSystem
+        liquid = has_disgas(sys) && haskey(model.parameters, :LiquidDiffusivities)
+        vapor = has_vapoil(sys) && haskey(model.parameters, :VaporDiffusivities)
+        if liquid || vapor
+            set_parameters!(model; ComponentMolarMasses = ComponentMolarMasses())
+        end
+    end
     return model
+end
+
+"""Component molar masses for diffusion in systems without an EOS."""
+struct ComponentMolarMasses <: ComponentVariables end
+Jutul.minimum_value(::ComponentMolarMasses) = 0.0
+
+function Jutul.default_parameter_values(domain, model, ::ComponentMolarMasses, symb)
+    haskey(domain, :component_molar_masses, nothing) || throw(ArgumentError(
+        "Molar diffusion in a black-oil system requires component_molar_masses (kg/mol) on nothing in the data domain."))
+    masses = domain[:component_molar_masses]
+    length(masses) == number_of_components(model.system) || throw(ArgumentError(
+        "component_molar_masses must contain one molar mass per system component."))
+    all(mass -> isfinite(mass) && mass > 0.0, masses) || throw(ArgumentError(
+        "component_molar_masses must be finite and positive."))
+    return repeat(collect(masses), 1, number_of_cells(domain))
 end
 
 function expand_diffusivities(values, model, phase, nentity; per_phase = false)

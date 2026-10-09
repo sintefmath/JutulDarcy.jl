@@ -119,31 +119,30 @@ TSTEP
         @test haskey(case.parameters[:Reservoir], :VaporDiffusivities)
         @test haskey(model.data_domain, :vapor_diffusion, Cells())
         @test case.forces[end][:Facility].limits[:WELL].bhp ≈ 5e6
-        # Different component coefficients act on mass fractions. Reverse the
-        # face orientation and remove gas to check conservation and phase cutoff.
+        # Diffusion acts directly on flash mole fractions. Reverse the face
+        # orientation and remove gas to check conservation and phase cutoff.
         mw = MultiComponentFlash.molar_masses(sys.equation_of_state)
         x = [1.0, 0.0, 0.0]
         yl, yr = [0.01, 0.89, 0.10], [0.01, 0.79, 0.20]
-        mass_fraction(z) = mw.*z/sum(mw.*z)
+        flash(y) = FlashedMixture2Phase(MultiComponentFlash.two_phase_lv,
+            ones(3), 0.5, x, y, 1.0, 1.0)
         diffusion_state = (
-            LiquidMassFractions = hcat(mass_fraction(x), mass_fraction(x)),
-            VaporMassFractions = hcat(mass_fraction(yl), mass_fraction(yr)),
+            FlashResults = [flash(yl), flash(yr)],
             VaporDiffusivities = case.parameters[:Reservoir][:VaporDiffusivities],
             PhaseMassDensities = [1000.0 1000.0; 5.0 7.0],
             Saturations = [0.2 0.4; 0.8 0.6])
         q0 = JutulDarcy.SVector{3}(0.0, 0.0, 0.0)
         function flux(gradient, state = diffusion_state)
-            D = (JutulDarcy.phase_diffusivities(state, LiquidPhase()),
-                 JutulDarcy.phase_diffusivities(state, VaporPhase()))
-            return JutulDarcy.add_diffusive_component_flux(q0, state.Saturations,
-                state.PhaseMassDensities, state.LiquidMassFractions,
-                state.VaporMassFractions, D, 1, gradient, (1, 2), Val(3))
+            Dl = JutulDarcy.phase_diffusivities(state, LiquidPhase())
+            Dv = JutulDarcy.phase_diffusivities(state, VaporPhase())
+            return JutulDarcy.add_diffusive_component_flux(q0, Dl, Dv,
+                1, state, model, gradient, Val(3))
         end
         q = flux(TPFA(1, 2, 1))
-        @test q[1] > 0.0
+        @test abs(q[1]) < 1e-20
         @test q[2] > 0.0 && q[3] < 0.0
-        Y = diffusion_state.VaporMassFractions
-        expected = -diffusion_state.VaporDiffusivities[:, 1].*0.6.*6.0.*(Y[:, 2] - Y[:, 1])
+        concentration = (5.0/sum(mw.*yl) + 7.0/sum(mw.*yr))/2
+        expected = -diffusion_state.VaporDiffusivities[:, 1].*0.6.*concentration.*mw.*(yr - yl)
         @test q ≈ expected
         @test flux(TPFA(2, 1, -1)) ≈ -q
         @test all(iszero, flux(TPFA(1, 2, 1),

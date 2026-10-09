@@ -80,8 +80,9 @@ These values are optional and will only be added if specified. For e.g.
 net-to-gross and transmissibility multipliers a default value of 1.0 will be
 assumed in the code if it is not present.
 
-Phase-specific diffusion matrices have one row per component and one column per
-cell. A scalar or cell vector applies to every component of that phase. Legacy
+Diffusion coefficients use the mole-fraction Fick law. Phase-specific matrices
+have one row per component and one column per cell. A scalar or cell vector
+applies to every component of that phase. Legacy
 `diffusion` matrices have one row per phase; each row is expanded over components
 when setting up parameters. For conductances that already include porosity and
 geometric area/distance, set `liquid_diffusivities`, `vapor_diffusivities`, or
