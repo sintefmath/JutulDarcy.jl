@@ -23,8 +23,8 @@ end
     end
     function flux(u, grad = grad, saturations = S)
         X, Y = fractions(u)
-        liquid = cell -> view(X, :, cell)
-        vapor = cell -> view(Y, :, cell)
+        liquid = mw.*X./sum(mw.*X; dims = 1)
+        vapor = mw.*Y./sum(mw.*Y; dims = 1)
         q = JutulDarcy.SVector{3}(zero(eltype(u)), zero(eltype(u)), zero(eltype(u)))
         q = JutulDarcy.add_phase_diffusive_component_flux(q, Dl, 1, grad,
             saturations, rho, liquid, 1, mw, Val(3))
@@ -47,6 +47,9 @@ end
     @test all(iszero, flux(u, grad, [0.0 1.0; 1.0 0.0]))
     derivatives = JutulDarcy.ForwardDiff.jacobian(flux, u)
     @test derivatives ≈ JutulDarcy.ForwardDiff.jacobian(reference_flux, u) rtol = 1e-12
+    mpfa = Jutul.NFVM.NFVMLinearDiscretization(1.0; left = 1, right = 2)
+    @test flux(u, mpfa) ≈ expected rtol = 1e-12
+    @test JutulDarcy.ForwardDiff.jacobian(x -> flux(x, mpfa), u) ≈ derivatives rtol = 1e-12
     finite_difference = similar(derivatives)
     for component in eachindex(u)
         plus, minus = copy(u), copy(u)
@@ -55,6 +58,17 @@ end
         finite_difference[:, component] = (reference_flux(plus) - reference_flux(minus))/(2e-7)
     end
     @test derivatives ≈ finite_difference rtol = 1e-7
+end
+
+@testset "Flash result access through AD state wrappers" begin
+    x = JutulDarcy.SVector(0.3, 0.7)
+    f = MultiComponentFlash.FlashedMixture2Phase(MultiComponentFlash.single_phase_l,
+        x, 0.0, x, x, 1.0, 1.0)
+    state = (FlashResults = [f],)
+    T = typeof(Jutul.get_ad_entity_scalar(0.0, 1, 1; tag = Cells()))
+    @test_throws ArgumentError Jutul.as_value(state).FlashResults[1]
+    @test_throws ArgumentError local_ad(state, 1, T).FlashResults[1]
+    @test_throws ArgumentError local_ad(state, 1, T, :Pressure).FlashResults[1]
 end
 
 @testset "Component diffusion parameter setup" begin
@@ -145,8 +159,8 @@ end
     Dv = reshape([4e-9, 5e-9, 6e-9], 3, 1)
     q0 = JutulDarcy.SVector{3}(0.0, 0.0, 0.0)
     function flux(Dl, Dv, grad, saturation = S)
-        liquid = cell -> view(X, :, cell)
-        vapor = cell -> view(Y, :, cell)
+        liquid = mw.*X./sum(mw.*X; dims = 1)
+        vapor = mw.*Y./sum(mw.*Y; dims = 1)
         q = JutulDarcy.add_phase_diffusive_component_flux(q0, Dl, 1, grad,
             saturation, rho, liquid, 1, mw, Val(3))
         return JutulDarcy.add_phase_diffusive_component_flux(q, Dv, 1, grad,

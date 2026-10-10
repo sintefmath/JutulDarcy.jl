@@ -47,8 +47,8 @@ end
 function add_diffusive_component_flux(q, Dl, Dv, face, state, model, grad, component_count)
     sys = model.system
     masses = MultiComponentFlash.molar_masses(sys.equation_of_state)
-    liquid = cell -> phase_data(state.FlashResults[cell], Val(:liquid)).mole_fractions
-    vapor = cell -> phase_data(state.FlashResults[cell], Val(:vapor)).mole_fractions
+    liquid = state.LiquidMassFractions
+    vapor = state.VaporMassFractions
     S = state.Saturations
     ρ = state.PhaseMassDensities
     q = add_phase_diffusive_component_flux(q, Dl, face, grad, S, ρ,
@@ -62,7 +62,28 @@ function add_phase_diffusive_component_flux(q, ::Nothing, face, grad, S, ρ, fra
     return q
 end
 
-@inline function add_phase_diffusive_component_flux(q::SVector{M}, D::AbstractMatrix, face, grad, S, ρ, fractions, phase, masses, ::Val{N}) where {M, N}
+@inline function mass_to_mole_fractions(X, masses, cell, ::Val{N}) where N
+    amounts = SVector{N}(ntuple(i -> @inbounds(X[i, cell]/masses[i]), Val(N)))
+    return amounts/sum(amounts)
+end
+
+@inline diffusive_mole_fraction_accessor(X, masses, grad, count) =
+    cell -> mass_to_mole_fractions(X, masses, cell, count)
+
+@inline function diffusive_mole_fraction_accessor(X, masses, grad::TPFA, count)
+    # Convert once per cell on a two-point face, rather than once per component.
+    left, right = Jutul.cell_pair(grad)
+    x_left = mass_to_mole_fractions(X, masses, left, count)
+    x_right = mass_to_mole_fractions(X, masses, right, count)
+    return cell -> if cell == left
+        x_left
+    else
+        x_right
+    end
+end
+
+@inline function add_phase_diffusive_component_flux(q::SVector{M}, D::AbstractMatrix, face, grad, S, ρ, mass_fractions::AbstractMatrix, phase, masses, ::Val{N}) where {M, N}
+    fractions = diffusive_mole_fraction_accessor(mass_fractions, masses, grad, Val(N))
     molar_density = phase_diffusive_molar_density(ρ, phase, S, grad, fractions, masses)
     return typeof(q)(ntuple(Val(M)) do i
         @inbounds if i <= N

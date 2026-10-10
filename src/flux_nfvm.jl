@@ -32,6 +32,11 @@ function nfvm_potential_difference(pot, dens, z_avg, mpfa, phase, m = 1.0)
     return -m*(∇pot + ∇rho*g*z_avg)
 end
 
+@inline function Jutul.gradient(F, hf::Jutul.NFVM.NFVMDiscretization)
+    l, r = Jutul.cell_pair(hf)
+    return F(r) - F(l)
+end
+
 @inline function Jutul.gradient(X::AbstractVector, hf::Jutul.NFVM.NFVMDiscretization)
     l, r = Jutul.cell_pair(hf)
     return @inbounds X[r] - X[l]
