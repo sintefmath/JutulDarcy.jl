@@ -2,7 +2,7 @@ module JutulDarcyCUDAExt
     using Jutul, JutulDarcy, CUDA, LinearAlgebra, SparseArrays, Adapt
     import Jutul: @tic
 
-    JutulDarcy.kernel_abstractions_backend(::Val{:ka_cuda}) = CUDA.CUDABackend()
+    JutulDarcy.kernel_abstractions_backend(::Val{:ka_cuda}) = CUDA.CUDABackend(always_inline = true)
 
     timeit_debug_enabled() = Jutul.timeit_debug_enabled()
 
