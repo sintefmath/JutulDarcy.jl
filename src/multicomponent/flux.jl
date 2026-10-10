@@ -27,17 +27,17 @@ end
     return setindex(q, mass_fluxes[a], N + 1)
 end
 
-@inline function inner_compositional!(q::SVector{M}, X, Y, q_l, q_v, upw, ::Val{N}) where {M, N}
+@inline function inner_compositional!(q::SVector, X, Y, q_l, q_v, upw, ::Val{N}) where N
     # Static component indices avoid SVector copies and large GPU local-memory buffers.
-    return typeof(q)(ntuple(Val(M)) do i
+    return map(q, eachindex(q)) do q_i, i
         if i <= N
             X_f = upwind(upw, cell -> @inbounds(X[i, cell]), q_l)
             Y_f = upwind(upw, cell -> @inbounds(Y[i, cell]), q_v)
-            q_l*X_f + q_v*Y_f
+            oftype(q_i, q_l*X_f + q_v*Y_f)
         else
-            q[i]
+            q_i
         end
-    end)
+    end
 end
 
 function add_diffusive_component_flux(q, ::Nothing, ::Nothing, face, state, model, grad, component_count)
@@ -82,18 +82,18 @@ end
     end
 end
 
-@inline function add_phase_diffusive_component_flux(q::SVector{M}, D::AbstractMatrix, face, grad, S, ρ, mass_fractions::AbstractMatrix, phase, masses, ::Val{N}) where {M, N}
+@inline function add_phase_diffusive_component_flux(q::SVector, D::AbstractMatrix, face, grad, S, ρ, mass_fractions::AbstractMatrix, phase, masses, ::Val{N}) where N
     fractions = diffusive_mole_fraction_accessor(mass_fractions, masses, grad, Val(N))
     molar_density = phase_diffusive_molar_density(ρ, phase, S, grad, fractions, masses)
-    return typeof(q)(ntuple(Val(M)) do i
+    return map(q, eachindex(q)) do q_i, i
         @inbounds if i <= N
             fraction = cell -> fractions(cell)[i]
             molar_flux = -D[i, face]*molar_density*gradient(fraction, grad)
-            q[i] + masses[i]*molar_flux
+            oftype(q_i, q_i + masses[i]*molar_flux)
         else
-            q[i]
+            q_i
         end
-    end)
+    end
 end
 
 function phase_diffusive_molar_density(ρ, phase, S, grad, fractions, masses)
