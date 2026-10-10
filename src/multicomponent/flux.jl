@@ -27,14 +27,17 @@ end
     return setindex(q, mass_fluxes[a], N + 1)
 end
 
-@inline function inner_compositional!(q, X, Y, q_l, q_v, upw, ::Val{N}) where N
-    for i in 1:N
-        X_f = upwind(upw, cell -> @inbounds(X[i, cell]), q_l)
-        Y_f = upwind(upw, cell -> @inbounds(Y[i, cell]), q_v)
-        q_i = q_l*X_f + q_v*Y_f
-        q = setindex(q, q_i, i)
-    end
-    return q
+@inline function inner_compositional!(q::SVector{M}, X, Y, q_l, q_v, upw, ::Val{N}) where {M, N}
+    # Static component indices avoid SVector copies and large GPU local-memory buffers.
+    return typeof(q)(ntuple(Val(M)) do i
+        if i <= N
+            X_f = upwind(upw, cell -> @inbounds(X[i, cell]), q_l)
+            Y_f = upwind(upw, cell -> @inbounds(Y[i, cell]), q_v)
+            q_l*X_f + q_v*Y_f
+        else
+            q[i]
+        end
+    end)
 end
 
 function add_diffusive_component_flux(q, ::Nothing, ::Nothing, face, state, model, grad, component_count)
@@ -59,14 +62,17 @@ function add_phase_diffusive_component_flux(q, ::Nothing, face, grad, S, ρ, fra
     return q
 end
 
-function add_phase_diffusive_component_flux(q, D, face, grad, S, ρ, fractions, phase, masses, ::Val{N}) where N
+@inline function add_phase_diffusive_component_flux(q::SVector{M}, D::AbstractMatrix, face, grad, S, ρ, fractions, phase, masses, ::Val{N}) where {M, N}
     molar_density = phase_diffusive_molar_density(ρ, phase, S, grad, fractions, masses)
-    @inbounds for i in 1:N
-        fraction = cell -> fractions(cell)[i]
-        molar_flux = -D[i, face]*molar_density*gradient(fraction, grad)
-        q = setindex(q, q[i] + masses[i]*molar_flux, i)
-    end
-    return q
+    return typeof(q)(ntuple(Val(M)) do i
+        @inbounds if i <= N
+            fraction = cell -> fractions(cell)[i]
+            molar_flux = -D[i, face]*molar_density*gradient(fraction, grad)
+            q[i] + masses[i]*molar_flux
+        else
+            q[i]
+        end
+    end)
 end
 
 function phase_diffusive_molar_density(ρ, phase, S, grad, fractions, masses)
