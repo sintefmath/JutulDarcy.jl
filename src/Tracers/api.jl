@@ -63,6 +63,15 @@ function tracer_total_mass_flux(tracer, model, state, phase_mass_fluxes, index, 
     return v
 end
 
+"""
+    tracer_phase_concentration(tracer, model, state, index, phase, cell, C = state.TracerConcentrations)
+
+Mobile tracer concentration in a phase. Reactive tracers can specialize this
+hook to use a phase split at well perforations, and use the same concentration
+in their specialization of `tracer_total_mass_flux` for reservoir faces.
+"""
+@inline tracer_phase_concentration(tracer, model, state, index, phase, cell, C = state.TracerConcentrations) = C[index, cell]
+
 function add_tracers_to_model!(model::MultiModel, tracers; names = missing, kwarg...)
     if !isnothing(tracers)
         tracers = TracerFluxType(tracers, names = names)

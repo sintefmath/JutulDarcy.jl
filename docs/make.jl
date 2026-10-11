@@ -371,6 +371,7 @@ function build_jutul_darcy_docs(
                     "man/basics/adjoints.md",
                     "man/basics/primary.md",
                     "man/basics/secondary.md",
+                    "man/advanced/phreeqc.md",
                     "man/basics/parameters.md",
                     "man/basics/plotting.md",
                     "man/basics/utilities.md",

@@ -121,11 +121,11 @@ function Jutul.update_cross_term_in_entity!(out, i,
                 λ_t, conn, state_res, state_well, phase)
             if q_ph < 0
                 # Injection
-                C_perf = state_well.TracerConcentrations[
-                    tracer_index, well_cell]
+                C_perf = tracer_phase_concentration(tracer, model_well,
+                    state_well, tracer_index, phase, well_cell)
             else
-                C_perf = state_res.TracerConcentrations[
-                    tracer_index, reservoir_cell]
+                C_perf = tracer_phase_concentration(tracer, model_res,
+                    state_res, tracer_index, phase, reservoir_cell)
             end
             v += C_perf*q_ph
         end

@@ -92,6 +92,14 @@ end
     include("flash_implicit_derivatives.jl")
 end
 
+@testitem "PHREEQC reactive transport (optional)" begin
+    if isnothing(Base.find_package("JPhreeqc"))
+        @test_skip false
+    else
+        include("phreeqc.jl")
+    end
+end
+
 @testitem "CO2 props" begin
     include("co2props.jl")
 end
