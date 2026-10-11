@@ -23,15 +23,25 @@ end
 
 function setup_phreeqc_model!(model::Union{SimulationModel, MultiModel}, input::AbstractString;
         equilibrium_phases = String[], database = "phreeqc.dat", temperature = 298.15,
-        batch_size = 32, threads = Threads.nthreads(), difference = :forward,
+        batch_size = nothing, threads = Threads.nthreads(), threading = :julia,
+        rebalance_fraction = nothing, difference = :forward,
         relative_step = 1e-5, concentration_scale = 1e-5,
         update_pore_volume = true, mineral_molar_volumes = nothing,
         reference_mineral_volume = 0.0, reuse_speciation = true)
     rmodel = reservoir_model(model)
     rmodel.context isa Jutul.KernelAbstractionsContext && throw(ArgumentError("PHREEQC chemistry requires a CPU context without secondary-variable kernels."))
     haskey(rmodel.equations, :tracers) && throw(ArgumentError("Add PHREEQC before setting up other tracers; existing tracer sets are not supported."))
-    batch_size isa Integer && batch_size > 0 || throw(ArgumentError("batch_size must be a positive integer."))
-    threads isa Integer && 0 < threads <= Threads.nthreads() || throw(ArgumentError("threads must be between 1 and Julia's thread count."))
+    threading in (:julia, :native) || throw(ArgumentError("threading must be :julia or :native."))
+    isnothing(batch_size) || (batch_size isa Integer && batch_size > 0) ||
+        throw(ArgumentError("batch_size must be a positive integer or nothing."))
+    threads isa Integer && threads > 0 || throw(ArgumentError("threads must be a positive integer."))
+    threading == :julia && threads > Threads.nthreads() &&
+        throw(ArgumentError("Julia chemistry workers cannot exceed Julia's thread count."))
+    if isnothing(rebalance_fraction)
+        rebalance_fraction = threading == :native ? 0.5 : 0.0
+    end
+    rebalance_fraction isa Real && isfinite(rebalance_fraction) && 0 <= rebalance_fraction <= 1 ||
+        throw(ArgumentError("rebalance_fraction must be between zero and one."))
     difference in (:forward, :central) || throw(ArgumentError("difference must be :forward or :central."))
     isfinite(relative_step) && relative_step > 0 || throw(ArgumentError("relative_step must be positive and finite."))
     isfinite(temperature) && temperature > 0 || throw(ArgumentError("temperature must be positive and in Kelvin."))
@@ -65,15 +75,18 @@ function setup_phreeqc_model!(model::Union{SimulationModel, MultiModel}, input::
     update_pore_volume && !isempty(phases) &&
         !any(vars -> haskey(vars, :FluidVolume), (rmodel.parameters, rmodel.secondary_variables)) &&
         throw(ArgumentError("Reactive pore volume requires a parameter or secondary FluidVolume."))
+    batch_size = isnothing(batch_size) ? (threading == :native ? nc : 32) : batch_size
     batch_size = min(batch_size, nc)
-    nworkers = min(threads, cld(nc, batch_size))
+    nworkers = threading == :native ? 1 : min(threads, cld(nc, batch_size))
+    native_threads = threading == :native ? min(threads, batch_size) : 1
     db = isfile(database) ? abspath(database) : database_path(database)
     workers = ChemistryWorker[]
     components = String[]
     try
         for i in 1:nworkers
             worker, names = create_worker(String(input), phases, db, batch_size, temperature,
-                mineral_molar_volumes, update_pore_volume, reuse_speciation)
+                mineral_molar_volumes, update_pore_volume, reuse_speciation,
+                native_threads, Float64(rebalance_fraction))
             push!(workers, worker)
             if i == 1
                 components = names

@@ -18,6 +18,10 @@ concentrations are expressed relative to a fixed pure-water reference; use
 Defaults use prepared task-local workers, batches of 32 cells, exact-state
 caching, and aqueous solver-guess reuse. Exact conservation derivatives are
 combined with batched forward differences for active mineral sensitivities.
+Set `threading = :native, threads = n` to use one PhreeqcRM module with `n`
+OpenMP threads instead. This requires an OpenMP-enabled native library and
+defaults to a full-grid batch and native load balancing. `batch_size` overrides
+the batch size for either backend; native threads are limited by that size.
 `temperature = 298.15` is in K; a model's `Temperature` variable takes precedence.
 
 Minerals change `FluidVolume` by default (`update_pore_volume = true`). Molar

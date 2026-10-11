@@ -34,25 +34,31 @@ function checked(status, id, operation)
     return status
 end
 
-function create_worker(input, phases, database, batch_size, temperature, molar_volumes, update_pore_volume, reuse_speciation = true)
+function create_worker(input, phases, database, batch_size, temperature, molar_volumes, update_pore_volume,
+        reuse_speciation = true, native_threads = 1, rebalance_fraction = 0.0)
     return native_write() do
-        create_worker_impl(input, phases, database, batch_size, temperature, molar_volumes, update_pore_volume, reuse_speciation)
+        create_worker_impl(input, phases, database, batch_size, temperature, molar_volumes,
+            update_pore_volume, reuse_speciation, native_threads, rebalance_fraction)
     end
 end
 
-function create_worker_impl(input, phases, database, batch_size, temperature, molar_volumes, update_pore_volume, reuse_speciation)
+function create_worker_impl(input, phases, database, batch_size, temperature, molar_volumes,
+        update_pore_volume, reuse_speciation, native_threads, rebalance_fraction)
     id = lock(INSTANCE_LOCK) do
-        RM_Create(batch_size, 1)
+        RM_Create(batch_size, native_threads)
     end
     id >= 0 || error("Could not create PhreeqcRM instance ($id).")
     try
+        actual_threads = RM_GetThreadCount(id)
+        actual_threads == native_threads || throw(ArgumentError(
+            "PhreeqcRM provides $actual_threads threads, but $native_threads were requested. Native threading requires an OpenMP-enabled library."))
         checked(RM_SetErrorHandlerMode(id, 0), id, "error mode")
         checked(RM_SetScreenOn(id, 0), id, "screen output")
         checked(RM_SetErrorOn(id, 0), id, "error output")
         checked(RM_SetPrintChemistryOn(id, 0, 0, 0), id, "print output")
         checked(RM_SetSelectedOutputOn(id, 0), id, "selected output")
         checked(RM_SetSpeciesSaveOn(id, 0), id, "species storage")
-        checked(RM_SetRebalanceFraction(id, 0.0), id, "native load balancing")
+        checked(RM_SetRebalanceFraction(id, rebalance_fraction), id, "native load balancing")
         checked(RM_SetComponentH2O(id, 0), id, "conserved H/O components")
         checked(RM_SetUnitsSolution(id, 3), id, "solution units")
         checked(RM_UseSolutionDensityVolume(id, 0), id, "transport volume")

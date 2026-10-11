@@ -170,11 +170,35 @@ the property-update loop.
 Native calls operate on batches of 32 cells with reusable numeric buffers.
 Smaller models use fewer workers. `threads` and `batch_size` are configurable.
 
+Alternatively, use [PhreeqcRM's built-in OpenMP cell threading](https://water.usgs.gov/water-resources/software/PHREEQC/documentation/phreeqcrm-html/namespacephreeqcrm.html#a8b7992170b1f1d5cd884a42e3197af7f):
+
+```julia
+setup_phreeqc_model!(model, input, equilibrium_phases = ["Calcite"],
+    threading = :native, threads = 15)
+```
+
+This creates one module and leases it through the same scoped task-local
+mechanism. It uses a full-grid batch by default and avoids a second Julia
+chemistry worker pool. Native threads are limited to the native batch size;
+`batch_size` can override the full-grid default. Native thread counts may
+exceed Julia's thread count. Setup checks `RM_GetThreadCount` and rejects a
+serial native build when multiple native threads were requested.
+Full-range secondary updates make best use of this mode: partial updates
+still pad the fixed native batch, and concurrent calls to the same module
+serialize through its lease. Choose the backend by measuring the actual case.
+
+`threading = :julia` remains the default, with 32-cell batches. Native load
+balancing defaults to zero for this backend and to PhreeqcRM's 0.5 for
+`threading = :native`. Set `rebalance_fraction` between zero and one to override
+it. PhreeqcRM's default per-cell balancing algorithm is retained. Both modes
+preserve the phase-split Jacobian, exact-state cache and reactive pore-volume
+closure; neither retains physical mineral history between Newton evaluations.
+
 Chemistry file/screen output and individual-species storage are disabled.
 Native `PRINT` controls also disable input echo, status updates and `USER_GRAPH`;
 these are not all disabled by turning off chemistry printing alone.
 Minimal in-memory selected output saves only mineral amounts and saturation
-indices. Native load balancing is disabled for the single-thread instances.
+indices. Native load balancing is disabled by default for single-thread instances.
 PHREEQC's internal `KNOBS -numerical_derivatives` option is false by default;
 its native analytic derivatives are used where supported by the activity model.
 This controls PHREEQC's own nonlinear solve, not the external phase-split

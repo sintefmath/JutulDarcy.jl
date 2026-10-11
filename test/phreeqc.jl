@@ -34,6 +34,16 @@ function phreeqc_test_model(nc = 4; phases = ["Calcite"], batch_size = 1, kwarg.
     return model
 end
 
+function phreeqc_test_native_threads()
+    id = RM_Create(8, 4)
+    id >= 0 || error("Could not probe native thread support.")
+    try
+        return RM_GetThreadCount(id)
+    finally
+        RM_Destroy(id)
+    end
+end
+
 @testset "PHREEQC task-local prepared workers" begin
     model = phreeqc_test_model(4)
     try
@@ -374,27 +384,31 @@ end
 end
 
 @testset "PHREEQC transport conserves total inventory" begin
-    model = phreeqc_test_model(4)
-    try
-        c = phreeqc_initial_concentrations(model)
-        totals = repeat(c, 1, 4)
-        ca = findfirst(==("Ca"), phreeqc_component_names(model))
-        totals[ca, 1] *= 1.2
-        state0 = setup_reservoir_state(model,
-            Pressure = [2e5, 1.8e5, 1.5e5, 1.1e5], TracerConcentrations = totals)
-        rmodel = reservoir_model(model)
-        initial = Jutul.evaluate_all_secondary_variables(rmodel, state0[:Reservoir])
-        sim = Simulator(rmodel, state0 = state0[:Reservoir], parameters = setup_parameters(rmodel))
-        cfg = simulator_config(sim, info_level = -1)
-        states, reports = simulate(sim, [0.01, 0.01], config = cfg)
-        @test length(states) == 2
-        before = vec(sum(initial[:TracerMasses], dims = 2))
-        after = vec(sum(states[end][:TracerMasses], dims = 2))
-        @test after ≈ before rtol = 2e-7 atol = 1e-9
-        @test sum(states[end][:TotalMasses]) ≈ sum(initial[:TotalMasses]) rtol = 2e-7
-        @test maximum(abs.(states[end][:TracerConcentrations] .- totals)) > 1e-10
-    finally
-        close_phreeqc!(model)
+    for threading in (:julia, :native)
+        threads = threading == :native ? phreeqc_test_native_threads() : Threads.nthreads()
+        batch_size = threading == :native ? nothing : 1
+        model = phreeqc_test_model(4, threading = threading, threads = threads, batch_size = batch_size)
+        try
+            c = phreeqc_initial_concentrations(model)
+            totals = repeat(c, 1, 4)
+            ca = findfirst(==("Ca"), phreeqc_component_names(model))
+            totals[ca, 1] *= 1.2
+            state0 = setup_reservoir_state(model,
+                Pressure = [2e5, 1.8e5, 1.5e5, 1.1e5], TracerConcentrations = totals)
+            rmodel = reservoir_model(model)
+            initial = Jutul.evaluate_all_secondary_variables(rmodel, state0[:Reservoir])
+            sim = Simulator(rmodel, state0 = state0[:Reservoir], parameters = setup_parameters(rmodel))
+            cfg = simulator_config(sim, info_level = -1)
+            states, reports = simulate(sim, [0.01, 0.01], config = cfg)
+            @test length(states) == 2
+            before = vec(sum(initial[:TracerMasses], dims = 2))
+            after = vec(sum(states[end][:TracerMasses], dims = 2))
+            @test after ≈ before rtol = 2e-7 atol = 1e-9
+            @test sum(states[end][:TotalMasses]) ≈ sum(initial[:TotalMasses]) rtol = 2e-7
+            @test maximum(abs.(states[end][:TracerConcentrations] .- totals)) > 1e-10
+        finally
+            close_phreeqc!(model)
+        end
     end
 end
 
@@ -433,7 +447,88 @@ end
     plain = setup_reservoir_model(reservoir_domain(mesh), SinglePhaseSystem(AqueousPhase()))
     @test_throws ArgumentError setup_phreeqc_model!(plain, "SOLUTION 1\nEND\nKINETICS 1\nEND")
     @test_throws ArgumentError setup_phreeqc_model!(plain, PHREEQC_VALIDATION_INPUT, batch_size = 0)
+    @test_throws ArgumentError setup_phreeqc_model!(plain, PHREEQC_VALIDATION_INPUT, threading = :invalid)
+    @test_throws ArgumentError setup_phreeqc_model!(plain, PHREEQC_VALIDATION_INPUT, rebalance_fraction = 1.1)
     @test_throws ErrorException setup_phreeqc_model!(plain, "SOLUTION 1\nNa invalid_concentration\nEND\n")
+end
+
+@testset "PHREEQC native cell threading and pore-volume derivatives" begin
+    available_threads = phreeqc_test_native_threads()
+    serial = phreeqc_test_model(8, threads = 1, batch_size = 3,
+        difference = :central, reference_mineral_volume = 1e-3)
+    try
+        for threads in unique([1, available_threads])
+            model = phreeqc_test_model(8, threading = :native, threads = threads,
+                batch_size = nothing, difference = :central, reference_mineral_volume = 1e-3)
+            try
+                rmodel = reservoir_model(model)
+                chemistry = rmodel.secondary_variables[:PhreeqcPhaseSplit]
+                @test length(chemistry.workers) == 1
+                @test chemistry.batch_size == 8
+                @test RM_GetThreadCount(first(chemistry.workers).id) == threads
+                c = phreeqc_initial_concentrations(model)
+                ca = findfirst(==("Ca"), phreeqc_component_names(model))
+                n = length(c)
+                function evaluate(model, x; ix = 1:8)
+                    rmodel = reservoir_model(model)
+                    totals = repeat(x[1:n], 1, 8)
+                    totals[ca, :] .*= range(1.0, 1.2, length = 8)
+                    state = (TracerConcentrations = totals, Pressure = fill(x[n + 1], 8),
+                        Temperature = x[n + 2] .+ collect(range(0.0, 5.0, length = 8)),
+                        PhaseMassDensities = fill(x[n + 3], 1, 8), Saturations = fill(x[n + 4], 1, 8))
+                    split = zeros(eltype(x), n + 2, 8)
+                    Jutul.update_secondary_variable!(split, rmodel.secondary_variables[:PhreeqcPhaseSplit],
+                        rmodel, state, ix)
+                    pvstate = (; state..., StaticFluidVolume = fill(x[n + 5], 8),
+                        PhreeqcReferenceMineralVolume = fill(x[n + 6], 8),
+                        PhreeqcMineralVolume = vec(split[end, :]))
+                    pv = zeros(eltype(x), 8)
+                    Jutul.update_secondary_variable!(pv, rmodel.secondary_variables[:FluidVolume], rmodel, pvstate, ix)
+                    return vcat(split, transpose(pv))
+                end
+                x = [c; 2e5; 310.0; 1010.0; 0.7; 0.2; 1e-3]
+                value = evaluate(model, x)
+                @test value ≈ evaluate(serial, x) rtol = 1e-9 atol = 1e-12
+                jacobian = PhreeqcFD.jacobian(x -> vec(evaluate(model, x)), x)
+                reference = PhreeqcFD.jacobian(x -> vec(evaluate(serial, x)), x)
+                @test jacobian ≈ reference rtol = 3e-3 atol = 3e-6
+                for j in eachindex(x)
+                    scale = j <= n ? 1e-6 : (j == n + 1 ? 1e5 : (j == n + 2 ? 300.0 : 1.0))
+                    h = 1e-4*max(abs(x[j]), scale)
+                    plus = copy(x); plus[j] += h
+                    minus = copy(x); minus[j] -= h
+                    independent = vec(evaluate(model, plus) - evaluate(model, minus))/(2*h)
+                    @test jacobian[:, j] ≈ independent rtol = 4e-3 atol = 3e-6
+                end
+                @test value[end, :] + x[n + 3]*x[n + 4]*value[end, :].*value[n + 2, :] ≈
+                    fill(x[n + 5] + x[n + 6], 8) rtol = 1e-12
+                # Reverse and overlapping partial ranges retain cell ordering
+                # and never share the single OpenMP module concurrently.
+                chemistry.cache_valid .= false
+                @test evaluate(model, x, ix = 8:-1:1) ≈ value rtol = 1e-9 atol = 1e-12
+                chemistry.cache_valid .= false
+                a, b = similar(value), similar(value)
+                @sync begin
+                    Threads.@spawn copyto!(a, evaluate(model, x, ix = 1:4))
+                    Threads.@spawn copyto!(b, evaluate(model, x, ix = 5:8))
+                end
+                @test a[:, 1:4] ≈ value[:, 1:4] rtol = 1e-9 atol = 1e-12
+                @test b[:, 5:8] ≈ value[:, 5:8] rtol = 1e-9 atol = 1e-12
+                chemistry.cache_valid .= false
+                @sync begin
+                    Threads.@spawn copyto!(a, evaluate(model, x))
+                    Threads.@spawn copyto!(b, evaluate(model, x))
+                end
+                @test a ≈ value rtol = 1e-9 atol = 1e-12
+                @test b ≈ value rtol = 1e-9 atol = 1e-12
+                @test Base.n_avail(chemistry.available) == 1
+            finally
+                close_phreeqc!(model)
+            end
+        end
+    finally
+        close_phreeqc!(serial)
+    end
 end
 
 @testset "PHREEQC partial ranges and shared runtime" begin
