@@ -155,10 +155,10 @@ function setup_reservoir_domain_afi(d::AFIInputFile, mesh;
                 @warn "Multiple StraightPillarGrid records found in AFI file. Using the first one: $(first(keys(pillar_grid)))."
             end
             grid = pillar_grid[first(keys(pillar_grid))]
-            for (k, v) in grid["CellDoubleProperty"]
+            for (k, v) in grid["CellDoubleProperty"][active]
                 set_grid_entry!(data, k, v, ncells)
             end
-            for (k, v) in grid["CellIntegerProperty"]
+            for (k, v) in grid["CellIntegerProperty"][active]
                 set_grid_entry!(data, k, v, ncells)
             end
         end
