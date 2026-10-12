@@ -48,6 +48,71 @@ Wells retain matrix perforations. For an explicit fracture completion in the
 single form, first obtain `combined_fracture_domain(matrix, embedded)`, then
 pass the appended fracture cell indices to `setup_well` on that domain.
 
+## Use the same fracture objects with DFM
+
+Both setup entry points accept the fracture object vector directly:
+
+```julia
+efm = setup_embedded_fracture_model(matrix, fractures, system;
+    wells = wells, subtract_fracture_volume = true)
+dfm = setup_fractured_reservoir_model(matrix, fractures, system;
+    wells = wells)
+```
+
+The DFM path cuts the matrix along fracture planes and polygon boundaries, then
+creates the usual `Jutul.EmbeddedMesh` and DFM cross terms. Rectangles, the
+polygonal ellipse, and concave polygons keep their finite extent. Auxiliary
+cuts refine the matrix around fracture tips without adding fracture cells.
+`min_cut_fraction=0.0` is the default to retain these exact boundaries.
+`merge_faces=false` preserves the cut-face mappings.
+
+For direct access to domains and mappings:
+
+```julia
+dfm_domains = discrete_fracture_domain(matrix, fractures)
+cut_matrix = dfm_domains.matrix
+dfm_fractures = dfm_domains.fractures
+parents = dfm_domains.info[:cell_index]
+initial_pressure_dfm = initial_pressure_efm[parents]
+```
+
+Cell properties, face multipliers, fault tags, and depth orientation are
+transferred. Explicit transmissibilities and overrides are divided between
+split faces by area; new faces use geometric TPFA coefficients. Existing well
+completions are distributed over their cut-cell
+descendants by volume, preserving the original matrix completion's total well
+index. The object-based DFM setup defaults to `extend_wells=false`, matching
+EFM's matrix completions; use `extend_wells=true` to enable DFM's automatic
+fracture completions for multisegment wells. DFM subtracts fracture storage
+from the matrix, so use `subtract_fracture_volume=true` in EFM for comparable
+storage. Cell-indexed initial states, sources and boundary conditions must be
+transferred with `parents` when creating a case manually.
+
+Pass preprocessing and per-object property overrides in `fracture_arg`, for
+example `fracture_arg=(aperture=1e-3,)`. The direct DFM routines require a
+matrix without NNC faces and fractures with interior matrix connections;
+boundary-only fractures are rejected. Other face coefficients must be assigned
+after cutting. Cut-cell DFM can introduce many
+more matrix cells; EFM retains the original mesh.
+
+See `examples/fractures/compare_efm_dfm.jl` for a common water-injection case.
+
+## Geometry types and precision
+
+`EmbeddedFractureMesh{T}` stores the original matrix mesh, fracture objects,
+tags, and one `EmbeddedFractureGeometry{T}`. Clipped patches, local frames,
+intersections, exchange data and the TPFA geometry live in `mesh.geometry`;
+the TPFA geometry is accessed with `tpfv_geometry(mesh)`. For example, clipped
+surfaces are in `mesh.geometry.patches`.
+
+Preprocessing defaults to the matrix mesh's floating-point type. Set
+`embedded_fracture_domain(matrix, fractures; float_type=Float32)` to select it
+explicitly. Fracture constructors infer their type from coordinates and also
+accept `float_type`. Float32, Float64 and BigFloat geometry are tested. The
+default clipping tolerance accounts for coordinate precision; resolving very
+small apertures or geometric details on a large coordinate scale requires
+sufficient precision in the input coordinates.
+
 ## Fracture geometry and properties
 
 `RectangleFracture(center, normal, lengths)` uses two **full side lengths**.
@@ -192,6 +257,9 @@ this comparison excludes DFM's automatic fracture well extensions.
 ```@docs
 embedded_fracture_domain
 embedded_fracture_mesh
+discrete_fracture_domain
+discrete_fracture_mesh
+EmbeddedFractureGeometry
 combined_fracture_domain
 setup_embedded_fracture_model
 PolygonFracture

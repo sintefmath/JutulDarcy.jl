@@ -1,22 +1,22 @@
-struct BoundingBoxNode
-    low::Point3
-    high::Point3
+struct BoundingBoxNode{T <: AbstractFloat}
+    low::Point3{T}
+    high::Point3{T}
     left::Int
     right::Int
     first::Int
     last::Int
 end
 
-struct CellSpatialIndex
-    nodes::Vector{BoundingBoxNode}
+struct CellSpatialIndex{T <: AbstractFloat}
+    nodes::Vector{BoundingBoxNode{T}}
     cells::Vector{Int}
-    low::Vector{Point3}
-    high::Vector{Point3}
+    low::Vector{Point3{T}}
+    high::Vector{Point3{T}}
 end
 
-function CellSpatialIndex(low::Vector{Point3}, high::Vector{Point3}; leaf_size = 16)
+function CellSpatialIndex(low::Vector{Point3{T}}, high::Vector{Point3{T}}; leaf_size = 16) where T
     cells = collect(eachindex(low))
-    nodes = BoundingBoxNode[]
+    nodes = BoundingBoxNode{T}[]
     function build(first, last)
         lo, hi = low[cells[first]], high[cells[first]]
         for i in first+1:last
@@ -40,9 +40,9 @@ function CellSpatialIndex(low::Vector{Point3}, high::Vector{Point3}; leaf_size =
     return CellSpatialIndex(nodes, cells, low, high)
 end
 
-function CellSpatialIndex(mesh::UnstructuredMesh{3})
+function CellSpatialIndex(mesh::UnstructuredMesh{3}, ::Type{T} = Jutul.float_type(mesh)) where T
     bounds = [Jutul.CutCellMeshes.cell_bounding_box(mesh, c) for c in 1:number_of_cells(mesh)]
-    return CellSpatialIndex(Point3[first(b) for b in bounds], Point3[last(b) for b in bounds])
+    return CellSpatialIndex(Point3{T}[first(b) for b in bounds], Point3{T}[last(b) for b in bounds])
 end
 
 boxes_overlap(al, ah, bl, bh, tol) = all(al .<= bh .+ tol) && all(bl .<= ah .+ tol)

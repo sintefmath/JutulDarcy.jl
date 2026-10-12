@@ -1,14 +1,16 @@
 function fracture_frame(f::AbstractEmbeddedFracture, tol)
-    pts = fracture_polygon(f)
-    origin, normal = first(pts), f.normal
+    T = typeof(tol)
+    pts = Point3{T}.(fracture_polygon(f))
+    origin, normal = first(pts), Point3{T}(f.normal)
     u, v = plane_basis(normal)
-    parts = convex_parts([Point2(dot(p-origin, u), dot(p-origin, v)) for p in pts], tol)
+    parts = convex_parts([Point2{T}(dot(p-origin, u), dot(p-origin, v)) for p in pts], tol)
     return FractureFrame(origin, normal, u, v, parts)
 end
 
 function patch_geometry(parts, frame)
-    area = 0.0
-    centroid = zero(Point2)
+    T = eltype(frame.origin)
+    area = zero(T)
+    centroid = zero(Point2{T})
     for p in parts
         A, c = polygon_area_centroid(p)
         area += A
@@ -18,13 +20,14 @@ function patch_geometry(parts, frame)
 end
 
 function clipped_face_segments(frame, segments, tol; parts = frame.parts)
-    out = Tuple{Int, Point3, Point3}[]
+    T = eltype(frame.origin)
+    out = Tuple{Int, Point3{T}, Point3{T}}[]
     for (face, a, b) in segments
         pa, pb = project(frame, a), project(frame, b)
         L = norm(pb-pa)
         L > tol || continue
         direction = (pb-pa)/L
-        for (lo, hi) in line_intervals(parts, pa, direction, tol; limits = (0.0, L))
+        for (lo, hi) in line_intervals(parts, pa, direction, tol; limits = (0, L))
             push!(out, (face, unproject(frame, pa+lo*direction), unproject(frame, pa+hi*direction)))
         end
     end
@@ -32,6 +35,7 @@ function clipped_face_segments(frame, segments, tol; parts = frame.parts)
 end
 
 function connected_patch_parts(parts, tol)
+    T = typeof(tol)
     length(parts) == 1 && return [parts]
     components = collect(eachindex(parts))
     function root(i)
@@ -49,7 +53,7 @@ function connected_patch_parts(parts, tol)
             direction = normalize(b-a)
             if abs(cross2(c-a, direction)) <= tol && abs(cross2(d-a, direction)) <= tol
                 lo, hi = minmax(dot(c-a, direction), dot(d-a, direction))
-                if min(norm(b-a), hi)-max(0.0, lo) > tol
+                if min(norm(b-a), hi)-max(0, lo) > tol
                     connected = true
                     break
                 end
@@ -59,9 +63,9 @@ function connected_patch_parts(parts, tol)
             components[root(j)] = root(i)
         end
     end
-    groups = Dict{Int, Vector{Vector{Point2}}}()
+    groups = Dict{Int, Vector{Vector{Point2{T}}}}()
     for i in eachindex(parts)
-        push!(get!(groups, root(i), Vector{Point2}[]), parts[i])
+        push!(get!(groups, root(i), Vector{Point2{T}}[]), parts[i])
     end
     return [groups[i] for i in sort!(collect(keys(groups)))]
 end
@@ -84,7 +88,7 @@ function segment_overlap(a, b, c, d, tol)
         return nothing
     end
     lo, hi = minmax(dot(c-a, direction), dot(d-a, direction))
-    lo, hi = max(0.0, lo), min(L, hi)
+    lo, hi = max(0, lo), min(L, hi)
     if hi-lo <= tol
         return nothing
     end
@@ -92,8 +96,9 @@ function segment_overlap(a, b, c, d, tol)
 end
 
 function interface_measure(segments, tol)
+    T = typeof(tol)
     # Triangle fans can produce duplicate or partially overlapping segments.
-    groups = Vector{Tuple{Point3, Point3}}[]
+    groups = Vector{Tuple{Point3{T}, Point3{T}}}[]
     for (a, b) in segments
         assigned = false
         for group in groups
@@ -109,7 +114,7 @@ function interface_measure(segments, tol)
             push!(groups, [(a, b)])
         end
     end
-    length_sum, center = 0.0, zero(Point3)
+    length_sum, center = zero(T), zero(Point3{T})
     for group in groups
         origin, endpoint = first(group)
         direction = normalize(endpoint-origin)
@@ -127,7 +132,7 @@ function interface_measure(segments, tol)
 end
 
 """
-    embedded_fracture_mesh(matrix_mesh, fractures; tolerance=nothing, intersections=true)
+    embedded_fracture_mesh(matrix_mesh, fractures; tolerance=nothing, intersections=true, float_type=Jutul.float_type(matrix_mesh))
 
 Clip planar fracture objects against an unmodified 3D mesh. A bounding-box tree
 prunes matrix cells and fracture pairs. Warped faces use Jutul's face-center
@@ -136,8 +141,11 @@ to both matrix cells. Point contacts have zero transmissibility.
 """
 function embedded_fracture_mesh(matrix_mesh::JutulMesh, fractures;
         tolerance = nothing,
-        intersections = true
+        intersections = true,
+        float_type = Jutul.float_type(matrix_mesh)
     )
+    T = float_type
+    T <: AbstractFloat || throw(ArgumentError("float_type must be an AbstractFloat type"))
     mesh = UnstructuredMesh(matrix_mesh)
     dim(mesh) == 3 || throw(ArgumentError("EFM requires a three-dimensional matrix mesh"))
     number_of_cells(mesh) > 0 || throw(ArgumentError("EFM requires at least one active matrix cell"))
@@ -146,23 +154,24 @@ function embedded_fracture_mesh(matrix_mesh::JutulMesh, fractures;
     end
     fractures = AbstractEmbeddedFracture[fractures...]
     isempty(fractures) && throw(ArgumentError("at least one fracture is required"))
-    index = CellSpatialIndex(mesh)
+    index = CellSpatialIndex(mesh, T)
     if isnothing(tolerance)
         root = first(index.nodes)
-        tolerance = max(1e-9, 1e-10*norm(root.high-root.low))
+        scale = max(norm(root.high-root.low), maximum(abs, root.low), maximum(abs, root.high))
+        tolerance = max(1e-9, 1e-10*norm(root.high-root.low), 4eps(T)*scale)
     end
-    tol = Float64(tolerance)
+    tol = T(tolerance)
     isfinite(tol) && tol > 0 || throw(ArgumentError("tolerance must be positive and finite"))
     frames = [fracture_frame(f, tol) for f in fractures]
-    patches = FracturePatch[]
-    face_patches = Dict{Tuple{Int, Int}, Dict{Int, Vector{Tuple{Point3, Point3}}}}()
+    patches = FracturePatch{T}[]
+    face_patches = Dict{Tuple{Int, Int}, Dict{Int, Vector{Tuple{Point3{T}, Point3{T}}}}}()
     coincident = Dict{Tuple{Int, Int}, Vector{Int}}()
     for (fi, frame) in enumerate(frames)
         vertices = fracture_polygon(fractures[fi])
         low, high = reduce((a, b) -> min.(a, b), vertices), reduce((a, b) -> max.(a, b), vertices)
         for cell in query_cells(index, low, high, tol; origin = frame.origin, normal = frame.normal)
             loops, segments = cell_section(mesh, cell, frame.origin, frame.normal, frame.u, frame.v, tol)
-            parts = Vector{Point2}[]
+            parts = Vector{Point2{T}}[]
             for loop in loops
                 sections = try
                     convex_parts(loop, tol; resolve_winding = true)
@@ -210,21 +219,21 @@ function embedded_fracture_mesh(matrix_mesh::JutulMesh, fractures;
                     push!(patches[patch].matrix_cells, cell)
                 end
                 for (face, a, b) in clipped_face_segments(frame, segments, tol; parts = component)
-                    connected = get!(face_patches, (fi, face), Dict{Int, Vector{Tuple{Point3, Point3}}}())
-                    push!(get!(connected, patch, Tuple{Point3, Point3}[]), (a, b))
+                    connected = get!(face_patches, (fi, face), Dict{Int, Vector{Tuple{Point3{T}, Point3{T}}}}())
+                    push!(get!(connected, patch, Tuple{Point3{T}, Point3{T}}[]), (a, b))
                 end
             end
         end
     end
     isempty(patches) && throw(ArgumentError("fractures have no positive-area intersection with the active matrix mesh"))
     pairs = Tuple{Int, Int}[]
-    lengths = Float64[]
-    centers = Point3[]
-    distances = Tuple{Float64, Float64}[]
+    lengths = T[]
+    centers = Point3{T}[]
+    distances = Tuple{T, T}[]
     types = Symbol[]
     # Shared matrix faces define connections within one fracture. This preserves
     # fault/ACTNUM topology instead of connecting nearby but disconnected cells.
-    interfaces = Dict{Tuple{Int, Int}, Vector{Tuple{Point3, Point3}}}()
+    interfaces = Dict{Tuple{Int, Int}, Vector{Tuple{Point3{T}, Point3{T}}}}()
     for connected in values(face_patches)
         ids = sort!(collect(keys(connected)))
         for i in 1:length(ids), j in i+1:length(ids)
@@ -232,7 +241,7 @@ function embedded_fracture_mesh(matrix_mesh::JutulMesh, fractures;
             for (a, b) in connected[l], (c, d) in connected[r]
                 seg = segment_overlap(a, b, c, d, tol)
                 if !isnothing(seg)
-                    push!(get!(interfaces, (l, r), Tuple{Point3, Point3}[]), seg)
+                    push!(get!(interfaces, (l, r), Tuple{Point3{T}, Point3{T}}[]), seg)
                 end
             end
         end
@@ -252,15 +261,15 @@ function embedded_fracture_mesh(matrix_mesh::JutulMesh, fractures;
         push!(distances, (max(dl, tol), max(dr, tol)))
         push!(types, :fracture)
     end
-    intersection_groups = FractureIntersection[]
+    intersection_groups = FractureIntersection{T}[]
     if intersections
         intersection_groups = add_fracture_intersections!(pairs, lengths, centers, distances, types, mesh, patches, frames, interfaces, tol)
     end
     nf, nc = length(pairs), length(patches)
     N = reshape(reinterpret(Int, pairs), 2, nf)
-    cc = reshape(reinterpret(Float64, [p.centroid for p in patches]), 3, nc)
-    fc = reshape(reinterpret(Float64, centers), 3, nf)
-    normals = zeros(3, nf)
+    cc = fracture_point_matrix([p.centroid for p in patches], 3, T)
+    fc = fracture_point_matrix(centers, 3, T)
+    normals = zeros(T, 3, nf)
     for (i, (l, r)) in enumerate(pairs)
         delta = patches[r].centroid-patches[l].centroid
         if norm(delta) > tol
@@ -272,7 +281,7 @@ function embedded_fracture_mesh(matrix_mesh::JutulMesh, fractures;
     geo = TwoPointFiniteVolumeGeometry(Matrix(N), lengths, [p.area for p in patches], normals, Matrix(cc), Matrix(fc);
         half_face_cells = vec(Matrix(N)), half_face_faces = repeat(collect(1:nf); inner = 2))
     mc, fcells = Int[], Int[]
-    mdist, marea = Float64[], Float64[]
+    mdist, marea = T[], T[]
     for (fcell, patch) in enumerate(patches)
         frame = frames[patch.fracture]
         for cell in patch.matrix_cells
@@ -281,14 +290,14 @@ function embedded_fracture_mesh(matrix_mesh::JutulMesh, fractures;
             push!(mdist, max(cell_average_distance(mesh, cell, frame.origin, frame.normal), tol))
             # A fracture inside a cell exchanges through both sides. A fracture
             # on a face exchanges through one side with each adjacent cell.
-            factor = 2.0
+            factor = 2
             if !isempty(coincident_faces(mesh, cell, frame, tol))
-                factor = 1.0
+                factor = 1
             else
                 for face in mesh.boundary_faces.cells_to_faces[cell]
                     nodes = mesh.boundary_faces.faces_to_nodes[face]
                     if !isempty(nodes) && all(n -> abs(dot(mesh.node_points[n]-frame.origin, frame.normal)) <= tol, nodes)
-                        factor = 1.0
+                        factor = 1
                         break
                     end
                 end
@@ -296,8 +305,9 @@ function embedded_fracture_mesh(matrix_mesh::JutulMesh, fractures;
             push!(marea, factor*patch.area)
         end
     end
-    dist = reshape(reinterpret(Float64, distances), 2, nf)
-    return EmbeddedFractureMesh(matrix_mesh, fractures, frames, patches, geo, Matrix(dist), types, intersection_groups, mc, fcells, mdist, marea, tol, geometry_tags(geo))
+    dist = fracture_point_matrix(distances, 2, T)
+    geometry = EmbeddedFractureGeometry(frames, patches, geo, Matrix(dist), types, intersection_groups, mc, fcells, mdist, marea, tol)
+    return EmbeddedFractureMesh(matrix_mesh, fractures, geometry, geometry_tags(geo))
 end
 
 function connected_matrix_cells(mesh, left, right)
@@ -310,7 +320,8 @@ function connected_matrix_cells(mesh, left, right)
 end
 
 function add_fracture_intersections!(pairs, lengths, centers, distances, types, matrix_mesh, patches, frames, interfaces, tol)
-    low, high = Point3[], Point3[]
+    T = typeof(tol)
+    low, high = Point3{T}[], Point3{T}[]
     for patch in patches
         frame = frames[patch.fracture]
         pts = [unproject(frame, p) for part in patch.parts for p in part]
@@ -320,7 +331,7 @@ function add_fracture_intersections!(pairs, lengths, centers, distances, types, 
     index = CellSpatialIndex(low, high)
     # Each group represents one geometric intersection line. Its intervals are
     # split at patch endpoints before eliminating the virtual intersection cell.
-    groups = Tuple{Point3, Point3, Vector{Tuple{Float64, Float64, Int, Int}}}[]
+    groups = Tuple{Point3{T}, Point3{T}, Vector{Tuple{T, T, Int, Int}}}[]
     fracture_groups = Dict{Tuple{Int, Int}, Int}()
     for (l, pl) in enumerate(patches)
         fl = frames[pl.fracture]
@@ -335,7 +346,7 @@ function add_fracture_intersections!(pairs, lengths, centers, distances, types, 
             if sine < 1e-10
                 if abs(dot(fr.origin-fl.origin, fl.normal)) <= tol
                     other = [orient_polygon([project(fl, unproject(fr, p)) for p in part]) for part in pr.parts]
-                    overlap = 0.0
+                    overlap = 0
                     for a in pl.parts, b in other
                         p = clip_polygon(a, b, tol)
                         if length(p) >= 3
@@ -350,7 +361,7 @@ function add_fracture_intersections!(pairs, lengths, centers, distances, types, 
             tangent = cross(axis, fl.normal)
             origin = fl.origin + dot(fr.origin-fl.origin, fr.normal)/dot(tangent, fr.normal)*tangent
             ol, or = project(fl, origin), project(fr, origin)
-            dl, dr = Point2(dot(axis, fl.u), dot(axis, fl.v)), Point2(dot(axis, fr.u), dot(axis, fr.v))
+            dl, dr = Point2{T}(dot(axis, fl.u), dot(axis, fl.v)), Point2{T}(dot(axis, fr.u), dot(axis, fr.v))
             intervals = overlap_intervals(line_intervals(pl.parts, ol, dl, tol), line_intervals(pr.parts, or, dr, tol), tol)
             isempty(intervals) && continue
             fracture_pair = minmax(pl.fracture, pr.fracture)
@@ -364,7 +375,7 @@ function add_fracture_intersections!(pairs, lengths, centers, distances, types, 
                 end
             end
             if group_id == 0
-                push!(groups, (origin, axis, Tuple{Float64, Float64, Int, Int}[]))
+                push!(groups, (origin, axis, Tuple{T, T, Int, Int}[]))
                 group_id = length(groups)
             end
             fracture_groups[fracture_pair] = group_id
@@ -375,10 +386,10 @@ function add_fracture_intersections!(pairs, lengths, centers, distances, types, 
             end
         end
     end
-    sections = Tuple{Point3, Point3, Float64, Vector{Int}}[]
+    sections = Tuple{Point3{T}, Point3{T}, T, Vector{Int}}[]
     for (origin, axis, records) in groups
         endpoints = sort!(vcat([a for (a, b, l, r) in records], [b for (a, b, l, r) in records]))
-        unique_points = Float64[]
+        unique_points = T[]
         for p in endpoints
             if isempty(unique_points) || p-last(unique_points) > tol
                 push!(unique_points, p)
@@ -413,7 +424,7 @@ function add_fracture_intersections!(pairs, lengths, centers, distances, types, 
             pair = pairs[i]
             l, r = pair
             if l in cells && r in cells && haskey(interfaces, pair)
-                segments = Tuple{Point3, Point3}[]
+                segments = Tuple{Point3{T}, Point3{T}}[]
                 for (c, d) in interfaces[pair]
                     overlap = segment_overlap(a, b, c, d, tol)
                     if !isnothing(overlap)
@@ -421,7 +432,7 @@ function add_fracture_intersections!(pairs, lengths, centers, distances, types, 
                     end
                 end
                 removed, _ = interface_measure(segments, tol)
-                lengths[i] = max(lengths[i]-removed, 0.0)
+                lengths[i] = max(lengths[i]-removed, 0)
             end
         end
     end
@@ -431,15 +442,15 @@ function add_fracture_intersections!(pairs, lengths, centers, distances, types, 
         empty!(data)
         append!(data, kept)
     end
-    intersections = FractureIntersection[]
+    intersections = FractureIntersection{T}[]
     for (center, axis, L, cells) in sections
-        ds = Float64[]
+        ds = T[]
         for cell in cells
             patch = patches[cell]
             frame = frames[patch.fracture]
             origin = project(frame, center)
-            direction = Point2(dot(axis, frame.u), dot(axis, frame.v))
-            normal = Point2(-direction[2], direction[1])
+            direction = Point2{T}(dot(axis, frame.u), dot(axis, frame.v))
+            normal = Point2{T}(-direction[2], direction[1])
             avg = polygon_average_distance(patch.parts, origin, normal, tol)
             signed = [dot(p-origin, normal) for part in patch.parts for p in part]
             if minimum(signed) < -tol && maximum(signed) > tol

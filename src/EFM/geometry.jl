@@ -1,8 +1,9 @@
 cross2(a, b) = a[1]*b[2] - a[2]*b[1]
 
 function polygon_area_centroid(p)
+    T = eltype(eltype(p))
     origin = first(p)
-    area = 0.0
+    area = zero(T)
     centroid = zero(eltype(p))
     for i in 2:length(p)-1
         a = cross2(p[i] - origin, p[i+1] - origin)/2
@@ -10,7 +11,7 @@ function polygon_area_centroid(p)
         centroid += a*(origin + p[i] + p[i+1])/3
     end
     if area == 0
-        return 0.0, origin
+        return zero(T), origin
     end
     return abs(area), centroid/area
 end
@@ -78,9 +79,10 @@ function clean_polygon(p, tol)
 end
 
 function convex_parts(p, tol; resolve_winding = false)
+    T = eltype(eltype(p))
     p = orient_polygon(clean_polygon(p, tol))
     if length(p) < 3
-        return Vector{Point2}[]
+        return Vector{Point2{T}}[]
     end
     if resolve_winding
         try
@@ -93,7 +95,7 @@ function convex_parts(p, tol; resolve_winding = false)
     if convex_polygon(p, tol)
         return [p]
     end
-    parts = Vector{Point2}[]
+    parts = Vector{Point2{T}}[]
     ix = collect(eachindex(p))
     while length(ix) > 3
         found = false
@@ -138,6 +140,7 @@ with positive winding. Slab endpoints include every segment crossing, so the
 trapezoids are exact rather than a convex-hull approximation.
 """
 function polygon_winding_parts(p, tol)
+    T = eltype(eltype(p))
     events = [q[1] for q in p]
     n = length(p)
     for i in 1:n, j in i+1:n
@@ -145,7 +148,7 @@ function polygon_winding_parts(p, tol)
         c, d = p[j], p[mod1(j+1, n)]
         u, v = b-a, d-c
         denominator = cross2(u, v)
-        if abs(denominator) <= eps(Float64)*norm(u)*norm(v)
+        if abs(denominator) <= eps(T)*norm(u)*norm(v)
             continue
         end
         t, s = cross2(c-a, v)/denominator, cross2(c-a, u)/denominator
@@ -154,17 +157,17 @@ function polygon_winding_parts(p, tol)
         end
     end
     sort!(events)
-    xs = Float64[]
+    xs = T[]
     for x in events
         if isempty(xs) || x-last(xs) > tol
             push!(xs, x)
         end
     end
-    parts = Vector{Point2}[]
+    parts = Vector{Point2{T}}[]
     for k in 1:length(xs)-1
         xl, xr = xs[k], xs[k+1]
         xm = (xl+xr)/2
-        edges = Tuple{Float64, Float64, Float64, Int}[]
+        edges = Tuple{T, T, T, Int}[]
         for i in 1:n
             a, b = p[i], p[mod1(i+1, n)]
             if min(a[1], b[1]) < xm < max(a[1], b[1])
@@ -183,8 +186,8 @@ function polygon_winding_parts(p, tol)
             lower, upper = edges[i], edges[i+1]
             winding += lower[4]
             if winding > 0 && upper[1]-lower[1] > tol
-                q = clean_polygon([Point2(xl, lower[2]), Point2(xr, lower[3]),
-                    Point2(xr, upper[3]), Point2(xl, upper[2])], tol)
+                q = clean_polygon([Point2{T}(xl, lower[2]), Point2{T}(xr, lower[3]),
+                    Point2{T}(xr, upper[3]), Point2{T}(xl, upper[2])], tol)
                 if length(q) >= 3 && polygon_area_centroid(q)[1] > tol^2
                     push!(parts, q)
                 end
@@ -195,6 +198,7 @@ function polygon_winding_parts(p, tol)
 end
 
 function clip_halfplane(p, a, b, tol)
+    T = eltype(a)
     out = eltype(p)[]
     isempty(p) && return out
     e = b-a
@@ -203,8 +207,8 @@ function clip_halfplane(p, a, b, tol)
     for r in p
         dr = cross2(e, r-a)
         inside_l, inside_r = dl >= -tol*norm(e), dr >= -tol*norm(e)
-        if inside_l != inside_r && abs(dl-dr) > eps(Float64)
-            push!(out, l + clamp(dl/(dl-dr), 0.0, 1.0)*(r-l))
+        if inside_l != inside_r && abs(dl-dr) > eps(T)
+            push!(out, l + clamp(dl/(dl-dr), 0, 1)*(r-l))
         end
         if inside_r
             push!(out, r)
@@ -215,11 +219,12 @@ function clip_halfplane(p, a, b, tol)
 end
 
 function clip_polygon(p, boundary, tol)
+    T = eltype(eltype(p))
     out = p
     for i in eachindex(boundary)
         out = clip_halfplane(out, boundary[i], boundary[mod1(i+1, length(boundary))], tol)
         if length(out) < 3
-            return Point2[]
+            return Point2{T}[]
         end
     end
     return out
@@ -236,7 +241,8 @@ function point_index!(points, p, tol)
 end
 
 function triangle_plane_segment(a, b, c, origin, normal, tol)
-    pts = Point3[]
+    T = eltype(origin)
+    pts = Point3{T}[]
     vertices = (a, b, c)
     distances = map(p -> dot(p-origin, normal), vertices)
     for i in 1:3
@@ -258,22 +264,23 @@ end
 
 """Intersect a cell boundary using the same face-center triangle fan as Jutul geometry."""
 function cell_section(mesh, cell, origin, normal, u, v, tol)
-    points = Point3[]
+    T = eltype(origin)
+    points = Point3{T}[]
     edges = Set{Tuple{Int, Int}}()
-    face_segments = Tuple{Int, Point3, Point3}[]
-    coplanar = Vector{Point2}[]
+    face_segments = Tuple{Int, Point3{T}, Point3{T}}[]
+    coplanar = Vector{Point2{T}}[]
     for faces in (mesh.faces, mesh.boundary_faces)
         for face in faces.cells_to_faces[cell]
             nodes = faces.faces_to_nodes[face]
             isempty(nodes) && continue # Non-neighboring connection without geometry.
-            pts = mesh.node_points[nodes]
+            pts = Point3{T}.(mesh.node_points[nodes])
             center = sum(pts)/length(pts)
             face_id = 0
             if faces === mesh.faces
                 face_id = face
             end
             if all(p -> abs(dot(p-origin, normal)) <= tol, pts)
-                push!(coplanar, [Point2(dot(p-origin, u), dot(p-origin, v)) for p in pts])
+                push!(coplanar, [Point2{T}(dot(p-origin, u), dot(p-origin, v)) for p in pts])
                 continue
             end
             for i in eachindex(pts)
@@ -291,7 +298,7 @@ function cell_section(mesh, cell, origin, normal, u, v, tol)
     if !isempty(coplanar)
         return coplanar, face_segments
     end
-    loops = Vector{Point2}[]
+    loops = Vector{Point2{T}}[]
     while !isempty(edges)
         a, b = pop!(edges)
         ids = [a, b]
@@ -321,16 +328,17 @@ function cell_section(mesh, cell, origin, normal, u, v, tol)
             end
         end
         if length(ids) >= 3
-            push!(loops, [Point2(dot(points[i]-origin, u), dot(points[i]-origin, v)) for i in ids])
+            push!(loops, [Point2{T}(dot(points[i]-origin, u), dot(points[i]-origin, v)) for i in ids])
         end
     end
     return loops, face_segments
 end
 
 function merge_intervals(intervals, tol)
+    T = typeof(tol)
     isempty(intervals) && return intervals
     sort!(intervals; by = first)
-    out = Tuple{Float64, Float64}[]
+    out = Tuple{T, T}[]
     a, b = first(intervals)
     for (c, d) in intervals[2:end]
         if c <= b + tol
@@ -345,9 +353,10 @@ function merge_intervals(intervals, tol)
 end
 
 function line_intervals(parts, origin, direction, tol; limits = (-Inf, Inf))
-    intervals = Tuple{Float64, Float64}[]
+    T = eltype(origin)
+    intervals = Tuple{T, T}[]
     for p in parts
-        lo, hi = limits
+        lo, hi = T.(limits)
         for i in eachindex(p)
             a, b = p[i], p[mod1(i+1, length(p))]
             e = b-a
@@ -371,7 +380,8 @@ function line_intervals(parts, origin, direction, tol; limits = (-Inf, Inf))
 end
 
 function overlap_intervals(a, b, tol)
-    out = Tuple{Float64, Float64}[]
+    T = typeof(tol)
+    out = Tuple{T, T}[]
     for (al, ar) in a, (bl, br) in b
         l, r = max(al, bl), min(ar, br)
         if r-l > tol
@@ -382,22 +392,23 @@ function overlap_intervals(a, b, tol)
 end
 
 function polygon_average_distance(parts, origin, normal, tol)
-    integral = 0.0
-    area = 0.0
-    direction = Point2(normal[2], -normal[1])
+    T = eltype(origin)
+    integral = zero(T)
+    area = zero(T)
+    direction = Point2{T}(normal[2], -normal[1])
     for p in parts
         A, c = polygon_area_centroid(p)
         area += A
         total = A*dot(c-origin, normal)
         positive = clip_halfplane(p, origin, origin+direction, tol)
-        pos = 0.0
+        pos = zero(T)
         if length(positive) >= 3
             Ap, cp = polygon_area_centroid(positive)
             pos = Ap*dot(cp-origin, normal)
         end
         integral += 2pos-total
     end
-    return max(integral/area, 0.0)
+    return max(integral/area, 0)
 end
 
 tetra_volume(a, b, c, d) = dot(b-a, cross(c-a, d-a))/6
@@ -414,7 +425,7 @@ function tetra_average_distance(pts, distances)
         return tetra_average_distance(pts, -distances)
     end
     V = abs(tetra_volume(pts...))
-    V == 0 && return 0.0
+    V == 0 && return 0
     crossing(i, j) = pts[i] + distances[i]/(distances[i]-distances[j])*(pts[j]-pts[i])
     if length(positive) == 1
         i = only(positive)
@@ -430,19 +441,20 @@ function tetra_average_distance(pts, distances)
         pos += abs(tetra_volume(b, ac, bc, bd))*distances[j]/4
         pos /= V
     end
-    return max(2pos-total, 0.0)
+    return max(2pos-total, 0)
 end
 
 function cell_average_distance(mesh, cell, origin, normal)
+    T = eltype(origin)
     # Signed tetrahedra preserve integrals for non-convex, star-shaped cells.
-    center = Point3(Jutul.compute_centroid_and_measure(mesh, Cells(), cell)[1])
-    volume = 0.0
-    integral = 0.0
+    center = Point3{T}(Jutul.compute_centroid_and_measure(mesh, Cells(), cell)[1])
+    volume = zero(T)
+    integral = zero(T)
     for faces in (mesh.faces, mesh.boundary_faces)
         for face in faces.cells_to_faces[cell]
             nodes = faces.faces_to_nodes[face]
             isempty(nodes) && continue
-            pts = mesh.node_points[nodes]
+            pts = Point3{T}.(mesh.node_points[nodes])
             fc = sum(pts)/length(pts)
             sign = Jutul.face_orientation_sign(faces, face, cell)
             for i in eachindex(pts)
@@ -455,5 +467,5 @@ function cell_average_distance(mesh, cell, origin, normal)
         end
     end
     abs(volume) > 0 || throw(ArgumentError("matrix cell $cell has zero volume"))
-    return max(integral/volume, 0.0)
+    return max(integral/volume, 0)
 end

@@ -14,17 +14,18 @@ fracture prisms overlap the matrix. Use the EFM domain's transmissibilities and
 storage for simulation, rather than recomputing them from this geometric mesh.
 """
 function Jutul.UnstructuredMesh(mesh::EmbeddedReservoirMesh)
+    T = Jutul.float_type(mesh)
     matrix = UnstructuredMesh(mesh.matrix_mesh)
     fractures = mesh.fracture_mesh
     nm = number_of_cells(matrix)
     nc = number_of_cells(mesh)
     nf = number_of_faces(mesh)
-    points = Point3.(matrix.node_points)
+    points = Point3{T}.(matrix.node_points)
     face_nodes = copy(matrix.faces.faces_to_nodes.vals)
     face_pos = copy(matrix.faces.faces_to_nodes.pos)
     # EFM connections are NNCs, rather than shared geometric faces.
     append!(face_pos, fill(last(face_pos), nf-number_of_faces(matrix)))
-    N = mesh.geometry.neighbors
+    N = tpfv_geometry(mesh).neighbors
     neighbors = [(N[1, f], N[2, f]) for f in 1:nf]
     cells_to_faces = embedded_cell_faces(neighbors, nc)
 
@@ -34,10 +35,10 @@ function Jutul.UnstructuredMesh(mesh::EmbeddedReservoirMesh)
     cell_boundary_faces = copy(matrix.boundary_faces.cells_to_faces.vals)
     cell_boundary_pos = copy(matrix.boundary_faces.cells_to_faces.pos)
     parents = Int[]
-    for (i, patch) in enumerate(fractures.patches)
-        frame = fractures.frames[patch.fracture]
-        aperture = mesh.geometry.volumes[nm+i]/patch.area
-        vertices, faces = fracture_prism(patch.parts, frame, aperture, fractures.tolerance)
+    for (i, patch) in enumerate(fractures.geometry.patches)
+        frame = fractures.geometry.frames[patch.fracture]
+        aperture = tpfv_geometry(mesh).volumes[nm+i]/patch.area
+        vertices, faces = fracture_prism(patch.parts, frame, aperture, fractures.geometry.tolerance)
         offset = length(points)
         append!(points, vertices)
         for nodes in faces
@@ -94,7 +95,8 @@ end
 
 """Extrude convex patch parts, removing walls inside a concave patch."""
 function fracture_prism(parts, frame, aperture, tol)
-    points = Point2[]
+    T = eltype(frame.origin)
+    points = Point2{T}[]
     polygons = [[point_index!(points, p, tol) for p in orient_polygon(part)] for part in parts]
     caps = Vector{Int}[]
     edges = Set{Tuple{Int, Int}}()
@@ -107,7 +109,7 @@ function fracture_prism(parts, frame, aperture, tol)
             direction /= distance
             # Split shared edges at all patch vertices. Clipping can produce
             # partial edge overlaps between the convex parts of one cell.
-            splits = Tuple{Float64, Int}[(0.0, a), (distance, b)]
+            splits = Tuple{T, Int}[(0, a), (distance, b)]
             for (j, p) in enumerate(points)
                 t = dot(p-origin, direction)
                 if tol < t < distance-tol && abs(cross2(direction, p-origin)) <= tol

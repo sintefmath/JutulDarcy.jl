@@ -58,6 +58,93 @@ end
 function JutulDarcy.setup_fractured_reservoir_model(matrix::DataDomain, fractures::DataDomain{<:EmbeddedFractureMesh}, system::Union{JutulSystem, Symbol}; kwarg...)
     return setup_embedded_fracture_model(matrix, fractures, system; kwarg...)
 end
+
+const EmbeddedFractureObjects = Union{AbstractEmbeddedFracture, AbstractVector{<:AbstractEmbeddedFracture}, Tuple{Vararg{AbstractEmbeddedFracture}}}
+
+function setup_embedded_fracture_model(matrix::DataDomain, objects::EmbeddedFractureObjects, system;
+        fracture_arg = NamedTuple(), kwarg...)
+    fractures = embedded_fracture_domain(matrix, objects; fracture_arg...)
+    return setup_embedded_fracture_model(matrix, fractures, system; kwarg...)
+end
+
+"""
+    setup_fractured_reservoir_model(matrix, objects, system; fracture_arg=NamedTuple(), wells=[], kwarg...)
+
+Build a cut-cell DFM model from the same fracture objects accepted by
+`setup_embedded_fracture_model`. Preprocessing options and property overrides
+are passed in `fracture_arg`. Original well perforations are distributed over
+their cut-cell descendants, preserving each completion's total well index.
+`extend_wells=false` keeps matrix completions for comparison with EFM; set it
+to `true` to add DFM fracture completions to multisegment wells.
+The original domain and well data are unchanged. Use `discrete_fracture_domain`
+when the original-cell mapping is needed for transferring states or forces.
+"""
+function JutulDarcy.setup_fractured_reservoir_model(matrix::DataDomain, objects::EmbeddedFractureObjects,
+        system::Union{JutulSystem, Symbol};
+        fracture_arg = NamedTuple(), wells = [], extend_wells = false, extra_out = false, kwarg...)
+    domains = discrete_fracture_domain(matrix, objects; fracture_arg...)
+    remapped = [cut_fracture_well(well, domains.matrix, domains.info[:cell_index]) for well in wells]
+    model = setup_fractured_reservoir_model(domains.matrix, domains.fractures, system;
+        wells = remapped, extend_wells = extend_wells, kwarg...)
+    if extra_out
+        return model, setup_parameters(model)
+    end
+    return model
+end
+
+function cut_fracture_well(well::DataDomain, matrix, parents)
+    original = physical_representation(well)
+    original isa Union{JutulDarcy.SimpleWell, JutulDarcy.MultiSegmentWell} || throw(ArgumentError("DFM well transfer requires a SimpleWell or MultiSegmentWell"))
+    isnothing(original.multiwell) || throw(ArgumentError("transfer individual wells before combining them into a multiwell"))
+    children = [Int[] for _ in 1:maximum(parents)]
+    for (cell, parent) in enumerate(parents)
+        push!(children[parent], cell)
+    end
+    cells, self, indices = Int[], Int[], Int[]
+    weights = eltype(matrix[:volumes])[]
+    for (perf, parent) in enumerate(original.perforations.reservoir)
+        descendants = children[parent]
+        volume = sum(matrix[:volumes][descendants])
+        for cell in descendants
+            push!(cells, cell)
+            push!(self, original.perforations.self[perf])
+            push!(indices, perf)
+            push!(weights, matrix[:volumes][cell]/volume)
+        end
+    end
+    perforations = (self = self, reservoir = cells)
+    w = deepcopy(original)
+    if w isa JutulDarcy.SimpleWell
+        representation = JutulDarcy.SimpleWell(perforations, w.surface, w.name, w.explicit_dp, w.multiwell)
+    else
+        representation = JutulDarcy.MultiSegmentWell(w.type, w.num_nodes, w.num_segments,
+            length(cells), perforations, w.neighborship, w.end_nodes, w.surface,
+            w.name, w.segment_models, w.include_inertia, w.multiwell)
+    end
+    transferred = DataDomain(representation)
+    for (key, (value, entity)) in pairs(well)
+        if entity == JutulDarcy.Perforations()
+            mapped = fracture_cell_subset(value, indices)
+            if key == :well_index
+                values = Jutul.default_parameter_values(well, nothing, JutulDarcy.WellIndices(), :WellIndices)
+                mapped = values[indices].*weights
+            elseif key == :thermal_well_index && haskey(well, :thermal_conductivity)
+                values = Jutul.default_parameter_values(well, nothing, JutulDarcy.WellIndicesThermal(), :WellIndicesThermal)
+                mapped = values[indices].*weights
+            elseif key == :perforation_centroids
+                mapped = matrix[:cell_centroids][:, cells]
+            elseif key == :cell_dims
+                mesh = physical_representation(matrix)
+                mapped = [JutulDarcy.peaceman_cell_dims(mesh, cell) for cell in cells]
+            end
+            transferred[key, entity] = mapped
+        else
+            transferred[key, entity] = deepcopy(value)
+        end
+    end
+    return transferred
+end
+
 struct EFMFluidThermalConductivities <: VectorVariables end
 Jutul.associated_entity(::EFMFluidThermalConductivities) = Faces()
 Jutul.minimum_value(::EFMFluidThermalConductivities) = 0.0

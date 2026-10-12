@@ -94,7 +94,7 @@ function benchmark_embedded_fractures(matrix::DataDomain;
     @test length(unique(domain[:fracture_id])) == count
     report = (matrix_cells = number_of_cells(matrix), fractures = count,
         fracture_cells = number_of_cells(domain), fracture_connections = number_of_faces(domain),
-        matrix_connections = length(fmesh.matrix_cells), intersection_segments = length(fmesh.intersections),
+        matrix_connections = length(fmesh.geometry.matrix_cells), intersection_segments = length(fmesh.geometry.intersections),
         preprocessing_seconds = timed.time, preprocessing_allocated_bytes = timed.bytes)
     println(report)
     flow = Dict{Symbol, Any}()

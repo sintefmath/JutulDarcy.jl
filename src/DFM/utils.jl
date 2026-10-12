@@ -184,6 +184,7 @@ The function performs the following steps:
 
 # Keyword arguments
 - `wells = []`: vector of well configurations to include in the model.
+- `extend_wells = true`: add fracture completions to multisegment wells.
 - Remaining keyword arguments are forwarded to `setup_reservoir_model`.
 
 # Returns
@@ -191,7 +192,7 @@ A `MultiModel` containing `:Reservoir` (matrix), `:Fracture`, and well
 sub-models with the appropriate DFM cross-terms.
 """
 function setup_fractured_reservoir_model(matrix::DataDomain, fractures::DataDomain, system::Union{JutulSystem, Symbol};
-    wells=[], kwarg...)
+    wells=[], extend_wells=true, kwarg...)
 
     system isa ImmiscibleSystem || system == :geothermal || error(
         "DFM currently supports only Immiscible and :geothermal fluid systems.")
@@ -214,7 +215,7 @@ function setup_fractured_reservoir_model(matrix::DataDomain, fractures::DataDoma
         matrix_cells = missing
     end
 
-    if ismissing(matrix_faces)        
+    if ismissing(matrix_faces) || !extend_wells
         fractured_wells = wells
     else
         matrix_mesh = physical_representation(matrix)

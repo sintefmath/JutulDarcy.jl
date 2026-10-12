@@ -143,6 +143,7 @@ function efm_dfm_comparison(n; thermal = false, pv_fraction = 0.5)
 end
 
 @testset "EFM" begin
+    include("efm_setup.jl")
     @testset "Fracture objects and exact clipping" begin
         mesh = reservoir_mesh((3, 3, 3), (3.0, 3.0, 3.0))
         matrix = reservoir_domain(mesh)
@@ -183,15 +184,15 @@ end
         @test sum(rd[:volumes])/rotated.properties.aperture ≈ 0.4
         # Non-convex face fans can retrace a collinear boundary segment. The
         # retraced portion has zero signed area and must not obstruct clipping.
-        retraced = EFM.Point2.([(0, 0), (3, 0), (2, 0), (4, 0), (4, 1), (0, 1)])
+        retraced = EFM.Point2{Float64}.([(0, 0), (3, 0), (2, 0), (4, 0), (4, 1), (0, 1)])
         @test sum(p -> EFM.polygon_area_centroid(p)[1], EFM.convex_parts(retraced, 1e-9)) ≈ 4
-        crossing = EFM.Point2.([(0, 0), (2, 0), (2, 2), (0, 2), (0, 0),
+        crossing = EFM.Point2{Float64}.([(0, 0), (2, 0), (2, 2), (0, 2), (0, 0),
             (1, 1), (3, 1), (3, 3), (1, 3), (1, 1), (0, 0)])
         @test sum(p -> EFM.polygon_area_centroid(p)[1], EFM.convex_parts(crossing, 1e-9; resolve_winding = true)) ≈ 7
         sliver = RectangleFracture([0.5, 0.5, 0.5], [1, 0, 0], (1e-10, 1.0))
         @test_throws ArgumentError embedded_fracture_domain(one, sliver; tolerance = 1e-8)
         # Exact distance integration includes tetrahedra split two-and-two.
-        p = (EFM.Point3(0, 0, 0), EFM.Point3(1, 0, 0), EFM.Point3(0, 1, 0), EFM.Point3(0, 0, 1))
+        p = (EFM.Point3{Float64}(0, 0, 0), EFM.Point3{Float64}(1, 0, 0), EFM.Point3{Float64}(0, 1, 0), EFM.Point3{Float64}(0, 0, 1))
         @test EFM.tetra_average_distance(p, EFM.SVector(1.0, 1.0, -1.0, -1.0)) ≈ 3/8
         @test EFM.tetra_average_distance(p, EFM.SVector(1.0, -1.0, -1.0, -1.0)) ≈ 9/16
         @test_throws ArgumentError PolygonFracture([[0, 0, 0], [1, 0, 0], [1, 1, 1], [0, 1, 0]])
@@ -244,7 +245,7 @@ end
         bd = embedded_fracture_domain(matrix, tangent)
         @test sum(bd[:volumes]) ≈ 4tangent.properties.aperture
         @test length(bd[:matrix_cells]) == 4
-        @test physical_representation(bd).matrix_areas ≈ ones(4)
+        @test physical_representation(bd).geometry.matrix_areas ≈ ones(4)
     end
 
     @testset "Unified three-dimensional mesh" begin
@@ -318,7 +319,7 @@ end
         @test fractures[:matrix_face_coverage][covered] ≈ ones(4)
         @test combined[:transmissibilities][covered] ≈ zeros(4) atol = 1e-25
         @test combined[:net_to_gross][9:end] == ones(4)
-        parents = [first(p.matrix_cells) for p in physical_representation(fractures).patches]
+        parents = [first(p.matrix_cells) for p in physical_representation(fractures).geometry.patches]
         @test combined[:satnum][9:end] == matrix[:satnum][parents]
         partial = embedded_fracture_domain(matrix, RectangleFracture([1, 1, 1], [1, 0, 0], (1, 1)))
         @test sum(partial[:matrix_face_coverage]) ≈ 1
@@ -354,7 +355,7 @@ end
         meeting = embedded_fracture_domain(adjacent, [left, right])
         @test number_of_cells(meeting) == 2
         @test number_of_faces(meeting) == 1
-        @test physical_representation(meeting).intersections[1].length ≈ 1
+        @test physical_representation(meeting).geometry.intersections[1].length ≈ 1
     end
 
     @testset "DFM network geometry and transmissibilities" begin
