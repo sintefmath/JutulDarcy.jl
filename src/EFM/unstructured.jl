@@ -7,11 +7,11 @@ fracture cells follow the matrix cells in simulation order. Each fracture patch
 is extruded symmetrically about its plane using its physical volume divided by
 its area, including aperture overrides supplied during domain setup.
 
-The original connection graph and face indices are retained. EFM connections
+The original connection graph and face indices are retained. Added connections
 are non-neighboring faces without nodes, while the extruded fracture surfaces
 are boundary faces. The matrix geometry is copied without cutting it, so the
-fracture prisms overlap the matrix. Use the EFM domain's transmissibilities and
-storage for simulation, rather than recomputing them from this geometric mesh.
+fracture prisms overlap the matrix. Use the unified domain's transmissibilities
+and storage for simulation, rather than recomputing them from this geometric mesh.
 """
 function Jutul.UnstructuredMesh(mesh::EmbeddedReservoirMesh)
     T = Jutul.float_type(mesh)
@@ -23,11 +23,11 @@ function Jutul.UnstructuredMesh(mesh::EmbeddedReservoirMesh)
     points = Point3{T}.(matrix.node_points)
     face_nodes = copy(matrix.faces.faces_to_nodes.vals)
     face_pos = copy(matrix.faces.faces_to_nodes.pos)
-    # EFM connections are NNCs, rather than shared geometric faces.
+    # Added EFM/DFM connections are NNCs, rather than shared geometric faces.
     append!(face_pos, fill(last(face_pos), nf-number_of_faces(matrix)))
     N = tpfv_geometry(mesh).neighbors
     neighbors = [(N[1, f], N[2, f]) for f in 1:nf]
-    cells_to_faces = embedded_cell_faces(neighbors, nc)
+    cells_to_faces = embedded_cell_faces(N, nc)
 
     boundary_nodes = copy(matrix.boundary_faces.faces_to_nodes.vals)
     boundary_pos = copy(matrix.boundary_faces.faces_to_nodes.pos)
@@ -108,24 +108,6 @@ function embedded_fracture_prism(matrix, fractures::Jutul.EmbeddedMesh, volume, 
         vertices, faces = fracture_prism([part], frame, aperture, tol)
     end
     return vertices, faces
-end
-
-function embedded_cell_faces(neighbors, nc)
-    counts = zeros(Int, nc+1)
-    for (l, r) in neighbors
-        counts[l+1] += 1
-        counts[r+1] += 1
-    end
-    pos = cumsum(counts) .+ 1
-    vals = Vector{Int}(undef, last(pos)-1)
-    next = copy(pos)
-    for (face, cells) in enumerate(neighbors)
-        for cell in cells
-            vals[next[cell]] = face
-            next[cell] += 1
-        end
-    end
-    return Jutul.IndirectionMap(vals, pos)
 end
 
 """Extrude convex patch parts, removing walls inside a concave patch."""

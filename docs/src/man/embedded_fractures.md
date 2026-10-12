@@ -90,6 +90,11 @@ parents = dfm_domains.info[:cell_index]
 initial_pressure_dfm = initial_pressure_efm[parents]
 ```
 
+`info[:cell_index]`, `:face_index`, and `:boundary_face_index` map the cut
+entities to their original matrix entities; new faces use parent ID `0`.
+`info[:fracture_id]` maps DFM fracture cells to input object IDs, and
+`info[:fracture_faces]` gives their cut-matrix faces in fracture-cell order.
+
 Cell properties, face multipliers, fault tags, and depth orientation are
 transferred. Explicit transmissibilities and overrides are divided between
 split faces by area; new faces use geometric TPFA coefficients. Existing well
@@ -151,6 +156,80 @@ accept `float_type`. Float32, Float64 and BigFloat geometry are tested. The
 default clipping tolerance accounts for coordinate precision; resolving very
 small apertures or geometric details on a large coordinate scale requires
 sufficient precision in the input coordinates.
+
+The type docstrings below describe every stored field, its units and its index
+space. In particular, `FractureFrame.parts` describes the whole input surface,
+while `FracturePatch.parts` describes one connected clipped cell. Both use the
+frame's local 2D coordinates. `FractureIntersection.cells` and `.faces` use
+fracture-local indices. Matrix–fracture exchange endpoints use separate local
+matrix and fracture cell indices; unified setup adds the matrix cell count to
+fracture indices.
+
+### Domain fields
+
+`EmbeddedFractureGeometry` stores aperture-independent surface geometry.
+The EFM fracture `DataDomain` stores physical properties and aperture-scaled
+geometry. These are separate so that aperture overrides can reuse the clipped
+mesh. Changing a property after domain setup requires recomputing the
+coefficients; assigning a new field value alone does not update them.
+
+| Field | Entity | Meaning |
+|:--|:--|:--|
+| `:aperture` | `Cells()` | Mechanical aperture (m), repeated for each patch belonging to an input object |
+| `:fracture_id` | `Cells()` | Input object ID in iteration order; unified matrix cells use `0`. Present for object-based DFM, optional for preprocessed DFM |
+| `:cell_normals` | `Cells()` | Unit fracture-plane normal, stored as a 3-by-cell matrix |
+| `:volumes` | `Cells()` | Physical bulk volume (m³): patch area times mechanical aperture |
+| `:areas` | `Faces()` | Physical fracture connection area (m²): interface length times the mean endpoint aperture |
+| `:matrix_face_coverage` | `NoEntity()` | Per-matrix-face covered fraction in `[0, 1]`; used to remove duplicate direct flow and heat paths |
+| `:transmissibilities` | `Faces()` | Explicit fracture–fracture flow coefficients (m³), including star–delta elimination |
+| `:rock_thermal_conductivities`, `:fluid_thermal_conductivities` | `Faces()` | Explicit heat-conduction coefficients (W/K); the fluid field is scalar per face or has one row per phase |
+| `:matrix_cells`, `:connection_cells` | `FractureMatrixConnection()` | Exchange endpoints in original matrix and local fracture cell numbering |
+| `:matrix_cell_centroids` | `FractureMatrixConnection()` | Matrix endpoint coordinates (m), 3-by-connection |
+| `:matrix_distance`, `:matrix_connection_area` | `FractureMatrixConnection()` | Averaged matrix-to-plane distance (m) and exchange area (m²) |
+| `:fracture_matrix_transmissibility` | `FractureMatrixConnection()` | Explicit exchange flow coefficient (m³) |
+| `:fracture_matrix_gravity_difference` | `FractureMatrixConnection()` | `g*(z_matrix - z_fracture)` (m²/s²) |
+| `:fracture_matrix_thermal_conductivity` | `FractureMatrixConnection()` | Total rock-plus-fluid exchange heat coefficient (W/K) |
+| `:is_fracture` | Unified `Cells()` | `Vector{Int}`: `0` for matrix cells, `1` for fracture and retained DFM intersection cells |
+
+Unified cells are ordered `[matrix; fractures]` and faces are ordered
+`[matrix; fracture–fracture; matrix–fracture]`. Matrix boundary fields and
+non-entity metadata are copied. Other matrix cell fields use the fracture
+domain's value when available, otherwise inherit a parent matrix cell value;
+fracture net-to-gross defaults to one. Tensor permeability keeps the matrix's
+diagonal or six-component symmetric representation. Original domains remain
+unchanged.
+
+When `extend_wells=true`, coupled models use the existing DFM well layout.
+`well.perforations.fracture` contains fracture-local reservoir cells and
+`well.perforations.self_fracture` contains the corresponding well nodes.
+Perforation data is stored on `FracturePerforations()` under the original key
+with suffix `_frac`, for example `:perforation_centroids_frac` (m),
+`:cell_dims_frac` (m), `:well_index_frac` (m³), and
+`:thermal_well_index_frac` (W/K). Fracture gravity differences use each
+completion's own well node. Unified setup appends these completions to ordinary
+`Perforations()`, offsets their reservoir cell indices, and preserves their
+computed well indices.
+
+### Reused geometry and utilities
+
+The object-based DFM path calls Jutul's `cut_mesh` and `EmbeddedMesh`; it does
+not implement another cut-cell or DFM transmissibility algorithm. EFM reuses
+Jutul's cell bounds, edge–plane intersections, tensor expansion and face
+adjacency. Fracture intersection and well searches use the same clipped-patch
+bound construction and spatial-index implementation. Property override
+validation, domain copying, and unified graph/property assembly are shared by
+EFM and DFM inside `EFM`.
+Well extension reuses DFM's completion and well-index setup.
+
+EFM keeps its tolerance-aware planar clipping, polygon decomposition and
+winding resolution. Jutul's current convex polygon clipping does not provide
+those semantics, and its unsigned triangle-fan area is not a replacement for
+EFM's signed concave-polygon area. The cell-section routine intersects the same
+face-centre triangle fans used for Jutul's warped-face geometry. The EFM plane
+basis also fixes the public default rectangle/ellipse orientation, so it keeps
+that convention rather than adopting the cut-cell projection basis.
+Jutul's shared edge–plane helper uses a scale-relative parallelism check, so
+valid crossings on small Float32 meshes are preserved.
 
 ## Fracture geometry and properties
 
@@ -299,10 +378,22 @@ embedded_fracture_mesh
 discrete_fracture_domain
 discrete_fracture_mesh
 EmbeddedFractureGeometry
+EmbeddedFractureMesh
+EmbeddedReservoirMesh
+AbstractEmbeddedFracture
+JutulDarcy.EFM.FractureProperties
+JutulDarcy.EFM.FractureFrame
+JutulDarcy.EFM.FracturePatch
+JutulDarcy.EFM.FractureIntersection
+JutulDarcy.EFM.BoundingBoxNode
+JutulDarcy.EFM.CellSpatialIndex
+JutulDarcy.EFM.EFMFluidThermalConductivities
+JutulDarcy.EFM.FracturePerforationGravityDifference
 FractureCollection
 combined_fracture_domain
 setup_embedded_fracture_model
 PolygonFracture
 RectangleFracture
 EllipticalFracture
+fracture_polygon
 ```

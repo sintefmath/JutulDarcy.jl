@@ -10,6 +10,12 @@ original fracture IDs. Indexing the collection retains the input order.
 The collection copies the input vector's entries into its groups. Treat the
 group vectors as read-only; construct a new collection after adding fractures.
 Both EFM and DFM preprocessing create a collection automatically.
+
+Fields:
+- `groups`: Tuple of concretely typed vectors, grouped by fracture type and `T`.
+- `indices`: Tuple of integer vectors mapping group entries to input IDs `1:n`.
+- `lookup`: Input ID to `(group_index, index_within_group)` mapping. IDs follow
+  iteration order even for input vectors with nonstandard indices.
 """
 struct FractureCollection{G <: Tuple, I <: Tuple} <: AbstractVector{AbstractEmbeddedFracture}
     groups::G

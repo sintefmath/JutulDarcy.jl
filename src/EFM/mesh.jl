@@ -1,4 +1,15 @@
-"""A clipped planar fracture cell; `parts` are nonoverlapping convex polygons."""
+"""
+A clipped planar fracture cell with geometric quantities stored in `T`.
+
+Fields:
+- `fracture`: One-based input fracture ID, indexing `geometry.frames`.
+- `matrix_cells`: Original matrix cell IDs touching the patch. Face-coincident
+  patches share one fracture cell between their adjacent matrix cells.
+- `parts`: Nonoverlapping convex polygons in the fracture frame's 2D coordinates.
+  Disconnected regions are stored as separate patches.
+- `centroid`: Area-weighted 3D centroid in metres.
+- `area`: Surface area in m² before multiplying by physical aperture.
+"""
 struct FracturePatch{T <: AbstractFloat}
     fracture::Int
     matrix_cells::Vector{Int}
@@ -7,6 +18,16 @@ struct FracturePatch{T <: AbstractFloat}
     area::T
 end
 
+"""
+Local planar coordinates for one input fracture.
+
+Fields:
+- `origin`: Reference point in 3D, in metres.
+- `normal`: Unit plane normal.
+- `u`, `v`: Orthonormal in-plane axes with `cross(u, v) == normal`.
+- `parts`: Nonoverlapping convex polygons for the full fracture in local 2D
+  coordinates. `unproject(frame, p) = origin + p[1]*u + p[2]*v`.
+"""
 struct FractureFrame{T <: AbstractFloat}
     origin::Point3{T}
     normal::Point3{T}
@@ -15,6 +36,18 @@ struct FractureFrame{T <: AbstractFloat}
     parts::Vector{Vector{Point2{T}}}
 end
 
+"""
+One positive-length intersection interval eliminated by star–delta coupling.
+
+Fields:
+- `cells`: Participating EFM fracture cell IDs, indexing `geometry.patches`.
+- `distances`: Effective in-plane distances in metres, aligned with `cells`.
+  For an unsplit patch feeding the line from both sides, the average absolute
+  distance is halved.
+- `length`: Intersection interval length in metres.
+- `center`: Interval midpoint in 3D, in metres.
+- `faces`: Fracture–fracture face IDs created by eliminating this interval.
+"""
 struct FractureIntersection{T <: AbstractFloat}
     cells::Vector{Int}
     distances::Vector{T}
@@ -31,6 +64,24 @@ Clipped surfaces, intersections and connection geometry produced by EFM
 preprocessing. All geometric coordinates, distances and measures use `T`.
 `finite_volume` contains the lower-dimensional TPFA geometry; physical aperture
 is applied by `embedded_fracture_domain`.
+
+Fields:
+- `frames`: Local frames in input fracture order.
+- `patches`: Clipped cells in fracture-cell order, grouped by input fracture ID.
+- `finite_volume`: TPFA connection graph. Its `volumes` are patch areas (m²)
+  and `areas` are interface lengths (m), before aperture scaling. Normals are
+  centroid-to-centroid directions; explicit coefficients use the distances below.
+- `connection_distances`: Two rows of left/right in-plane distances (m), with
+  columns in `finite_volume.neighbors` order.
+- `connection_types`: Per-face `:fracture` or `:intersection` classification.
+- `intersections`: Star–delta records for positive-length crossing intervals.
+- `matrix_cells`, `fracture_cells`: Matrix–fracture exchange endpoints, using
+  local one-based cell IDs in their respective meshes.
+- `matrix_distances`: Volume-averaged absolute matrix-to-plane distances (m)
+  in exchange order, bounded below by `tolerance`.
+- `matrix_areas`: Exchange areas (m²) in the same order: twice the patch area
+  for an interior patch, once per adjacent cell for a face-coincident patch.
+- `tolerance`: Absolute geometric tolerance in metres.
 """
 struct EmbeddedFractureGeometry{T <: AbstractFloat}
     frames::Vector{FractureFrame{T}}
@@ -50,6 +101,12 @@ end
 The lower-dimensional EFM mesh. Geometry and connection data are stored in
 `geometry::EmbeddedFractureGeometry{T}`. The original matrix mesh is retained
 by reference and is never modified.
+
+Fields:
+- `matrix_mesh`: Original 3D matrix mesh, shared by reference.
+- `fractures`: A `FractureCollection` preserving input fracture IDs.
+- `geometry`: Clipping, intersection and exchange geometry in type `T`.
+- `tags`: Jutul entity tags for the lower-dimensional connection graph.
 """
 struct EmbeddedFractureMesh{T <: AbstractFloat, M, F} <: Jutul.FiniteVolumeMesh
     matrix_mesh::M
@@ -58,7 +115,22 @@ struct EmbeddedFractureMesh{T <: AbstractFloat, M, F} <: Jutul.FiniteVolumeMesh
     tags::Jutul.MeshEntityTags
 end
 
-"""A connection graph with matrix cells followed by EFM or DFM fracture cells."""
+"""
+A unified connection graph with matrix cells followed by EFM or DFM fracture
+cells. All geometric floating-point arrays use `T`.
+
+Fields:
+- `matrix_mesh`: Matrix mesh, unchanged for EFM and already cut for DFM.
+- `fracture_mesh`: `EmbeddedFractureMesh` for EFM or `Jutul.EmbeddedMesh` for DFM.
+- `geometry`: Physical TPFA geometry: cell volumes in m³, face areas in m²,
+  coordinates in metres, and matrix boundary geometry. Cells are ordered
+  `[matrix; fractures]`; faces are `[matrix; fracture–fracture; matrix–fracture]`.
+  Added connections use explicit coefficients rather than geometric TPFA.
+- `tags`: Entity tags for the unified graph.
+
+`UnstructuredMesh(mesh)` creates 3D prisms for plotting, preserving cell and
+connection indices. The simulation domain retains the physical coefficients.
+"""
 struct EmbeddedReservoirMesh{T <: AbstractFloat, M, F} <: Jutul.FiniteVolumeMesh
     matrix_mesh::M
     fracture_mesh::F

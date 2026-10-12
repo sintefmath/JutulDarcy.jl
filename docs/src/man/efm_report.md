@@ -1,6 +1,6 @@
 # Embedded fracture implementation results
 
-Validated on 2026-10-09.
+Initial validation on 2026-10-09; subsequent reviews are recorded below.
 
 The new EFM module supports conductive fractures on an unchanged matrix mesh.
 `embedded_fracture_domain` clips rectangles, planar ellipses, and concave
@@ -57,7 +57,32 @@ The main remaining performance opportunity is reducing temporary geometry
 allocations: preprocessing allocated 13.4 GB cumulatively for OLYMPUS and
 10.0 GB for NORNE. These figures are not peak memory usage. The current method
 targets conductive fractures and does not model impermeable barriers or
-automatically extend wells into fractures.
+fracture surfaces with holes. Automatic fracture completions are available for
+multisegment wells through `extend_wells=true`.
 
 The [EFM guide](embedded_fractures.md) documents the API, limits, and benchmark
 reproduction commands.
+
+## Code reuse review (2026-10-12)
+
+EFM and DFM now share unified graph/property assembly, property override
+validation, domain copying and completion conversion. Fracture intersection
+and well searches share patch-bound construction. EFM uses Jutul's existing
+face adjacency and edge–plane intersections alongside its cell bounds, tensor
+expansion, cut-cell and DFM utilities.
+
+The common domain builder fixes dropped non-entity metadata in unified EFM and
+copies it without aliasing input data. Jutul's edge–plane helper now uses a
+scale-relative check, fixing incorrect midpoint intersections on small
+Float32 meshes. EFM retains tolerance-aware concave clipping and winding
+resolution because the existing convex clipping routines do not cover these
+cases. Broader sharing should first establish those geometry contracts in Jutul.
+
+All 16 EFM types and their 64 stored fields are documented, including units,
+index spaces, aperture scaling and shared mesh ownership. The guide also
+documents domain fields, cut-cell mappings and well completion data.
+
+Validation passed: the complete run had 586 DFM and 640 EFM checks. A fresh
+run using the corrected Jutul helper passed 1,528 cut-cell checks and 28
+targeted EFM checks, including an end-to-end small Float32 geometry comparison.
+Julia registered all added type and boundary API docstrings successfully.

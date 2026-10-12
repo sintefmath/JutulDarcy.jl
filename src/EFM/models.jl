@@ -167,6 +167,12 @@ function cut_fracture_well(well::DataDomain, matrix, parents)
     return transferred
 end
 
+"""
+Face parameter for explicit fluid heat-conduction coefficients in unified EFM
+and DFM models. Reads `:fluid_thermal_conductivities` and expands a scalar-per-face
+vector or a one-row matrix to one row per fluid phase, preserving phase-specific
+matrices. Coefficients are in W/K; the type has no fields.
+"""
 struct EFMFluidThermalConductivities <: VectorVariables end
 Jutul.associated_entity(::EFMFluidThermalConductivities) = Faces()
 Jutul.minimum_value(::EFMFluidThermalConductivities) = 0.0

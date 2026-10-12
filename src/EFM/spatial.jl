@@ -1,3 +1,12 @@
+"""
+One node of an axis-aligned bounding-box tree, with coordinates in type `T`.
+
+Fields:
+- `low`, `high`: Inclusive 3D bounds in metres for all cells below this node.
+- `left`, `right`: Child indices in `CellSpatialIndex.nodes`; both are zero for
+  a leaf.
+- `first`, `last`: Inclusive range into `CellSpatialIndex.cells` for this node.
+"""
 struct BoundingBoxNode{T <: AbstractFloat}
     low::Point3{T}
     high::Point3{T}
@@ -7,6 +16,16 @@ struct BoundingBoxNode{T <: AbstractFloat}
     last::Int
 end
 
+"""
+Bounding-box tree reused for matrix clipping, fracture intersections and well
+completion searches. Queries return sorted local cell IDs.
+
+Fields:
+- `nodes`: Tree nodes; node 1 is the root, or the vector is empty for no cells.
+- `cells`: Permutation of local cell IDs defining contiguous tree ranges.
+- `low`, `high`: Inclusive bounds in metres, indexed by local cell ID rather
+  than by the permutation. Matrix bounds use Jutul's `cell_bounding_box`.
+"""
 struct CellSpatialIndex{T <: AbstractFloat}
     nodes::Vector{BoundingBoxNode{T}}
     cells::Vector{Int}

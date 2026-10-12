@@ -5,7 +5,9 @@ Cut a matrix mesh using the same fracture objects as `embedded_fracture_mesh`.
 Returns `(matrix_mesh, fracture_mesh, info)`, where the fracture mesh is a DFM
 `Jutul.EmbeddedMesh`. `info[:cell_index]` maps cut cells to original cells;
 `:face_index` and `:boundary_face_index` provide the corresponding face maps,
-and `:fracture_id` maps DFM fracture cells to the input objects.
+using zero for newly introduced faces. `:fracture_id` maps DFM fracture cells
+to input object IDs, and `:fracture_faces` lists their faces in the cut matrix,
+in fracture-cell order (also available as `fracture_mesh.parent_faces`).
 
 Cuts along polygon edges make finite fracture boundaries conforming, including
 concave polygons and the polygonal approximation of an ellipse. Auxiliary cuts
@@ -162,21 +164,9 @@ function discrete_fracture_domain(matrix::DataDomain, objects;
     cut, mesh, info = discrete_fracture_mesh(physical_representation(matrix), objects; kwarg...)
     cut_matrix = cut_fracture_matrix_domain(matrix, cut, info)
     ids = info[:fracture_id]
-    defaults = fracture_property_defaults(objects, Jutul.float_type(cut))
-    a = fracture_property(aperture, defaults.aperture[ids], ids, "aperture")
-    k = fracture_property(permeability, defaults.permeability[ids], ids, "permeability")
-    phi = fracture_property(porosity, defaults.porosity[ids], ids, "porosity")
-    ah = a
-    if !isnothing(hydraulic_aperture)
-        ah = fracture_property(hydraulic_aperture, a, ids, "hydraulic_aperture")
-        all(>=(0), ah) || throw(ArgumentError("hydraulic_aperture must be non-negative"))
-    end
-    if isnothing(permeability) && (!isnothing(aperture) || !isnothing(hydraulic_aperture))
-        k = ah.^2/12
-    end
-    all(>(0), a) || throw(ArgumentError("aperture must be positive"))
-    all(>=(0), k) || throw(ArgumentError("permeability must be non-negative"))
-    all(x -> 0 < x <= 1, phi) || throw(ArgumentError("porosity must lie in (0, 1]"))
+    properties = fracture_properties(objects, ids, Jutul.float_type(cut); aperture = aperture,
+        hydraulic_aperture = hydraulic_aperture, permeability = permeability, porosity = porosity)
+    a, k, phi = properties.aperture, properties.permeability, properties.porosity
     fractures = JutulDarcy.fracture_domain(mesh, cut_matrix; aperture = a, permeability = k, porosity = phi)
     # Project tensor matrix permeability onto each fracture's normal, just as
     # in EFM exchange, rather than indexing a tensor as a scalar array.
@@ -236,6 +226,3 @@ function cut_fracture_matrix_domain(matrix, mesh, info)
     end
     return domain
 end
-
-fracture_cell_subset(values::AbstractVector, cells) = values[cells]
-fracture_cell_subset(values::AbstractMatrix, cells) = values[:, cells]

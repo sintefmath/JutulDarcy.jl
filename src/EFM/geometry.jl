@@ -240,31 +240,33 @@ function point_index!(points, p, tol)
     return length(points)
 end
 
-function triangle_plane_segment(a, b, c, origin, normal, tol)
-    T = eltype(origin)
+function triangle_plane_segment(a, b, c, plane::Jutul.PlaneCut, tol)
+    T = eltype(plane.point)
     pts = Point3{T}[]
     vertices = (a, b, c)
-    distances = map(p -> dot(p-origin, normal), vertices)
+    distances = map(p -> Jutul.CutCellMeshes.signed_distance(plane, p), vertices)
     for i in 1:3
         j = mod1(i+1, 3)
         p, q = vertices[i], vertices[j]
         dp, dq = distances[i], distances[j]
         if abs(dp) <= tol
-            point_index!(pts, p-dp*normal, tol)
+            point_index!(pts, p-dp*plane.normal, tol)
         end
         if (dp < -tol && dq > tol) || (dq < -tol && dp > tol)
-            point_index!(pts, p + dp/(dp-dq)*(q-p), tol)
+            point_index!(pts, Jutul.CutCellMeshes.edge_plane_intersection(p, q, plane), tol)
         end
     end
+    segment = nothing
     if length(pts) == 2 && norm(pts[1]-pts[2]) > tol
-        return (pts[1], pts[2])
+        segment = (pts[1], pts[2])
     end
-    return nothing
+    return segment
 end
 
 """Intersect a cell boundary using the same face-center triangle fan as Jutul geometry."""
 function cell_section(mesh, cell, origin, normal, u, v, tol)
     T = eltype(origin)
+    plane = Jutul.PlaneCut(origin, normal)
     points = Point3{T}[]
     edges = Set{Tuple{Int, Int}}()
     face_segments = Tuple{Int, Point3{T}, Point3{T}}[]
@@ -284,7 +286,7 @@ function cell_section(mesh, cell, origin, normal, u, v, tol)
                 continue
             end
             for i in eachindex(pts)
-                seg = triangle_plane_segment(center, pts[i], pts[mod1(i+1, length(pts))], origin, normal, tol)
+                seg = triangle_plane_segment(center, pts[i], pts[mod1(i+1, length(pts))], plane, tol)
                 isnothing(seg) && continue
                 a, b = seg
                 ia, ib = point_index!(points, a, tol), point_index!(points, b, tol)

@@ -107,21 +107,9 @@ function embedded_fracture_domain(mesh::EmbeddedFractureMesh, matrix::DataDomain
     physical_representation(matrix) === mesh.matrix_mesh || throw(ArgumentError("fracture mesh must be used with its original matrix mesh"))
     T = Jutul.float_type(mesh)
     ids = [p.fracture for p in mesh.geometry.patches]
-    defaults = fracture_property_defaults(mesh.fractures, T)
-    a = fracture_property(aperture, defaults.aperture[ids], ids, "aperture")
-    k = fracture_property(permeability, defaults.permeability[ids], ids, "permeability")
-    phi = fracture_property(porosity, defaults.porosity[ids], ids, "porosity")
-    ah = a
-    if !isnothing(hydraulic_aperture)
-        ah = fracture_property(hydraulic_aperture, a, ids, "hydraulic_aperture")
-        all(>=(0), ah) || throw(ArgumentError("hydraulic_aperture must be non-negative"))
-    end
-    if isnothing(permeability) && (!isnothing(hydraulic_aperture) || !isnothing(aperture))
-        k = ah.^2/12
-    end
-    all(>(0), a) || throw(ArgumentError("aperture must be positive"))
-    all(>=(0), k) || throw(ArgumentError("permeability must be non-negative"))
-    all(x -> 0 < x <= 1, phi) || throw(ArgumentError("porosity must lie in (0, 1]"))
+    properties = fracture_properties(mesh.fractures, ids, T; aperture = aperture,
+        hydraulic_aperture = hydraulic_aperture, permeability = permeability, porosity = porosity)
+    a, k, phi = properties.aperture, properties.permeability, properties.porosity
     domain = reservoir_domain(mesh; permeability = k, porosity = phi, kwarg...)
     domain[:aperture, Cells()] = a
     domain[:fracture_id, Cells()] = ids
@@ -217,32 +205,6 @@ function embedded_matrix_domain(matrix, fractures; subtract_fracture_volume = fa
     return adjusted
 end
 
-function append_cell_property(matrix_values, fracture_values)
-    if matrix_values isa AbstractVector && fracture_values isa AbstractVector
-        return vcat(matrix_values, fracture_values)
-    end
-    mv = matrix_values
-    fv = fracture_values
-    if mv isa AbstractVector
-        mv = reshape(mv, 1, :)
-    end
-    if fv isa AbstractVector
-        fv = reshape(fv, 1, :)
-    end
-    if size(mv, 1) != size(fv, 1)
-        # Isotropic fracture properties represented in the matrix tensor format.
-        if size(fv, 1) == 1 && size(mv, 1) in (3, 6)
-            fv = repeat(fv, size(mv, 1), 1)
-            if size(mv, 1) == 6
-                fv[4:6, :] .= 0
-            end
-        else
-            throw(ArgumentError("matrix and fracture cell property dimensions do not match"))
-        end
-    end
-    return hcat(mv, fv)
-end
-
 """
     combined_fracture_domain(matrix, fractures; subtract_fracture_volume=false)
 
@@ -259,49 +221,13 @@ function combined_fracture_domain(matrix::DataDomain, fractures::DataDomain; sub
     matrix = embedded_matrix_domain(matrix, fractures)
     nm = number_of_cells(matrix)
     fmc = FractureMatrixConnection()
-    mc, fc = fractures[:matrix_cells, fmc], fractures[:connection_cells, fmc]
-    N = hcat(matrix[:neighbors], fractures[:neighbors] .+ nm, hcat(mc, fc .+ nm)')
+    fc = fractures[:connection_cells, fmc]
     volumes = vcat(matrix[:volumes], fractures[:volumes])
     if subtract_fracture_volume
         subtract_volumes!(view(volumes, 1:nm), fractures)
     end
-    centers = hcat(matrix[:cell_centroids], fractures[:cell_centroids])
-    connection_centers = (matrix[:cell_centroids][:, mc]+fractures[:cell_centroids][:, fc])/2
-    face_centers = hcat(matrix[:face_centroids], fractures[:face_centroids], connection_centers)
-    normals = hcat(matrix[:normals], fractures[:normals], zeros(Jutul.float_type(fm), 3, length(mc)))
-    for i in eachindex(mc)
-        normals[:, number_of_faces(matrix)+number_of_faces(fractures)+i] = fm.geometry.frames[fm.geometry.patches[fc[i]].fracture].normal
-    end
-    areas = vcat(matrix[:areas], fractures[:areas], fm.geometry.matrix_areas)
-    mg = tpfv_geometry(fm.matrix_mesh)
-    geo = TwoPointFiniteVolumeGeometry(N, areas, volumes, normals, centers, face_centers;
-        boundary_areas = mg.boundary_areas, boundary_normals = mg.boundary_normals,
-        boundary_centroids = mg.boundary_centroids, boundary_neighbors = mg.boundary_neighbors)
-    mesh = EmbeddedReservoirMesh(fm.matrix_mesh, fm, geo, geometry_tags(geo))
-    domain = reservoir_domain(mesh)
-    parent_cells = [first(p.matrix_cells) for p in fm.geometry.patches]
-    for (key, (value, entity)) in pairs(matrix)
-        if entity == Cells()
-            if haskey(fractures, key, Cells())
-                fracture_values = fractures[key, entity]
-            elseif key == :net_to_gross
-                fracture_values = ones(length(parent_cells))
-            elseif value isa AbstractVector
-                fracture_values = value[parent_cells]
-            elseif value isa AbstractMatrix
-                fracture_values = value[:, parent_cells]
-            else
-                throw(ArgumentError("cannot extend matrix cell property $key with type $(typeof(value)); supply the corresponding fracture property"))
-            end
-            domain[key, entity] = append_cell_property(value, fracture_values)
-        elseif entity == BoundaryFaces()
-            domain[key, entity] = copy(value)
-        end
-    end
-    domain[:volumes, Cells()] = volumes
-    domain[:cell_centroids, Cells()] = centers
-    domain[:is_fracture, Cells()] = vcat(zeros(Int, nm), ones(Int, number_of_cells(fractures)))
-    domain[:fracture_id, Cells()] = vcat(zeros(Int, nm), fractures[:fracture_id])
+    domain = unified_fracture_domain(matrix, fractures, fm.geometry.matrix_areas,
+        fractures[:cell_normals][:, fc]; volumes = volumes)
     # Use the matrix's standard parameter initialization so overrides,
     # multipliers, and existing NNCs are incorporated exactly once.
     mm = reservoir_model(setup_reservoir_model(matrix, SinglePhaseSystem(AqueousPhase())))

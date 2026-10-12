@@ -1,15 +1,3 @@
-function fracture_well_spatial_index(mesh::EmbeddedFractureMesh{T}) where T
-    low, high = Point3{T}[], Point3{T}[]
-    for patch in mesh.geometry.patches
-        frame = mesh.geometry.frames[patch.fracture]
-        points = [unproject(frame, p) for part in patch.parts for p in part]
-        push!(low, reduce((a, b) -> min.(a, b), points))
-        push!(high, reduce((a, b) -> max.(a, b), points))
-    end
-    index = CellSpatialIndex(low, high)
-    return index
-end
-
 function well_segment_fracture_hits(mesh::EmbeddedFractureMesh{T}, index, a, b) where T
     tol = mesh.geometry.tolerance
     delta = b-a
@@ -114,7 +102,8 @@ function extend_embedded_well(well, fractures, index)
 end
 
 function extend_embedded_wells(wells, fractures)
-    index = fracture_well_spatial_index(physical_representation(fractures))
+    geometry = physical_representation(fractures).geometry
+    index = fracture_patch_spatial_index(geometry.patches, geometry.frames)
     extended = DataDomain[]
     for well in wells
         w = physical_representation(well)
@@ -128,6 +117,12 @@ function extend_embedded_wells(wells, fractures)
     return extended
 end
 
+"""
+Gravity parameter on `FracturePerforations`, shared by coupled EFM and DFM.
+For each completion, returns `g*(z_fracture - z_well_node)` in m²/s² using that
+completion's `self_fracture` node. The type has no fields. Unified models use
+the ordinary perforation gravity parameter after merging completion lists.
+"""
 struct FracturePerforationGravityDifference <: ScalarVariable end
 Jutul.associated_entity(::FracturePerforationGravityDifference) = JutulDarcy.FracturePerforations()
 

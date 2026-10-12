@@ -263,14 +263,8 @@ end
 
 function add_fracture_intersections!(pairs, lengths, centers, distances, types, matrix_mesh, patches, frames, interfaces, tol)
     T = typeof(tol)
-    low, high = Point3{T}[], Point3{T}[]
-    for patch in patches
-        frame = frames[patch.fracture]
-        pts = [unproject(frame, p) for part in patch.parts for p in part]
-        push!(low, reduce((a, b) -> min.(a, b), pts))
-        push!(high, reduce((a, b) -> max.(a, b), pts))
-    end
-    index = CellSpatialIndex(low, high)
+    index = fracture_patch_spatial_index(patches, frames)
+    low, high = index.low, index.high
     # Each group represents one geometric intersection line. Its intervals are
     # split at patch endpoints before eliminating the virtual intersection cell.
     groups = Tuple{Point3{T}, Point3{T}, Vector{Tuple{T, T, Int, Int}}}[]

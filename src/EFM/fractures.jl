@@ -1,9 +1,22 @@
+"""
+Abstract planar fracture with coordinates and physical properties stored in
+floating-point type `T`. Concrete types provide `normal`, `properties`, and
+`fracture_polygon(fracture)` for both EFM and cut-cell DFM preprocessing.
+"""
 abstract type AbstractEmbeddedFracture{T <: AbstractFloat} end
 
 const Point3{T} = SVector{3, T}
 const Point2{T} = SVector{2, T}
 
-"""Physical properties of one fracture, in SI units."""
+"""
+Physical properties of one fracture, stored in floating-point type `T`.
+
+Fields:
+- `aperture`: Mechanical aperture in metres, used for physical storage.
+- `permeability`: Isotropic in-plane permeability in m². The constructor
+  defaults to `hydraulic_aperture^2/12`; hydraulic aperture is not stored.
+- `porosity`: Fracture pore-volume fraction in `(0, 1]`.
+"""
 struct FractureProperties{T <: AbstractFloat}
     aperture::T
     permeability::T
@@ -31,6 +44,11 @@ end
 A simple planar polygon in 3D. Vertices are supplied in boundary order, as a
 vector of points or a 3-by-n matrix. Concave polygons are supported; holes and
 self-intersections are rejected. A repeated closing vertex is optional.
+
+Fields:
+- `vertices`: Boundary-ordered 3D coordinates in metres, without a closing copy.
+- `normal`: Unit normal following the vertex winding.
+- `properties`: Mechanical aperture, in-plane permeability and porosity.
 """
 struct PolygonFracture{T <: AbstractFloat} <: AbstractEmbeddedFracture{T}
     vertices::Vector{Point3{T}}
@@ -81,6 +99,13 @@ A planar rectangle with full side lengths `lengths`. `direction` specifies the
 first in-plane axis (projected onto the plane); `angle` rotates the axes in
 radians about `normal`. Physical properties use the same keywords as
 [`PolygonFracture`](@ref).
+
+Fields:
+- `center`: Rectangle centre in 3D, in metres.
+- `normal`: Unit plane normal.
+- `axes`: Orthonormal in-plane axes `(u, v)`, with `cross(u, v) == normal`.
+- `lengths`: Full side lengths along `(u, v)`, in metres.
+- `properties`: Mechanical aperture, in-plane permeability and porosity.
 """
 struct RectangleFracture{T <: AbstractFloat} <: AbstractEmbeddedFracture{T}
     center::Point3{T}
@@ -106,6 +131,14 @@ A parametrized planar ellipse (a flattened ellipsoid) with two semi-axes
 `radii`. Geometry is approximated by an inscribed polygon with `segments`
 vertices. Increase `segments` for tighter area accuracy. `EllipsoidFracture`
 is an alias for this planar fracture type.
+
+Fields:
+- `center`: Ellipse centre in 3D, in metres.
+- `normal`: Unit plane normal.
+- `axes`: Orthonormal in-plane axes `(u, v)`, with `cross(u, v) == normal`.
+- `radii`: Semi-axis lengths along `(u, v)`, in metres.
+- `segments`: Number of vertices in the inscribed boundary polygon.
+- `properties`: Mechanical aperture, in-plane permeability and porosity.
 """
 struct EllipticalFracture{T <: AbstractFloat} <: AbstractEmbeddedFracture{T}
     center::Point3{T}
@@ -128,6 +161,8 @@ function EllipticalFracture(center, normal, radii; direction = nothing, angle = 
     return EllipticalFracture(c, n, axes, Tuple(T.(radii)), segments, FractureProperties(; float_type = T, kwarg...))
 end
 
+# This basis also fixes the default orientation of rectangular/elliptical axes.
+# Keep it stable; cut-cell projection uses a different reference convention.
 function plane_basis(n::Point3{T}) where T
     axis = argmin(abs.(n))
     e = setindex(zero(Point3{T}), 1.0, axis)
@@ -153,6 +188,14 @@ function fracture_frame(center, normal, direction, angle, ::Type{T}) where T
     return c, n, (cos(angle)*u + sin(angle)*v, -sin(angle)*u + cos(angle)*v)
 end
 
+"""
+    fracture_polygon(fracture::AbstractEmbeddedFracture)
+
+Return the fracture boundary as a new vector of 3D points in metres, in the
+fracture's floating-point type. Vertices follow the plane normal's winding and
+do not repeat the first vertex at the end. Ellipses use their configured
+inscribed polygon. This boundary is shared by EFM and cut-cell DFM preprocessing.
+"""
 fracture_polygon(f::PolygonFracture) = copy(f.vertices)
 
 function fracture_polygon(f::RectangleFracture)
