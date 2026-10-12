@@ -146,6 +146,7 @@ end
     include("efm_collection.jl")
     include("efm_setup.jl")
     include("efm_utils.jl")
+    include("efm_resolution.jl")
     include("efm_wells.jl")
     @testset "Fracture objects and exact clipping" begin
         mesh = reservoir_mesh((3, 3, 3), (3.0, 3.0, 3.0))

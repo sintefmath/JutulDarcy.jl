@@ -44,6 +44,8 @@ function Base.show(io::IO, ::MIME"text/plain", geometry::EmbeddedFractureGeometr
     print(io, ", ")
     show_fracture_count(io, length(geometry.intersections), "intersection segment")
     print(io, "\n  Clipping tolerance: ", geometry.tolerance)
+    print(io, "\n  ")
+    show_fracture_count(io, count(grid -> !isnothing(grid), geometry.grids), "independent fracture grid")
 end
 
 function Base.show(io::IO, mesh::EmbeddedFractureMesh{T}) where T
@@ -88,17 +90,31 @@ end
 
 function Base.show(io::IO, fracture::RectangleFracture{T}) where T
     print(io, "RectangleFracture{", T, "}(center = ", Tuple(fracture.center),
-        ", lengths = ", fracture.lengths, ", aperture = ", fracture.properties.aperture, ")")
+        ", lengths = ", fracture.lengths, ", aperture = ", fracture.properties.aperture)
+    show_fracture_mesh_options(io, fracture.mesh_options)
+    print(io, ")")
 end
 
 function Base.show(io::IO, fracture::EllipticalFracture{T}) where T
     print(io, "EllipticalFracture{", T, "}(center = ", Tuple(fracture.center),
         ", radii = ", fracture.radii, ", segments = ", fracture.segments,
-        ", aperture = ", fracture.properties.aperture, ")")
+        ", aperture = ", fracture.properties.aperture)
+    show_fracture_mesh_options(io, fracture.mesh_options)
+    print(io, ")")
 end
 
 function Base.show(io::IO, fracture::PolygonFracture{T}) where T
     print(io, "PolygonFracture{", T, "}(")
     show_fracture_count(io, length(fracture.vertices), "vertex"; plural = "vertices")
-    print(io, ", aperture = ", fracture.properties.aperture, ")")
+    print(io, ", aperture = ", fracture.properties.aperture)
+    show_fracture_mesh_options(io, fracture.mesh_options)
+    print(io, ")")
+end
+
+function show_fracture_mesh_options(io, options)
+    if !isnothing(options.resolution)
+        print(io, ", resolution = ", options.resolution)
+    elseif !isnothing(options.cell_length)
+        print(io, ", cell_length = ", options.cell_length)
+    end
 end

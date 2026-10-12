@@ -86,3 +86,40 @@ Validation passed: the complete run had 586 DFM and 640 EFM checks. A fresh
 run using the corrected Jutul helper passed 1,528 cut-cell checks and 28
 targeted EFM checks, including an end-to-end small Float32 geometry comparison.
 Julia registered all added type and boundary API docstrings successfully.
+
+## Internal fracture grids (2026-10-12)
+
+Fracture constructors now accept `resolution=(nu, nv)` or `cell_length=h`.
+Preprocessing also accepts global or per-fracture overrides. These create
+independent planar grids that can be finer or coarser than the matrix mesh.
+Rectangles and ellipses follow their configured axes; polygons use their local
+frame. Omitting the options preserves matrix clipping, and `resolution=:matrix`
+explicitly restores it. DFM keeps its conforming mesh.
+
+Coarse cells use separate overlap areas and storage weights for each matrix
+cell. Disconnected active regions remain separate cells. The implementation
+reuses polygon clipping, interface construction and intersection elimination.
+The new settings, grid geometry and patch weights are documented in the guide.
+
+All 887 EFM, 586 DFM and 1,534 Jutul cut-cell regression checks passed. New
+checks cover independent cell counts, analytical transmissibilities, unequal
+overlap weights, preserved area/storage, concave polygons, disconnected regions,
+rotation, precision and two-phase/geothermal agreement between formulations.
+A shared Jutul adjacency fix also permits meshes containing only isolated cells.
+
+Both full corner-point grids completed three one-day flow steps with 1,000
+seeded mixed fractures and `resolution=(4, 8)`. Unified and coupled pressure
+vectors agreed within the benchmark's relative tolerance of `1e-5`.
+
+| Grid | Matrix cells | Fracture cells | Preprocessing | Unified solve | Coupled solve |
+|:--|--:|--:|--:|--:|--:|
+| OLYMPUS | 192,750 | 32,456 | 11.20 s | 16.37 s | 12.81 s |
+| NORNE | 44,927 | 31,139 | 8.44 s | 2.96 s | 3.74 s |
+
+These validation timings use the locally cached grids, simplified rock/fluid
+properties, opposing 110/90 bar pressure conditions, CSC assembly and HYPRE
+AMG. The first OLYMPUS solve includes compilation; a separate regression process
+was also running. Preprocessing allocated 16.4 GB and 13.0 GB cumulatively,
+respectively, including temporaries; these are not peak memory figures.
+Reproduce through `benchmark_embedded_fractures(...; count=1000, resolution=(4, 8))`
+in `examples/fractures/efm_cornerpoint_benchmark.jl`.

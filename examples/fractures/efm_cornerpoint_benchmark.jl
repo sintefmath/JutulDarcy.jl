@@ -71,7 +71,9 @@ function benchmark_embedded_fractures(matrix::DataDomain;
         solve = true,
         amg = :hypre,
         info_level = -1,
-        scaling = :none
+        scaling = :none,
+        resolution = nothing,
+        cell_length = nothing
     )
     fractures = efm_benchmark_fractures(matrix; count = count, seed = seed)
     mesh = physical_representation(matrix)
@@ -79,9 +81,14 @@ function benchmark_embedded_fractures(matrix::DataDomain;
     neighbors = copy(matrix[:neighbors])
     volumes = copy(matrix[:volumes])
     # Warm up geometry methods independently of the measured large workload.
-    embedded_fracture_domain(matrix, fractures[1:3])
+    warm_count = min(3, count)
+    resolutions = JutulDarcy.EFM.fracture_mesh_override(resolution, "resolution", count)
+    lengths = JutulDarcy.EFM.fracture_mesh_override(cell_length, "cell_length", count)
+    embedded_fracture_domain(matrix, fractures[1:warm_count];
+        resolution = resolutions[1:warm_count], cell_length = lengths[1:warm_count])
     GC.gc()
-    timed = @timed embedded_fracture_domain(matrix, fractures)
+    timed = @timed embedded_fracture_domain(matrix, fractures;
+        resolution = resolution, cell_length = cell_length)
     domain = timed.value
     fmesh = physical_representation(domain)
     @test mesh.node_points == nodes

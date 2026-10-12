@@ -143,6 +143,58 @@ their coordinate and connectivity arrays.
 
 ## Geometry types and precision
 
+### Internal fracture mesh resolution
+
+Each fracture can select an independent internal grid using either
+`resolution` (cell counts) or `cell_length` (target spacing in metres):
+
+```julia
+rectangle = RectangleFracture([100, 100, 25], [1, 0, 0], (150, 40);
+    resolution = (30, 8))
+ellipse = EllipticalFracture([90, 100, 25], [0, 1, 0], (60, 20);
+    cell_length = 5.0)
+embedded = embedded_fracture_domain(matrix, [rectangle, ellipse])
+```
+
+`resolution=n` sets `(n, n)` counts. `cell_length=(hu, hv)` specifies different
+target lengths along the two axes. Rectangle and ellipse grids follow their
+configured axes, including `direction` and `angle`; polygon grids use their
+local `FractureFrame` axes. The grid covers the full fracture's bounding box
+before clipping to the fracture boundary and active matrix. Target lengths
+give `ceil(extent/length)` cells along each axis, with actual spacing no larger
+than the target. Ellipse `segments` controls the boundary approximation
+independently of the internal mesh.
+
+Preprocessing accepts the same options, either globally or as per-fracture
+vectors. Use tuples for axis pairs and vectors for one entry per input object:
+
+```julia
+embedded = embedded_fracture_domain(matrix, [rectangle, ellipse];
+    resolution = [(20, 6), nothing], cell_length = [nothing, 3.0])
+model = setup_fractured_reservoir_model(matrix, [rectangle, ellipse], system;
+    method = :efm, fracture_arg = (cell_length = [4.0, 2.0],))
+```
+
+Specify one option per fracture. An override replaces that object's mesh
+settings; `nothing` retains them. Omitting both options preserves the original
+matrix-clipped mesh. Set `resolution=:matrix`, globally or in a per-fracture
+vector, to explicitly restore matrix clipping for configured objects.
+
+Internal cells can be finer or coarser than the matrix cells. Coarse fracture
+cells exchange with every intersected matrix cell through its own overlap area.
+Optional fracture-volume subtraction uses overlap weights, including shared
+storage for face-coincident fractures. Clipping can remove cells or split a
+grid cell into disconnected active regions; these regions remain separate.
+Grid spacing must exceed the geometric tolerance. Cut-cell DFM ignores these
+EFM internal grid settings and keeps its conforming mesh.
+
+Effective grids are stored in `physical_representation(embedded).geometry.grids`,
+in input fracture order. Each `FractureGrid` records its actual `resolution`,
+`spacing`, and local axes; `nothing` indicates matrix clipping. Each patch
+stores `matrix_areas` and `matrix_weights` in its `matrix_cells` order.
+
+### Geometry storage
+
 `EmbeddedFractureMesh{T}` stores the original matrix mesh, fracture objects,
 tags, and one `EmbeddedFractureGeometry{T}`. Clipped patches, local frames,
 intersections, exchange data and the TPFA geometry live in `mesh.geometry`;
@@ -390,6 +442,8 @@ JutulDarcy.EFM.CellSpatialIndex
 JutulDarcy.EFM.EFMFluidThermalConductivities
 JutulDarcy.EFM.FracturePerforationGravityDifference
 FractureCollection
+JutulDarcy.EFM.FractureMeshOptions
+JutulDarcy.EFM.FractureGrid
 combined_fracture_domain
 setup_embedded_fracture_model
 PolygonFracture

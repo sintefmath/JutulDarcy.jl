@@ -49,14 +49,17 @@ Fields:
 - `vertices`: Boundary-ordered 3D coordinates in metres, without a closing copy.
 - `normal`: Unit normal following the vertex winding.
 - `properties`: Mechanical aperture, in-plane permeability and porosity.
+- `mesh_options`: EFM internal cell counts or target cell lengths. Constructor
+  keywords are `resolution` and `cell_length`; omit both for matrix clipping.
 """
 struct PolygonFracture{T <: AbstractFloat} <: AbstractEmbeddedFracture{T}
     vertices::Vector{Point3{T}}
     normal::Point3{T}
     properties::FractureProperties{T}
+    mesh_options::FractureMeshOptions{T}
 end
 
-function PolygonFracture(vertices; float_type = nothing, kwarg...)
+function PolygonFracture(vertices; float_type = nothing, resolution = nothing, cell_length = nothing, kwarg...)
     if isnothing(float_type)
         if vertices isa AbstractMatrix
             float_type = typeof(float(first(vertices)))
@@ -89,7 +92,8 @@ function PolygonFracture(vertices; float_type = nothing, kwarg...)
     u, v = plane_basis(n)
     pts2 = [Point2{T}(dot(p-origin, u), dot(p-origin, v)) for p in pts]
     validate_polygon(pts2, tol)
-    return PolygonFracture(pts, n, FractureProperties(; float_type = T, kwarg...))
+    options = FractureMeshOptions(; resolution = resolution, cell_length = cell_length, float_type = T)
+    return PolygonFracture(pts, n, FractureProperties(; float_type = T, kwarg...), options)
 end
 
 """
@@ -106,6 +110,8 @@ Fields:
 - `axes`: Orthonormal in-plane axes `(u, v)`, with `cross(u, v) == normal`.
 - `lengths`: Full side lengths along `(u, v)`, in metres.
 - `properties`: Mechanical aperture, in-plane permeability and porosity.
+- `mesh_options`: EFM internal cell counts or target cell lengths, supplied
+  through `resolution` or `cell_length`.
 """
 struct RectangleFracture{T <: AbstractFloat} <: AbstractEmbeddedFracture{T}
     center::Point3{T}
@@ -113,15 +119,17 @@ struct RectangleFracture{T <: AbstractFloat} <: AbstractEmbeddedFracture{T}
     axes::Tuple{Point3{T}, Point3{T}}
     lengths::Tuple{T, T}
     properties::FractureProperties{T}
+    mesh_options::FractureMeshOptions{T}
 end
 
 function RectangleFracture(center, normal, lengths; direction = nothing, angle = 0.0,
-        float_type = typeof(float(first(center))), kwarg...)
+        float_type = typeof(float(first(center))), resolution = nothing, cell_length = nothing, kwarg...)
     T = float_type
     c, n, axes = fracture_frame(center, normal, direction, angle, T)
     length(lengths) == 2 || throw(ArgumentError("lengths must contain two full side lengths"))
     all(x -> isfinite(x) && x > 0, lengths) || throw(ArgumentError("lengths must be positive and finite"))
-    return RectangleFracture(c, n, axes, Tuple(T.(lengths)), FractureProperties(; float_type = T, kwarg...))
+    options = FractureMeshOptions(; resolution = resolution, cell_length = cell_length, float_type = T)
+    return RectangleFracture(c, n, axes, Tuple(T.(lengths)), FractureProperties(; float_type = T, kwarg...), options)
 end
 
 """
@@ -139,6 +147,8 @@ Fields:
 - `radii`: Semi-axis lengths along `(u, v)`, in metres.
 - `segments`: Number of vertices in the inscribed boundary polygon.
 - `properties`: Mechanical aperture, in-plane permeability and porosity.
+- `mesh_options`: EFM internal cell counts or target cell lengths, supplied
+  through `resolution` or `cell_length`. Independent of boundary `segments`.
 """
 struct EllipticalFracture{T <: AbstractFloat} <: AbstractEmbeddedFracture{T}
     center::Point3{T}
@@ -147,18 +157,20 @@ struct EllipticalFracture{T <: AbstractFloat} <: AbstractEmbeddedFracture{T}
     radii::Tuple{T, T}
     segments::Int
     properties::FractureProperties{T}
+    mesh_options::FractureMeshOptions{T}
 end
 
 const EllipsoidFracture = EllipticalFracture
 
 function EllipticalFracture(center, normal, radii; direction = nothing, angle = 0.0, segments = 64,
-        float_type = typeof(float(first(center))), kwarg...)
+        float_type = typeof(float(first(center))), resolution = nothing, cell_length = nothing, kwarg...)
     T = float_type
     c, n, axes = fracture_frame(center, normal, direction, angle, T)
     length(radii) == 2 || throw(ArgumentError("radii must contain two semi-axis lengths"))
     all(x -> isfinite(x) && x > 0, radii) || throw(ArgumentError("radii must be positive and finite"))
     segments >= 8 || throw(ArgumentError("segments must be at least eight"))
-    return EllipticalFracture(c, n, axes, Tuple(T.(radii)), segments, FractureProperties(; float_type = T, kwarg...))
+    options = FractureMeshOptions(; resolution = resolution, cell_length = cell_length, float_type = T)
+    return EllipticalFracture(c, n, axes, Tuple(T.(radii)), segments, FractureProperties(; float_type = T, kwarg...), options)
 end
 
 # This basis also fixes the default orientation of rectangular/elliptical axes.

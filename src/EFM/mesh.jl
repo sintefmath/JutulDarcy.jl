@@ -9,6 +9,10 @@ Fields:
   Disconnected regions are stored as separate patches.
 - `centroid`: Area-weighted 3D centroid in metres.
 - `area`: Surface area in m² before multiplying by physical aperture.
+- `matrix_areas`: Exchange areas (m²) aligned with `matrix_cells`, accounting
+  for each cell's overlap and the number of sides feeding the fracture.
+- `matrix_weights`: Physical fracture-volume fractions assigned to
+  `matrix_cells`. They sum to one; coincident cells share their overlap storage.
 """
 struct FracturePatch{T <: AbstractFloat}
     fracture::Int
@@ -16,6 +20,24 @@ struct FracturePatch{T <: AbstractFloat}
     parts::Vector{Vector{Point2{T}}}
     centroid::Point3{T}
     area::T
+    matrix_areas::Vector{T}
+    matrix_weights::Vector{T}
+end
+
+"""
+Independent internal grid for one fracture, with coordinates stored in `T`.
+
+Fields:
+- `origin`: Lower grid corner in the fracture frame's local 2D coordinates (m).
+- `axes`: Orthonormal grid axes in the same local coordinates.
+- `spacing`: Grid cell lengths along the two axes (m).
+- `resolution`: Cell counts along the axes before clipping to the active mesh.
+"""
+struct FractureGrid{T <: AbstractFloat}
+    origin::Point2{T}
+    axes::Tuple{Point2{T}, Point2{T}}
+    spacing::Tuple{T, T}
+    resolution::Tuple{Int, Int}
 end
 
 """
@@ -67,6 +89,8 @@ is applied by `embedded_fracture_domain`.
 
 Fields:
 - `frames`: Local frames in input fracture order.
+- `grids`: Effective internal grids in input fracture order; `nothing` entries
+  use matrix-clipped patches. Records the actual resolution and spacing.
 - `patches`: Clipped cells in fracture-cell order, grouped by input fracture ID.
 - `finite_volume`: TPFA connection graph. Its `volumes` are patch areas (m²)
   and `areas` are interface lengths (m), before aperture scaling. Normals are
@@ -79,12 +103,13 @@ Fields:
   local one-based cell IDs in their respective meshes.
 - `matrix_distances`: Volume-averaged absolute matrix-to-plane distances (m)
   in exchange order, bounded below by `tolerance`.
-- `matrix_areas`: Exchange areas (m²) in the same order: twice the patch area
-  for an interior patch, once per adjacent cell for a face-coincident patch.
+- `matrix_areas`: Exchange areas (m²) in the same order: twice the overlap area
+  for an interior overlap, once per adjacent cell for a face-coincident overlap.
 - `tolerance`: Absolute geometric tolerance in metres.
 """
 struct EmbeddedFractureGeometry{T <: AbstractFloat}
     frames::Vector{FractureFrame{T}}
+    grids::Vector{Union{Nothing, FractureGrid{T}}}
     patches::Vector{FracturePatch{T}}
     finite_volume::TwoPointFiniteVolumeGeometry
     connection_distances::Matrix{T}

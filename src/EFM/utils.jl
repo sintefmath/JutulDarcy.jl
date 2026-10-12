@@ -56,12 +56,7 @@ function fracture_properties(objects, ids, ::Type{T}; aperture = nothing,
 end
 
 function embedded_cell_faces(neighbors::AbstractMatrix, nc)
-    # get_facepos's empty-graph case assumes one cell; preserve isolated cells.
-    if isempty(neighbors)
-        faces, pos = Int[], ones(Int, nc+1)
-    else
-        faces, pos = Jutul.get_facepos(neighbors, nc)
-    end
+    faces, pos = Jutul.get_facepos(neighbors, nc)
     return Jutul.IndirectionMap(faces, pos)
 end
 

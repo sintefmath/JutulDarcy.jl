@@ -25,7 +25,8 @@ function discrete_fracture_mesh(matrix_mesh::JutulMesh, fractures;
     original = UnstructuredMesh(matrix_mesh)
     any(f -> isempty(original.faces.faces_to_nodes[f]), 1:number_of_faces(original)) &&
         throw(ArgumentError("DFM cutting requires a matrix mesh without non-neighboring faces"))
-    embedded = embedded_fracture_mesh(matrix_mesh, fractures; tolerance = tolerance)
+    # Only the original matrix overlaps are needed to identify cells to cut.
+    embedded = embedded_fracture_mesh(matrix_mesh, fractures; tolerance = tolerance, resolution = :matrix)
     geometry = embedded.geometry
     tol = geometry.tolerance
     cut = original

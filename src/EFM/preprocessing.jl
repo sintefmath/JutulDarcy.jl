@@ -138,11 +138,22 @@ Clip planar fracture objects against an unmodified 3D mesh. A bounding-box tree
 prunes matrix cells and fracture pairs. Warped faces use Jutul's face-center
 triangle fans. Fractures on a matrix face share a single fracture cell connected
 to both matrix cells. Point contacts have zero transmissibility.
+
+`resolution=(nu, nv)` or `cell_length=h` selects an independent planar fracture
+grid. A scalar applies to both axes, a tuple selects each axis, and a vector
+supplies one scalar/tuple/`nothing` per input fracture. Overrides replace the
+fracture object's `mesh_options`; `nothing` entries retain object settings.
+Specify only one option for each fracture. Matrix clipping is the default.
+Use `resolution=:matrix` to override an object's independent grid settings.
+Grid cells can span multiple matrix cells, using overlap-weighted exchange and
+storage. Disconnected active regions are retained as separate fracture cells.
 """
 function embedded_fracture_mesh(matrix_mesh::JutulMesh, fractures;
         tolerance = nothing,
         intersections = true,
-        float_type = Jutul.float_type(matrix_mesh)
+        float_type = Jutul.float_type(matrix_mesh),
+        resolution = nothing,
+        cell_length = nothing
     )
     T = float_type
     T <: AbstractFloat || throw(ArgumentError("float_type must be an AbstractFloat type"))
@@ -160,12 +171,15 @@ function embedded_fracture_mesh(matrix_mesh::JutulMesh, fractures;
     tol = T(tolerance)
     isfinite(tol) && tol > 0 || throw(ArgumentError("tolerance must be positive and finite"))
     frames = fracture_frames(fractures, tol)
+    grids = fracture_grids(fractures, frames, tol; resolution = resolution, cell_length = cell_length)
     patches = FracturePatch{T}[]
     face_patches = Dict{Tuple{Int, Int}, Dict{Int, Vector{Tuple{Point3{T}, Point3{T}}}}}()
     coincident = Dict{Tuple{Int, Int}, Vector{Int}}()
     foreach(fractures.groups, fractures.indices) do group, ids
         clip_fracture_group!(patches, face_patches, coincident, mesh, index, group, ids, frames, tol)
     end
+    restore_fracture_order!(patches, face_patches)
+    patches, face_patches = remesh_fracture_patches(patches, face_patches, grids, frames, mesh, tol)
     restore_fracture_order!(patches, face_patches)
     isempty(patches) && throw(ArgumentError("fractures have no positive-area intersection with the active matrix mesh"))
     pairs = Tuple{Int, Int}[]
@@ -175,19 +189,7 @@ function embedded_fracture_mesh(matrix_mesh::JutulMesh, fractures;
     types = Symbol[]
     # Shared matrix faces define connections within one fracture. This preserves
     # fault/ACTNUM topology instead of connecting nearby but disconnected cells.
-    interfaces = Dict{Tuple{Int, Int}, Vector{Tuple{Point3{T}, Point3{T}}}}()
-    for connected in values(face_patches)
-        ids = sort!(collect(keys(connected)))
-        for i in 1:length(ids), j in i+1:length(ids)
-            l, r = ids[i], ids[j]
-            for (a, b) in connected[l], (c, d) in connected[r]
-                seg = segment_overlap(a, b, c, d, tol)
-                if !isnothing(seg)
-                    push!(get!(interfaces, (l, r), Tuple{Point3{T}, Point3{T}}[]), seg)
-                end
-            end
-        end
-    end
+    interfaces = fracture_interfaces(face_patches, tol; mesh = mesh, patches = patches)
     for (pair, segments) in sort!(collect(interfaces); by = first)
         L, center = interface_measure(segments, tol)
         L > tol || continue
@@ -224,32 +226,59 @@ function embedded_fracture_mesh(matrix_mesh::JutulMesh, fractures;
         half_face_cells = vec(Matrix(N)), half_face_faces = repeat(collect(1:nf); inner = 2))
     mc, fcells = Int[], Int[]
     mdist, marea = T[], T[]
+    matrix_distances = Dict{Tuple{Int, Int}, T}()
     for (fcell, patch) in enumerate(patches)
         frame = frames[patch.fracture]
-        for cell in patch.matrix_cells
+        for (i, cell) in enumerate(patch.matrix_cells)
             push!(mc, cell)
             push!(fcells, fcell)
-            push!(mdist, max(cell_average_distance(mesh, cell, frame.origin, frame.normal), tol))
-            # A fracture inside a cell exchanges through both sides. A fracture
-            # on a face exchanges through one side with each adjacent cell.
-            factor = 2
-            if !isempty(coincident_faces(mesh, cell, frame, tol))
-                factor = 1
-            else
-                for face in mesh.boundary_faces.cells_to_faces[cell]
-                    nodes = mesh.boundary_faces.faces_to_nodes[face]
-                    if !isempty(nodes) && all(n -> abs(dot(mesh.node_points[n]-frame.origin, frame.normal)) <= tol, nodes)
-                        factor = 1
-                        break
-                    end
-                end
+            distance = get!(matrix_distances, (patch.fracture, cell)) do
+                max(cell_average_distance(mesh, cell, frame.origin, frame.normal), tol)
             end
-            push!(marea, factor*patch.area)
+            push!(mdist, distance)
+            push!(marea, patch.matrix_areas[i])
         end
     end
     dist = fracture_point_matrix(distances, 2, T)
-    geometry = EmbeddedFractureGeometry(frames, patches, geo, Matrix(dist), types, intersection_groups, mc, fcells, mdist, marea, tol)
+    geometry = EmbeddedFractureGeometry(frames, grids, patches, geo, Matrix(dist), types, intersection_groups, mc, fcells, mdist, marea, tol)
     return EmbeddedFractureMesh(matrix_mesh, fractures, geometry, geometry_tags(geo))
+end
+
+function fracture_interfaces(face_patches, tol::T; mesh = nothing, patches = nothing) where T
+    interfaces = Dict{Tuple{Int, Int}, Vector{Tuple{Point3{T}, Point3{T}}}}()
+    for ((fi, face), connected) in pairs(face_patches)
+        ids = sort!(collect(keys(connected)))
+        for i in 1:length(ids), j in i+1:length(ids)
+            l, r = ids[i], ids[j]
+            if face < 0 && !isnothing(mesh) &&
+                    !connected_matrix_cells(mesh, patches[l].matrix_cells, patches[r].matrix_cells)
+                continue
+            end
+            for (a, b) in connected[l], (c, d) in connected[r]
+                segment = segment_overlap(a, b, c, d, tol)
+                if !isnothing(segment)
+                    push!(get!(interfaces, (l, r), Tuple{Point3{T}, Point3{T}}[]), segment)
+                end
+            end
+        end
+    end
+    return interfaces
+end
+
+function matrix_exchange_area(mesh, cell, frame, area, tol)
+    factor = 2
+    if !isempty(coincident_faces(mesh, cell, frame, tol))
+        factor = 1
+    else
+        for face in mesh.boundary_faces.cells_to_faces[cell]
+            nodes = mesh.boundary_faces.faces_to_nodes[face]
+            if !isempty(nodes) && all(n -> abs(dot(mesh.node_points[n]-frame.origin, frame.normal)) <= tol, nodes)
+                factor = 1
+                break
+            end
+        end
+    end
+    return factor*area
 end
 
 function connected_matrix_cells(mesh, left, right)
@@ -470,13 +499,17 @@ function clip_fracture_group!(patches, face_patches, coincident, mesh, index, gr
                     end
                 end
                 if patch == 0
-                    push!(patches, FracturePatch(fi, [cell], component, centroid, area))
+                    exchange = matrix_exchange_area(mesh, cell, frame, area, tol)
+                    push!(patches, FracturePatch(fi, [cell], component, centroid, area, [exchange], [one(T)]))
                     patch = length(patches)
                     for face in cf
                         push!(get!(coincident, (fi, face), Int[]), patch)
                     end
                 else
                     push!(patches[patch].matrix_cells, cell)
+                    push!(patches[patch].matrix_areas, matrix_exchange_area(mesh, cell, frame, area, tol))
+                    push!(patches[patch].matrix_weights, one(T))
+                    fill!(patches[patch].matrix_weights, one(T)/length(patches[patch].matrix_cells))
                 end
                 for (face, a, b) in clipped_face_segments(frame, segments, tol; parts = component)
                     connected = get!(face_patches, (fi, face), Dict{Int, Vector{Tuple{Point3{T}, Point3{T}}}}())

@@ -13,6 +13,7 @@ module EFM
     export discrete_fracture_mesh, discrete_fracture_domain
     export FractureCollection
 
+    include("mesh_options.jl")
     include("fractures.jl")
     include("collection.jl")
     include("geometry.jl")
@@ -21,6 +22,7 @@ module EFM
     include("utils.jl")
     include("unstructured.jl")
     include("preprocessing.jl")
+    include("meshing.jl")
     include("domains.jl")
     include("discrete.jl")
     include("wells.jl")

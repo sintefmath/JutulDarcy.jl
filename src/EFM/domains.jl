@@ -77,9 +77,12 @@ transmissibilities, and DFM-compatible `FractureMatrixConnection` data. The
 matrix `DataDomain` and its mesh remain unchanged. Physical properties default
 to the fracture objects; scalar or per-fracture keyword overrides are accepted.
 Other keywords are passed to `reservoir_domain`. Geometry options are
-`tolerance`, `intersections`, and `float_type` (defaults to the matrix mesh's
-floating-point type). Permeability uses SI units and can be a full
-symmetric tensor in the matrix. Fracture permeability is isotropic in-plane.
+`tolerance`, `intersections`, `resolution`, `cell_length`, and `float_type`
+(defaults to the matrix mesh's floating-point type). Permeability uses SI units
+and can be a full symmetric tensor in the matrix. Fracture permeability is isotropic in-plane.
+Internal grid controls can be set on each fracture constructor or supplied
+here as scalar/axis-pair/per-fracture vector overrides. See
+[`embedded_fracture_mesh`](@ref) for their meaning.
 
 The standard EDFM approximation is intended for conductive fractures; interior
 matrix connections remain open, so impermeable fracture barriers require a different
@@ -89,9 +92,13 @@ function embedded_fracture_domain(matrix::DataDomain, fractures;
         tolerance = nothing,
         intersections = true,
         float_type = Jutul.float_type(physical_representation(matrix)),
+        resolution = nothing,
+        cell_length = nothing,
         kwarg...
     )
-    mesh = embedded_fracture_mesh(physical_representation(matrix), fractures; tolerance = tolerance, intersections = intersections, float_type = float_type)
+    mesh = embedded_fracture_mesh(physical_representation(matrix), fractures;
+        tolerance = tolerance, intersections = intersections, float_type = float_type,
+        resolution = resolution, cell_length = cell_length)
     return embedded_fracture_domain(mesh, matrix; kwarg...)
 end
 
@@ -155,10 +162,15 @@ function matrix_face_coverage(mesh::EmbeddedFractureMesh)
     covered = zeros(number_of_faces(matrix))
     face_areas = tpfv_geometry(matrix).areas
     for patch in mesh.geometry.patches
-        length(patch.matrix_cells) > 1 || continue
+        if length(patch.matrix_cells) == 1 && only(patch.matrix_areas) > patch.area
+            continue
+        end
         frame = mesh.geometry.frames[patch.fracture]
-        for face in coincident_faces(matrix, first(patch.matrix_cells), frame, mesh.geometry.tolerance)
-            all(c -> c in patch.matrix_cells, matrix.faces.neighbors[face]) || continue
+        faces = Set{Int}()
+        for cell in patch.matrix_cells
+            union!(faces, coincident_faces(matrix, cell, frame, mesh.geometry.tolerance))
+        end
+        for face in faces
             points = [project(frame, matrix.node_points[n]) for n in matrix.faces.faces_to_nodes[face]]
             area = 0.0
             for boundary in convex_parts(points, mesh.geometry.tolerance), part in patch.parts
@@ -248,8 +260,8 @@ function subtract_volumes!(volumes, fractures)
     mesh = physical_representation(fractures)::EmbeddedFractureMesh
     removed = zeros(length(volumes))
     for (cell, patch) in enumerate(mesh.geometry.patches)
-        for mc in patch.matrix_cells
-            removed[mc] += fractures[:volumes][cell]/length(patch.matrix_cells)
+        for (i, mc) in enumerate(patch.matrix_cells)
+            removed[mc] += fractures[:volumes][cell]*patch.matrix_weights[i]
         end
     end
     all(volumes .> removed) || throw(ArgumentError("fracture volume exceeds an intersected matrix cell's volume"))
