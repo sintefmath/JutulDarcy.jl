@@ -568,9 +568,12 @@ function add_thermal_to_model!(model)
         ComponentHeatCapacity = ComponentHeatCapacity(),
     )
     if haskey(model.data_domain, :thermal_dispersivity)
+        # Order matters: the parameters are updated in this order before each step
+        dim = size(model.data_domain[:cell_centroids], 1)
         set_parameters!(model,
+            ThermalDispersionGeometry = ThermalDispersionGeometry(dim),
             TotalVolumeFlux = TotalVolumeFlux(),
-            TotalDarcyVelocity = TotalDarcyVelocity(),
+            TotalDarcyVelocity = TotalDarcyVelocity(dim),
             ThermalDispersionTransmissibility = ThermalDispersionTransmissibility(),
         )
     end

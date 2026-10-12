@@ -83,21 +83,16 @@ function thermal_heat_flux(face, state, model, grad, upw, flux_type)
         θ += θ_fα*phase_face_average(S, grad, α)
     end
 
-    if haskey(state, :ThermalDispersivity)
-        dispersion = state.ThermalDispersivity
-        if all(x -> value(x) == 0.0, dispersion)
-            # No dispersive contribution for this face.
-        elseif haskey(state, :ThermalDispersionTransmissibility)
-            θ_d = state.ThermalDispersionTransmissibility
-            ρCp_l = state.PhaseMassDensities[1, grad.left]*state.ComponentHeatCapacity[1, grad.left]
-            ρCp_r = state.PhaseMassDensities[1, grad.right]*state.ComponentHeatCapacity[1, grad.right]
-            θ_l = @inbounds θ_d[1, face]*ρCp_l
-            θ_r = @inbounds θ_d[2, face]*ρCp_r
-            if θ_l != 0.0 && θ_r != 0.0
-                θ += 1/(1/θ_l + 1/θ_r)
-            end
+    if haskey(state, :ThermalDispersionTransmissibility)
+        θ_d = state.ThermalDispersionTransmissibility
+        @inbounds θ_dl, θ_dr = θ_d[1, face], θ_d[2, face]
+        if θ_dl != 0.0 && θ_dr != 0.0
+            # Dispersive conductivity is ρ c_p D for the (single) fluid phase
+            l, r = grad.left, grad.right
+            ρCp_l = @inbounds state.PhaseMassDensities[1, l]*state.ComponentHeatCapacity[1, l]
+            ρCp_r = @inbounds state.PhaseMassDensities[1, r]*state.ComponentHeatCapacity[1, r]
+            θ += 1/(1/(θ_dl*ρCp_l) + 1/(θ_dr*ρCp_r))
         end
-
     end
 
     conductive_flux = -θ*gradient(T, grad)
@@ -110,59 +105,6 @@ function fluid_phase_cell_value(λ_f, α, cell)
     elseif λ_f isa AbstractArray
         return @inbounds λ_f[α, cell]
     end
-end
-
-function face_flux_helper(face, N, state, model, is_mass::Bool)
-    l = N[face][1]
-    r = N[face][2]
-    # TODO: This assumes the default discretizations.
-    # This should be generalized to allow for different flux types.
-    tpfa = TPFA(l, r, 1)
-    upw = SPU(l, r)
-    f_t = Jutul.DefaultFlux()
-    v_face = JutulDarcy.darcy_phase_volume_fluxes(face, state, model, f_t, tpfa, upw)
-    return v_face
-end
-
-function velocity_from_state(cell, state, model; is_mass::Bool = false)
-    if haskey(state, :TotalDarcyVelocity)
-        return @view state.TotalDarcyVelocity[:, cell]
-    else
-        return 0.0#velocity_from_face_fluxes(cell, state, model; is_mass = is_mass)
-    end
-end
-
-function velocity_from_face_fluxes(cell, state, model; is_mass::Bool = false)
-    domain = model.data_domain
-    if cell <= 0
-        dim = size(domain[:cell_centroids], 1)
-        return zeros(dim)
-    end
-
-    neighbors = domain[:neighbors]
-    nc = size(domain[:cell_centroids], 2)
-    faces, facepos = get_facepos(neighbors, nc)
-    facesigns = Jutul.get_facesigns(neighbors, faces, facepos, nc)
-
-    cc = domain[:cell_centroids][:, cell]
-    v = nothing
-    for fpos = facepos[cell]:(facepos[cell+1]-1)
-        face = faces[fpos]
-        sgn = facesigns[fpos]
-        fc = domain[:face_centroids][:, face]
-        q = sum(face_flux_helper(face, neighbors, state, model, is_mass))*sgn
-        dq = q.*(fc .- cc)
-        if isnothing(v)
-            v = copy(dq)
-        else
-            v .+= dq
-        end
-    end
-    if isnothing(v)
-        return zeros(eltype(cc), length(cc))
-    end
-    v ./= domain[:volumes][cell]
-    return v
 end
 
 """

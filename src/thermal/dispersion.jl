@@ -1,7 +1,17 @@
+"""
+    add_thermal_dispersion!(domain::DataDomain, D)
 
+Add thermal dispersivity to a reservoir domain. `D` is either a 2×1 matrix
+`[α_L; α_T]` (longitudinal and transverse dispersivity, used for all cells) or
+a 1×nc matrix with a single dispersivity per cell (used for both components).
+
+The dispersive heat flux is `-ρ_w c_w D ∇T` with
+`D = α_T |v| I + (α_L - α_T) v v'/|v|`, where `v` is the total Darcy velocity.
+`D` is evaluated explicitly at the start of each time step from the velocity
+reconstructed from the face fluxes, and enters the energy equation as an
+additional face transmissibility.
+"""
 function add_thermal_dispersion!(domain::DataDomain, D::AbstractArray{<:Real, 2})
-
-    # Add to data domain based on size of D
     D = if size(D, 1) == 2 && size(D, 2) == 1
         repeat(D, 1, number_of_cells(domain))
     elseif size(D, 1) == 1 && size(D, 2) == number_of_cells(domain)
@@ -10,203 +20,173 @@ function add_thermal_dispersion!(domain::DataDomain, D::AbstractArray{<:Real, 2}
         error("Unsupported size for thermal dispersivity array")
     end
     domain[:thermal_dispersivity] = D
+    return domain
+end
 
-    # Add useful geometric quantities
-    neighbors = domain[:neighbors]
-    nc = size(domain[:cell_centroids], 2)
-    faces, facepos = get_facepos(neighbors, nc)
-    facesigns = Jutul.get_facesigns(neighbors, faces, facepos, nc)
+# Dispersion is computed in three stages before each time step, in the order
+# the parameters are added to the model:
+#   1. TotalVolumeFlux: total Darcy volume flux over each face
+#   2. TotalDarcyVelocity: cell velocity reconstructed from the face fluxes
+#   3. ThermalDispersionTransmissibility: half-face transmissibilities of D
+# All topology is taken from the model's own discretization and all geometry
+# from the face parameter ThermalDispersionGeometry, so that the computations
+# only use data that is local to the model.
 
-    half_face_vectors = zeros(size(domain[:cell_centroids], 1), length(faces))
+"""
+    ThermalDispersionGeometry(dim)
 
-    for cell in 1:number_of_cells(domain)
-        xc = domain[:cell_centroids][:, cell]
-        for fpos = facepos[cell]:(facepos[cell+1]-1)
-            face = faces[fpos]
-            xf = domain[:face_centroids][:, face]
-            half_face_vectors[:, fpos] = (xf .- xc)
+Static face geometry for thermal dispersion. For each face, rows `1:dim` and
+`dim+1:2dim` hold the vectors from the left and right cell centroids to the face
+centroid, and rows `2dim+1:3dim` the area-weighted normal (oriented from left to
+right).
+"""
+struct ThermalDispersionGeometry{D} <: VectorVariables end
+ThermalDispersionGeometry(dim::Int) = ThermalDispersionGeometry{dim}()
+Jutul.values_per_entity(model, ::ThermalDispersionGeometry{D}) where D = 3*D
+Jutul.associated_entity(::ThermalDispersionGeometry) = Faces()
+
+function Jutul.default_parameter_values(data_domain, model, ::ThermalDispersionGeometry{D}, symb) where D
+    N = data_domain[:neighbors]
+    xc = data_domain[:cell_centroids]
+    xf = data_domain[:face_centroids]
+    normals = data_domain[:normals]
+    areas = data_domain[:areas]
+    nf = size(N, 2)
+    G = zeros(3*D, nf)
+    for face in 1:nf
+        l, r = N[1, face], N[2, face]
+        for i in 1:D
+            G[i, face] = xf[i, face] - xc[i, l]
+            G[D + i, face] = xf[i, face] - xc[i, r]
+            G[2D + i, face] = areas[face]*normals[i, face]
         end
     end
-    hf = HalfFaces()
-    domain[:half_faces, hf] = faces
-    domain[:half_facepos, NoEntity()] = facepos
-    domain[:half_facesigns, hf] = facesigns
-    domain[:half_face_vectors, hf] = half_face_vectors
-    dim = size(domain[:cell_centroids], 1)
-    domain[:half_face_vectors_svec, hf] = [SVector{dim}(half_face_vectors[:, i]) for i in axes(half_face_vectors, 2)]
+    return G
+end
 
-    # Cache static geometry as SVectors for reuse in hot loops.
-    domain[:cell_centroids_svec, Cells()] = [SVector{dim}(domain[:cell_centroids][:, i]) for i in axes(domain[:cell_centroids], 2)]
-    domain[:face_centroids_svec, Faces()] = [SVector{dim}(domain[:face_centroids][:, i]) for i in axes(domain[:face_centroids], 2)]
-    domain[:normals_svec, Faces()] = [SVector{dim}(domain[:normals][:, i]) for i in axes(domain[:normals], 2)]
-    if neighbors isa AbstractMatrix
-        domain[:neighbors_svec, Faces()] = [SVector{2, Int}(neighbors[1, i], neighbors[2, i]) for i in axes(neighbors, 2)]
-    else
-        domain[:neighbors_svec, Faces()] = [SVector{2, Int}(n[1], n[2]) for n in neighbors]
+@inline function dispersion_face_geometry(G, face, ::Val{D}) where D
+    C_l = SVector{D, Float64}(ntuple(i -> @inbounds(G[i, face]), Val(D)))
+    C_r = SVector{D, Float64}(ntuple(i -> @inbounds(G[D + i, face]), Val(D)))
+    NA = SVector{D, Float64}(ntuple(i -> @inbounds(G[2D + i, face]), Val(D)))
+    return (C_l, C_r, NA)
+end
+
+dispersion_neighborship(g::MinimalTPFATopology) = g.neighborship
+dispersion_neighborship(g) = get_neighborship(g)
+
+"""
+Cell-to-face connections `(conn_pos, conn_data)` of the model, where
+`conn_data[conn_pos[c]:conn_pos[c+1]-1]` are the faces of cell `c` with entries
+`(self, other, face, face_sign)`.
+"""
+function dispersion_cell_connections(model)
+    discr = model.domain.discretizations
+    disc = haskey(discr, :heat_flow) ? discr.heat_flow : discr.mass_flow
+    if !(disc isa TwoPointPotentialFlowHardCoded)
+        N = dispersion_neighborship(physical_representation(model.domain))
+        disc = TwoPointPotentialFlowHardCoded(N, number_of_cells(model.domain))
     end
-    
-    return domain
-
+    return (disc.conn_pos, disc.conn_data)
 end
 
-Base.@kwdef mutable struct TotalVolumeFlux <: ScalarVariable
-    change_tol_rel = 1e-2
-    changed = BitVector()
-    changed_any = true
-end
+"""
+    TotalVolumeFlux()
+
+Total Darcy volume flux over each face (sum over phases), evaluated at the start
+of each time step.
+"""
+struct TotalVolumeFlux <: ScalarVariable end
 Jutul.associated_entity(::TotalVolumeFlux) = Faces()
 
 function Jutul.default_parameter_values(data_domain, model, param::TotalVolumeFlux, symb)
     return zeros(number_of_faces(data_domain))
 end
 
-function Jutul.update_parameter_before_step!(q_t, prm::TotalVolumeFlux, storage, model, dt, forces)
-    state = storage.state
-    domain = model.data_domain
-    neighbors = domain[:neighbors_svec]
-    nf = number_of_faces(domain)
-
-    if length(prm.changed) != nf
-        prm.changed = falses(nf)
-    end
-    changed_faces = prm.changed
-    changed_any = false
-
-    @inbounds for face in 1:nf
-        q_old = q_t[face]
-        q_new = face_total_volume_flux(face, neighbors, state, model)
-        q_t[face] = q_new
-
-        thresh = prm.change_tol_rel*max(abs(q_old), eps(Float64))
-        has_changed = abs(q_new - q_old) > thresh
-        changed_faces[face] = has_changed
-        changed_any = changed_any || has_changed
-    end
-    prm.changed_any = changed_any
+function Jutul.update_parameter_before_step!(q_t, ::TotalVolumeFlux, storage, model, dt, forces)
+    N = dispersion_neighborship(physical_representation(model.domain))
+    update_total_volume_flux!(q_t, N, storage.state, model)
     return q_t
 end
 
-
-Base.@kwdef mutable struct TotalDarcyVelocity <: VectorVariables
-    changed = BitVector()
-    changed_any = true
-end
-# Jutul.variable_scale(::ThermalDispersion) = 1.0
-# Jutul.minimum_value(::ThermalDispersion) = 0.0
-Jutul.values_per_entity(model, ::TotalDarcyVelocity) = dim(model.data_domain)
-Jutul.associated_entity(::TotalDarcyVelocity) = Cells()
-
-function Jutul.default_parameter_values(data_domain, model, param::TotalDarcyVelocity, symb)
-    dim = size(data_domain[:cell_centroids], 1)
-    nc = number_of_cells(data_domain)
-    return zeros(dim, nc)
+function update_total_volume_flux!(q_t, N, state, model)
+    F = face -> @inbounds q_t[face] = face_total_volume_flux(face, N, state, model)
+    Jutul.threaded_loop_minbatch(F, length(q_t), model.context)
+    return q_t
 end
 
-function Jutul.update_parameter_before_step!(v, prm::TotalDarcyVelocity, storage, model, dt, forces)
-    state = storage.state
-    domain = model.data_domain
-    nc = number_of_cells(domain)
-    volumes = domain[:volumes]
-
-    half_facesigns = domain[:half_facesigns]
-    half_face_vectors_svec = domain[:half_face_vectors_svec]
-    facepos = domain[:half_facepos]
-    faces = domain[:half_faces]
-
-    face_fluxes = state.TotalVolumeFlux
-
-    if length(prm.changed) != nc
-        prm.changed = falses(nc)
-    end
-    changed_cells = prm.changed
-    fill!(changed_cells, false)
-
-    flux_prm = model.parameters[:TotalVolumeFlux]
-    changed_faces = flux_prm.changed
-    if length(changed_faces) == 0
-        fill!(changed_cells, true)
-    else
-        @inbounds for face in eachindex(changed_faces)
-            if changed_faces[face]
-                left, right = domain[:neighbors_svec][face]
-                if left > 0
-                    changed_cells[left] = true
-                end
-                if right > 0
-                    changed_cells[right] = true
-                end
-            end
-        end
-    end
-
-    changed_any = any(changed_cells)
-    prm.changed_any = changed_any
-    if !changed_any
-        return v
-    end
-
-    @inbounds for cell in 1:nc
-        if !changed_cells[cell]
-            continue
-        end
-        v_c = v[:, cell]
-        fill!(v_c, 0.0)
-        for fpos = facepos[cell]:(facepos[cell + 1] - 1)
-            face = faces[fpos]
-            q = face_fluxes[face]*half_facesigns[fpos]
-            if q != 0.0
-                v_c .+= q.*half_face_vectors_svec[fpos]
-            end
-        end
-        v_c ./= volumes[cell]
-        v[:, cell] = v_c
-    end
-    return v
-end
-
-@inline function face_total_volume_flux(face, neighbors, state, model)
-    q_face = face_flux_helper(face, neighbors, state, model, false)
+@inline function face_total_volume_flux(face, N, state, model)
+    @inbounds l, r = N[1, face], N[2, face]
+    # TODO: This assumes the default discretizations.
+    tpfa = TPFA(l, r, 1)
+    upw = SPU(l, r)
+    q_face = darcy_phase_volume_fluxes(face, state, model, Jutul.DefaultFlux(), tpfa, upw)
     q_sum = 0.0
-    @inbounds for q in q_face
+    for q in q_face
         q_sum += value(q)
     end
     return q_sum
 end
 
+"""
+    TotalDarcyVelocity(dim)
+
+Cell-wise total Darcy velocity reconstructed from the face fluxes as
+`v_c = Σ_f q_f (x_f - x_c) / V_c`, evaluated at the start of each time step.
+Fluxes over boundary faces and well connections are not included.
+"""
+struct TotalDarcyVelocity{D} <: VectorVariables end
+TotalDarcyVelocity(dim::Int) = TotalDarcyVelocity{dim}()
+Jutul.values_per_entity(model, ::TotalDarcyVelocity{D}) where D = D
+Jutul.associated_entity(::TotalDarcyVelocity) = Cells()
+
+function Jutul.default_parameter_values(data_domain, model, param::TotalDarcyVelocity{D}, symb) where D
+    return zeros(D, number_of_cells(data_domain))
+end
+
+function Jutul.update_parameter_before_step!(v, ::TotalDarcyVelocity{D}, storage, model, dt, forces) where D
+    state = storage.state
+    conn_pos, conn_data = dispersion_cell_connections(model)
+    update_total_darcy_velocity!(v, state.TotalVolumeFlux, state.ThermalDispersionGeometry,
+        state.BulkVolume, conn_pos, conn_data, model.context, Val(D))
+    return v
+end
+
+function update_total_darcy_velocity!(v, q, G, volumes, conn_pos, conn_data, context, dim::Val{D}) where D
+    function F(cell)
+        acc = zero(SVector{D, Float64})
+        @inbounds for i in conn_pos[cell]:(conn_pos[cell + 1] - 1)
+            conn = conn_data[i]
+            face = conn.face
+            C_l, C_r, = dispersion_face_geometry(G, face, dim)
+            # Outward flux times vector from cell centroid to face centroid
+            if conn.face_sign > 0
+                acc += q[face]*C_l
+            else
+                acc -= q[face]*C_r
+            end
+        end
+        V = value(volumes[cell])
+        @inbounds for d in 1:D
+            v[d, cell] = acc[d]/V
+        end
+    end
+    Jutul.threaded_loop_minbatch(F, size(v, 2), context)
+    return v
+end
+
+"""
+    ThermalDispersionTransmissibility()
+
+Half-face transmissibilities of the dispersion tensor (row 1: left cell, row 2:
+right cell), evaluated at the start of each time step. The face transmissibility
+is the harmonic average of the half-face values scaled by `ρ c_p` of each cell.
+"""
 struct ThermalDispersionTransmissibility <: VectorVariables end
-Jutul.minimum_value(::ThermalDispersionTransmissibility) = 0.0
 Jutul.values_per_entity(model, ::ThermalDispersionTransmissibility) = 2
 Jutul.associated_entity(::ThermalDispersionTransmissibility) = Faces()
 
 function Jutul.default_parameter_values(data_domain, model, param::ThermalDispersionTransmissibility, symb)
     return zeros(2, number_of_faces(data_domain))
-end
-        
-function thermal_dispersion_half_face_transmissibility(face, side, cell_centroids, face_centroids, normals, neighbors, areas, v, dispersion)
-    @inbounds left, right = neighbors[face]
-    if side <= 0 || right <= 0
-        return 0.0
-    end
-    @inbounds A = areas[face]
-    @inbounds Nf = normals[face]
-    @inbounds xf = face_centroids[face]
-
-    v_i = eltype(cell_centroids)(v[:, side])
-    vmag = sqrt(dot(v_i, v_i))
-    if vmag == 0.0
-        return 0.0
-    end
-    α_L = value(dispersion[1, side])
-    α_T = value(dispersion[2, side])
-    aT = α_T*vmag
-    aL = (α_L - α_T)/vmag
-
-    C = xf - cell_centroids[side]
-    sgn = ifelse(side == left, 1.0, -1.0)
-    N = sgn*Nf
-    # D*C where D = aT*I + aL*(v*v')
-    KC = aT*C + aL*v_i*dot(v_i, C)
-    return A*dot(KC, N)/dot(C, C)
 end
 
 function Jutul.update_parameter_before_step!(θ_d, ::ThermalDispersionTransmissibility, storage, model, dt, forces)
@@ -215,36 +195,39 @@ function Jutul.update_parameter_before_step!(θ_d, ::ThermalDispersionTransmissi
         fill!(θ_d, 0.0)
         return θ_d
     end
-    dispersion = state.ThermalDispersivity
-    if all(x -> value(x) == 0.0, dispersion)
-        fill!(θ_d, 0.0)
-        return θ_d
-    end
-
-    velocity_prm = model.parameters[:TotalDarcyVelocity]
-    if !velocity_prm.changed_any
-        return θ_d
-    end
-
-    domain = model.data_domain
-    nf = number_of_faces(domain)
-    cell_centroids = domain[:cell_centroids_svec]
-    face_centroids = domain[:face_centroids_svec]
-    normals = domain[:normals_svec]
-    neighbors = domain[:neighbors_svec]
-    areas = domain[:areas]
+    N = dispersion_neighborship(physical_representation(model.domain))
     v = state.TotalDarcyVelocity
-    changed_cells = velocity_prm.changed
-
-    @inbounds for face in 1:nf
-        left, right = neighbors[face]
-        left_changed = left > 0 && changed_cells[left]
-        right_changed = right > 0 && changed_cells[right]
-        if !(left_changed || right_changed)
-            continue
-        end
-        θ_d[1, face] = thermal_dispersion_half_face_transmissibility(face, left, cell_centroids, face_centroids, normals, neighbors, areas, v, dispersion)
-        θ_d[2, face] = thermal_dispersion_half_face_transmissibility(face, right, cell_centroids, face_centroids, normals, neighbors, areas, v, dispersion)
-    end
+    update_dispersion_transmissibility!(θ_d, N, state.ThermalDispersionGeometry, v,
+        state.ThermalDispersivity, model.context, Val(size(v, 1)))
     return θ_d
+end
+
+function update_dispersion_transmissibility!(θ_d, N, G, v, α, context, dim::Val{D}) where D
+    function F(face)
+        @inbounds begin
+            l, r = N[1, face], N[2, face]
+            C_l, C_r, NA = dispersion_face_geometry(G, face, dim)
+            θ_d[1, face] = dispersion_half_face_transmissibility(C_l, NA, v, α, l, dim)
+            θ_d[2, face] = dispersion_half_face_transmissibility(C_r, -NA, v, α, r, dim)
+        end
+    end
+    Jutul.threaded_loop_minbatch(F, size(θ_d, 2), context)
+    return θ_d
+end
+
+"""
+Half-face transmissibility `(D C)⋅N A / |C|²` for cell `cell` with
+`D = α_T |v| I + (α_L - α_T) v v'/|v|`, `C` the vector from the cell centroid to
+the face centroid and `NA` the area-weighted outward normal.
+"""
+@inline function dispersion_half_face_transmissibility(C, NA, v, α, cell, ::Val{D}) where D
+    v_c = SVector{D, Float64}(ntuple(i -> @inbounds(v[i, cell]), Val(D)))
+    vmag = norm(v_c)
+    if vmag == 0.0
+        return 0.0
+    end
+    @inbounds α_L = value(α[1, cell])
+    @inbounds α_T = value(α[2, cell])
+    DC_N = α_T*vmag*dot(C, NA) + (α_L - α_T)/vmag*dot(v_c, C)*dot(v_c, NA)
+    return DC_N/dot(C, C)
 end
