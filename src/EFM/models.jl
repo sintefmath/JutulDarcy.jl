@@ -1,22 +1,24 @@
 """
-    setup_embedded_fracture_model(matrix, fractures, system; representation=:coupled, subtract_fracture_volume=false, kwarg...)
+    setup_embedded_fracture_model(matrix, fractures, system; unified=false, subtract_fracture_volume=false, kwarg...)
 
 Set up an EFM reservoir model from a preprocessed fracture domain.
 
-* `representation=:coupled`: separate `:Reservoir` and `:Fractures` models with
+* `unified=false`: separate `:Reservoir` and `:Fractures` models with
   the same conservative matrix–fracture cross terms as DFM. Supports immiscible,
   single-phase, and `:geothermal` systems.
-* `representation=:single`: one reservoir model with fracture cells appended
+* `unified=true`: one reservoir model with fracture cells appended
   after all matrix cells. Supports systems accepted by `setup_reservoir_model`.
+  Its domain has an integer `:is_fracture` cell field: `0` for matrix cells and
+  `1` for fracture cells.
 
 Interior matrix connections remain open. Face-coincident fractures replace the
 covered fraction of direct matrix connections. Optional volume subtraction
 accounts for fracture storage without modifying either input domain. Wells
 keep their original matrix perforations; explicit fracture well completions
-can be assigned to appended cell indices in the single representation.
+can be assigned to appended cell indices in the unified model.
 """
 function setup_embedded_fracture_model(matrix::DataDomain, fractures::DataDomain, system;
-        representation = :coupled,
+        unified::Bool = false,
         subtract_fracture_volume = false,
         extra_out = false,
         wells = [],
@@ -25,7 +27,7 @@ function setup_embedded_fracture_model(matrix::DataDomain, fractures::DataDomain
     mesh = physical_representation(fractures)
     mesh isa EmbeddedFractureMesh || throw(ArgumentError("fractures must be created with embedded_fracture_domain"))
     physical_representation(matrix) === mesh.matrix_mesh || throw(ArgumentError("EFM domains must share the original matrix mesh"))
-    if representation == :single
+    if unified
         domain = combined_fracture_domain(matrix, fractures; subtract_fracture_volume = subtract_fracture_volume)
         model = setup_reservoir_model(domain, system; wells = wells, kwarg...)
         if JutulDarcy.model_is_thermal(reservoir_model(model))
@@ -35,10 +37,8 @@ function setup_embedded_fracture_model(matrix::DataDomain, fractures::DataDomain
             return model, setup_parameters(model)
         end
         return model
-    elseif representation != :coupled
-        throw(ArgumentError("representation must be :coupled or :single"))
     end
-    system isa Union{ImmiscibleSystem, SinglePhaseSystem} || system == :geothermal || throw(ArgumentError("coupled EFM supports immiscible, single-phase, and :geothermal systems; use representation=:single for other systems"))
+    system isa Union{ImmiscibleSystem, SinglePhaseSystem} || system == :geothermal || throw(ArgumentError("coupled EFM supports immiscible, single-phase, and :geothermal systems; use unified=true for other systems"))
     matrix = embedded_matrix_domain(matrix, fractures; subtract_fracture_volume = subtract_fracture_volume)
     model = setup_reservoir_model(matrix, system; wells = wells, kwarg...)
     fracture_model = reservoir_model(setup_reservoir_model(fractures, system; kwarg...))
@@ -68,12 +68,13 @@ function setup_embedded_fracture_model(matrix::DataDomain, objects::EmbeddedFrac
 end
 
 """
-    setup_fractured_reservoir_model(matrix, objects, system; method=:dfm, representation=:coupled, fracture_arg=NamedTuple(), wells=[], kwarg...)
+    setup_fractured_reservoir_model(matrix, objects, system; method=:dfm, unified=false, fracture_arg=NamedTuple(), wells=[], kwarg...)
 
 Build either cut-cell DFM (`method=:dfm`, default) or EFM (`method=:efm`) from
 a vector of fracture objects. Any vector element type is accepted; entries are
-validated and grouped in a `FractureCollection`. For EFM, `representation` is
-`:coupled` or `:single`. DFM uses `:coupled`. Preprocessing options and property
+validated and grouped in a `FractureCollection`. For EFM, `unified=true` appends
+fracture cells to the reservoir model; `unified=false` uses separate matrix and
+fracture models. DFM requires `unified=false`. Preprocessing options and property
 overrides are passed in `fracture_arg`. DFM well perforations are distributed over
 their cut-cell descendants, preserving each completion's total well index.
 `extend_wells=false` keeps matrix completions for comparison with EFM; set it
@@ -84,7 +85,7 @@ when the original-cell mapping is needed for transferring states or forces.
 """
 function JutulDarcy.setup_fractured_reservoir_model(matrix::DataDomain, objects::EmbeddedFractureObjects,
         system::Union{JutulSystem, Symbol};
-        method = :dfm, representation = :coupled,
+        method = :dfm, unified::Bool = false,
         fracture_arg = NamedTuple(), wells = [], extend_wells = false,
         subtract_fracture_volume = true, extra_out = false, kwarg...)
     method in (:efm, :dfm) || throw(ArgumentError("method must be :efm or :dfm"))
@@ -92,11 +93,11 @@ function JutulDarcy.setup_fractured_reservoir_model(matrix::DataDomain, objects:
     if method == :efm
         !extend_wells || throw(ArgumentError("automatic fracture well completions require method=:dfm"))
         return setup_embedded_fracture_model(matrix, objects, system;
-            representation = representation, fracture_arg = fracture_arg,
+            unified = unified, fracture_arg = fracture_arg,
             wells = wells, subtract_fracture_volume = subtract_fracture_volume,
             extra_out = extra_out, kwarg...)
     end
-    representation == :coupled || throw(ArgumentError("DFM requires representation=:coupled"))
+    !unified || throw(ArgumentError("DFM requires unified=false"))
     domains = discrete_fracture_domain(matrix, objects; fracture_arg...)
     remapped = [cut_fracture_well(well, domains.matrix, domains.info[:cell_index]) for well in wells]
     model = setup_fractured_reservoir_model(domains.matrix, domains.fractures, system;

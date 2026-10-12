@@ -21,6 +21,8 @@
         @test !isempty(geometry.intersections)
         @test eltype(first(geometry.intersections).distances) == T
         combined = combined_fracture_domain(matrix, domain)
+        @test combined[:is_fracture] isa Vector{Int}
+        @test combined[:is_fracture] == vcat(zeros(Int, number_of_cells(matrix)), ones(Int, number_of_cells(domain)))
         @test physical_representation(combined) isa EmbeddedReservoirMesh{T}
         @test eltype(tpfv_geometry(physical_representation(combined)).volumes) == T
         @test eltype(UnstructuredMesh(physical_representation(combined)).node_points[1]) == T

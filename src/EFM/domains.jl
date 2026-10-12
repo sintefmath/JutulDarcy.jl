@@ -250,6 +250,8 @@ Combine an EFM fracture domain with the matrix into one TPFA connection graph.
 The original matrix cell numbers and faces come first; fracture cells and NNCs
 are appended. Matrix boundary geometry is retained. Explicit transmissibilities
 are used for all added connections. The original matrix mesh is unchanged.
+The integer cell field `:is_fracture` is `0` for matrix cells and `1` for fracture
+cells.
 """
 function combined_fracture_domain(matrix::DataDomain, fractures::DataDomain; subtract_fracture_volume = false)
     fm = physical_representation(fractures)::EmbeddedFractureMesh
@@ -298,7 +300,7 @@ function combined_fracture_domain(matrix::DataDomain, fractures::DataDomain; sub
     end
     domain[:volumes, Cells()] = volumes
     domain[:cell_centroids, Cells()] = centers
-    domain[:is_fracture, Cells()] = vcat(falses(nm), trues(number_of_cells(fractures)))
+    domain[:is_fracture, Cells()] = vcat(zeros(Int, nm), ones(Int, number_of_cells(fractures)))
     domain[:fracture_id, Cells()] = vcat(zeros(Int, nm), fractures[:fracture_id])
     # Use the matrix's standard parameter initialization so overrides,
     # multipliers, and existing NNCs are incorporated exactly once.

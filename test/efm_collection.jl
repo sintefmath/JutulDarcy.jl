@@ -70,19 +70,29 @@ end
         end
     end
     single = setup_fractured_reservoir_model(matrix, Any[fracture], system;
-        method = :efm, representation = :single)
+        method = :efm, unified = true)
     @test physical_representation(reservoir_domain(single)) isa EmbeddedReservoirMesh
     @test !haskey(single.models, :Fractures)
+    domain = reservoir_domain(single)
+    @test domain[:is_fracture, Cells()] isa Vector{Int}
+    @test domain[:is_fracture] == vcat(zeros(Int, number_of_cells(matrix)), ones(Int, 4))
+    embedded = embedded_fracture_domain(matrix, fracture)
+    preprocessed = setup_fractured_reservoir_model(matrix, embedded, system; unified = true)
+    @test reservoir_domain(preprocessed)[:is_fracture] == domain[:is_fracture]
+    @test !haskey(preprocessed.models, :Fractures)
     for method in (:efm, :dfm)
         model = setup_fractured_reservoir_model(matrix, Any[fracture], system;
-            method = method, subtract_fracture_volume = false)
+            method = method, unified = false, subtract_fracture_volume = false)
+        @test haskey(model.models, :Fractures)
         @test sum(reservoir_domain(model)[:volumes]) ≈ original
         @test_throws ArgumentError setup_fractured_reservoir_model(matrix, Any[fracture, 1], system; method = method)
         @test_throws ArgumentError setup_fractured_reservoir_model(matrix, Any[], system; method = method)
     end
     @test_throws ArgumentError setup_fractured_reservoir_model(matrix, [fracture], system; method = :bad)
     @test_throws ArgumentError setup_fractured_reservoir_model(matrix, [fracture], system;
-        method = :dfm, representation = :single)
+        method = :dfm, unified = true)
+    @test_throws TypeError setup_fractured_reservoir_model(matrix, [fracture], system;
+        method = :efm, unified = :bad)
     @test_throws ArgumentError setup_fractured_reservoir_model(matrix, [fracture], system;
         method = :efm, extend_wells = true)
     @test sum(matrix[:volumes]) == original

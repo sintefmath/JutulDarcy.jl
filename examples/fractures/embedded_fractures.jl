@@ -15,12 +15,12 @@ fractures = AbstractEmbeddedFracture[
 ]
 embedded = embedded_fracture_domain(matrix, fractures)
 
-# ## Choose the model representation
-# Separate matrix/fracture models use the existing DFM cross terms. The single
-# representation appends fracture cells and uses explicit transmissibilities.
+# ## Choose whether to unify the models
+# Separate matrix/fracture models use the existing DFM cross terms. Setting
+# unified=true appends fracture cells and uses explicit transmissibilities.
 system = ImmiscibleSystem((AqueousPhase(), LiquidPhase()); reference_densities = (1000.0, 800.0))
-model = setup_embedded_fracture_model(matrix, embedded, system; representation = :coupled)
-single_model = setup_embedded_fracture_model(matrix, embedded, system; representation = :single)
+model = setup_embedded_fracture_model(matrix, embedded, system; unified = false)
+single_model = setup_embedded_fracture_model(matrix, embedded, system; unified = true)
 
 # ## Solve flow with pressure boundary conditions
 # Boundary cells still refer to the original matrix mesh in both models.
@@ -37,4 +37,4 @@ fracture_mesh = physical_representation(embedded)
 println("Matrix cells: ", number_of_cells(matrix))
 println("Fracture cells: ", number_of_cells(embedded))
 println("Fracture connections: ", number_of_faces(embedded))
-println("Intersection segments: ", length(fracture_mesh.intersections))
+println("Intersection segments: ", length(fracture_mesh.geometry.intersections))

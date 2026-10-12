@@ -20,21 +20,23 @@ system = ImmiscibleSystem((AqueousPhase(), LiquidPhase()))
 model = setup_embedded_fracture_model(matrix, embedded, system)
 ```
 
-The same preprocessed domain supports two representations:
+The same preprocessed domain supports two formulations:
 
-| Representation | Reservoir cells | Matrix–fracture coupling |
+| `unified` | Reservoir cells | Matrix–fracture coupling |
 |:--|:--|:--|
-| `:coupled` (default) | Original cells in `:Reservoir`; fracture cells in `:Fractures` | DFM mass and energy cross terms |
-| `:single` | Original matrix cells followed by fracture cells in `:Reservoir` | Explicit transmissibilities in one connection graph |
+| `false` (default) | Original cells in `:Reservoir`; fracture cells in `:Fractures` | DFM mass and energy cross terms |
+| `true` | Original matrix cells followed by fracture cells in `:Reservoir` | Explicit transmissibilities in one connection graph |
 
 ```julia
-single = setup_embedded_fracture_model(matrix, embedded, system; representation = :single)
+single = setup_embedded_fracture_model(matrix, embedded, system; unified = true)
 # The DFM setup entry point also dispatches to EFM for an embedded domain:
 coupled = setup_fractured_reservoir_model(matrix, embedded, system)
 ```
 
 Both forms work with the usual state, forces, wells, and simulation routines.
-For the single-model representation, `plot_reservoir(case, result)` displays
+The unified model's domain stores `domain[:is_fracture, Cells()]` as a
+`Vector{Int}`, with `0` for each matrix cell and `1` for each fracture cell.
+For the unified formulation, `plot_reservoir(case, result)` displays
 matrix and fracture cell values in simulation order. The mesh can also be
 converted explicitly with `UnstructuredMesh(physical_representation(reservoir_domain(case)))`.
 This copies the original matrix geometry and adds three-dimensional fracture
@@ -60,7 +62,7 @@ dfm = setup_fractured_reservoir_model(matrix, fractures, system;
 ```
 
 The default `method=:dfm` keeps the cut-cell setup. EFM accepts
-`representation=:coupled` or `:single`; DFM uses `:coupled`. Any
+`unified=false` or `unified=true`; DFM requires `unified=false`. Any
 `AbstractVector` is accepted, including `Vector{Any}`, abstractly typed vectors,
 views and vectors with nonstandard indices. Entries are validated as fracture
 objects, and fracture IDs always follow the vector's iteration order.

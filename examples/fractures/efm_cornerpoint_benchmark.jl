@@ -67,7 +67,7 @@ end
 function benchmark_embedded_fractures(matrix::DataDomain;
         count = 1200,
         seed = 1984,
-        representations = (:single, :coupled),
+        unified_modes = (true, false),
         solve = true,
         amg = :hypre,
         info_level = -1,
@@ -97,16 +97,16 @@ function benchmark_embedded_fractures(matrix::DataDomain;
         matrix_connections = length(fmesh.geometry.matrix_cells), intersection_segments = length(fmesh.geometry.intersections),
         preprocessing_seconds = timed.time, preprocessing_allocated_bytes = timed.bytes)
     println(report)
-    flow = Dict{Symbol, Any}()
+    flow = Dict{Bool, Any}()
     if solve
         cc = matrix[:cell_centroids]
         lo, hi = argmin(cc[1, :]), argmax(cc[1, :])
         bc = [FlowBoundaryCondition(matrix, lo, 110si_unit(:bar)),
               FlowBoundaryCondition(matrix, hi, 90si_unit(:bar))]
         system = SinglePhaseSystem(AqueousPhase(); reference_density = 1000.0)
-        for representation in representations
+        for unified in unified_modes
             setup = @timed setup_embedded_fracture_model(matrix, domain, system;
-                representation = representation, block_backend = false, backend = :csc)
+                unified = unified, block_backend = false, backend = :csc)
             model = setup.value
             state0 = setup_reservoir_state(model; Pressure = 100si_unit(:bar))
             forces = setup_reservoir_forces(model; bc = bc)
@@ -119,7 +119,7 @@ function benchmark_embedded_fractures(matrix::DataDomain;
                 throw(ArgumentError("amg must be :hypre or :jutul"))
             end
             solver = GenericKrylov(:bicgstab; preconditioner = preconditioner, scaling = scaling, relative_tolerance = 1e-8, max_iterations = 300)
-            println((representation = representation, status = :solving, cells = number_of_cells(reservoir_domain(model))))
+            println((unified = unified, status = :solving, cells = number_of_cells(reservoir_domain(model))))
             flush(stdout)
             result = @timed simulate_reservoir(case; linear_solver = solver, info_level = info_level,
                 max_nonlinear_iterations = 12, max_timestep_cuts = 5, failure_cuts_timestep = false)
@@ -128,16 +128,16 @@ function benchmark_embedded_fractures(matrix::DataDomain;
             @test all(isfinite, states[end][:Reservoir][:Pressure])
             @test maximum(abs.(states[end][:Reservoir][:Pressure] .- state0[:Reservoir][:Pressure])) > 1.0
             stats = Jutul.report_stats(result.value.result.reports)
-            flow[representation] = (setup_seconds = setup.time, solve_seconds = result.time,
+            flow[unified] = (setup_seconds = setup.time, solve_seconds = result.time,
                 linear_iterations = stats.linear_iterations, nonlinear_iterations = stats.newtons,
                 result = result.value)
-            println((representation = representation, setup_seconds = setup.time,
+            println((unified = unified, setup_seconds = setup.time,
                 solve_seconds = result.time, linear_iterations = stats.linear_iterations,
                 nonlinear_iterations = stats.newtons))
         end
-        if haskey(flow, :single) && haskey(flow, :coupled)
-            single = flow[:single].result.result.states[end][:Reservoir][:Pressure]
-            coupled = flow[:coupled].result.result.states[end]
+        if haskey(flow, true) && haskey(flow, false)
+            single = flow[true].result.result.states[end][:Reservoir][:Pressure]
+            coupled = flow[false].result.result.states[end]
             p = vcat(coupled[:Reservoir][:Pressure], coupled[:Fractures][:Pressure])
             @test maximum(abs.(single-p))/maximum(abs, p) < 1e-5
         end

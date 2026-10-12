@@ -40,7 +40,7 @@ function efm_dfm_geometry(; cross = false, three = false, n = (4, 4, 4), L = (4.
 end
 
 function efm_validation_case(matrix, fractures, system;
-        representation = :coupled,
+        unified = false,
         thermal = false,
         nstep = 8,
         total_time = 2000.0,
@@ -63,7 +63,7 @@ function efm_validation_case(matrix, fractures, system;
         model = setup_fractured_reservoir_model(matrix, fractures, system; wells = [inj, prod], thermal = thermal)
     else
         model = setup_embedded_fracture_model(matrix, fractures, system;
-            wells = [inj, prod], thermal = thermal, representation = representation,
+            wells = [inj, prod], thermal = thermal, unified = unified,
             subtract_fracture_volume = subtract_fracture_volume)
     end
     mix = [1.0]
@@ -205,8 +205,8 @@ end
         @test_throws ArgumentError embedded_fracture_domain(matrix, f; aperture = -1)
         @test_throws ArgumentError embedded_fracture_domain(matrix, f; hydraulic_aperture = -1, permeability = 1)
         @test_throws ArgumentError embedded_fracture_domain(matrix, f; tolerance = 0)
-        @test_throws ArgumentError setup_embedded_fracture_model(matrix, domain, SinglePhaseSystem(); representation = :bad)
-        @test_throws ArgumentError setup_embedded_fracture_model(matrix, domain, SinglePhaseSystem(); subtract_fracture_volume = true, representation = :bad)
+        @test_throws TypeError setup_embedded_fracture_model(matrix, domain, SinglePhaseSystem(); unified = :bad)
+        @test_throws TypeError setup_embedded_fracture_model(matrix, domain, SinglePhaseSystem(); subtract_fracture_volume = true, unified = :bad)
         zero_perm = embedded_fracture_domain(matrix, f; permeability = 0.0)
         @test all(==(0), zero_perm[:transmissibilities])
         @test all(==(0), zero_perm[:fracture_matrix_transmissibility])
@@ -228,6 +228,8 @@ end
         @test domain[:fracture_matrix_transmissibility] ≈ fill(1/(0.5/2 + 0.005/10), 8)
         combined = combined_fracture_domain(matrix, domain)
         @test number_of_cells(combined) == 12
+        @test combined[:is_fracture, Cells()] isa Vector{Int}
+        @test combined[:is_fracture, Cells()] == vcat(zeros(Int, 8), ones(Int, 4))
         @test combined[:permeability][:, 1:8] == K
         @test all(combined[:permeability][1:3, 9:12] .== 10.0)
         @test all(combined[:permeability][4:6, 9:12] .== 0.0)
@@ -382,7 +384,7 @@ end
                 system = :geothermal
             end
             multi = efm_validation_case(d.matrix, d.efm, system; thermal = thermal)
-            single = efm_validation_case(d.matrix, d.efm, system; thermal = thermal, representation = :single)
+            single = efm_validation_case(d.matrix, d.efm, system; thermal = thermal, unified = true)
             volumes = copy(d.matrix[:volumes])
             solver = GenericKrylov(preconditioner = ILUZeroPreconditioner(), relative_tolerance = 1e-10)
             simarg = (info_level = -1, max_nonlinear_iterations = 20, linear_solver = solver,
