@@ -11,8 +11,10 @@ module EFM
     export combined_fracture_domain, setup_embedded_fracture_model
     export EmbeddedFractureGeometry, EmbeddedFractureMesh, EmbeddedReservoirMesh
     export discrete_fracture_mesh, discrete_fracture_domain
+    export FractureCollection
 
     include("fractures.jl")
+    include("collection.jl")
     include("geometry.jl")
     include("spatial.jl")
     include("mesh.jl")
@@ -21,4 +23,5 @@ module EFM
     include("domains.jl")
     include("discrete.jl")
     include("models.jl")
+    include("show.jl")
 end

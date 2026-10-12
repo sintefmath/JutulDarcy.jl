@@ -241,6 +241,7 @@ module JutulDarcy
     export combined_fracture_domain, setup_embedded_fracture_model
     export EmbeddedFractureGeometry, EmbeddedFractureMesh, EmbeddedReservoirMesh
     export discrete_fracture_mesh, discrete_fracture_domain
+    export FractureCollection
 
     # Tracers
     include("Tracers/Tracers.jl")

@@ -124,9 +124,10 @@ end
     wells = [setup_well(matrix, [1, 17, 33]; name = :Injector, simple_well = true),
         setup_well(matrix, [16, 32, 48]; name = :Producer, simple_well = true)]
     system = ImmiscibleSystem((AqueousPhase(), LiquidPhase()); reference_densities = (1000.0, 1000.0))
-    efm = setup_embedded_fracture_model(matrix, objects, system;
-        wells = wells, subtract_fracture_volume = true)
-    dfm = setup_fractured_reservoir_model(matrix, objects, system; wells = wells)
+    efm = setup_fractured_reservoir_model(matrix, Any[objects...], system;
+        method = :efm, wells = wells)
+    dfm = setup_fractured_reservoir_model(matrix, Any[objects...], system;
+        method = :dfm, wells = wells)
     control = Dict(:Injector => InjectorControl(TotalRateTarget(1e-5), [1.0, 0.0]; density = 1000.0),
         :Producer => ProducerControl(BottomHolePressureTarget(50si_unit(:bar))))
     results = []

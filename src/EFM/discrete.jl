@@ -158,16 +158,14 @@ function discrete_fracture_domain(matrix::DataDomain, objects;
         porosity = nothing,
         kwarg...
     )
-    if objects isa AbstractEmbeddedFracture
-        objects = [objects]
-    end
+    objects = FractureCollection(objects)
     cut, mesh, info = discrete_fracture_mesh(physical_representation(matrix), objects; kwarg...)
     cut_matrix = cut_fracture_matrix_domain(matrix, cut, info)
     ids = info[:fracture_id]
-    properties = [objects[i].properties for i in ids]
-    a = fracture_property(aperture, [p.aperture for p in properties], ids, "aperture")
-    k = fracture_property(permeability, [p.permeability for p in properties], ids, "permeability")
-    phi = fracture_property(porosity, [p.porosity for p in properties], ids, "porosity")
+    defaults = fracture_property_defaults(objects, Jutul.float_type(cut))
+    a = fracture_property(aperture, defaults.aperture[ids], ids, "aperture")
+    k = fracture_property(permeability, defaults.permeability[ids], ids, "permeability")
+    phi = fracture_property(porosity, defaults.porosity[ids], ids, "porosity")
     ah = a
     if !isnothing(hydraulic_aperture)
         ah = fracture_property(hydraulic_aperture, a, ids, "hydraulic_aperture")

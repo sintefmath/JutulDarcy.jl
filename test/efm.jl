@@ -143,6 +143,7 @@ function efm_dfm_comparison(n; thermal = false, pv_fraction = 0.5)
 end
 
 @testset "EFM" begin
+    include("efm_collection.jl")
     include("efm_setup.jl")
     @testset "Fracture objects and exact clipping" begin
         mesh = reservoir_mesh((3, 3, 3), (3.0, 3.0, 3.0))

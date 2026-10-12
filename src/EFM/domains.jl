@@ -107,10 +107,10 @@ function embedded_fracture_domain(mesh::EmbeddedFractureMesh, matrix::DataDomain
     physical_representation(matrix) === mesh.matrix_mesh || throw(ArgumentError("fracture mesh must be used with its original matrix mesh"))
     T = Jutul.float_type(mesh)
     ids = [p.fracture for p in mesh.geometry.patches]
-    properties = [mesh.fractures[i].properties for i in ids]
-    a = fracture_property(aperture, T[p.aperture for p in properties], ids, "aperture")
-    k = fracture_property(permeability, T[p.permeability for p in properties], ids, "permeability")
-    phi = fracture_property(porosity, T[p.porosity for p in properties], ids, "porosity")
+    defaults = fracture_property_defaults(mesh.fractures, T)
+    a = fracture_property(aperture, defaults.aperture[ids], ids, "aperture")
+    k = fracture_property(permeability, defaults.permeability[ids], ids, "permeability")
+    phi = fracture_property(porosity, defaults.porosity[ids], ids, "porosity")
     ah = a
     if !isnothing(hydraulic_aperture)
         ah = fracture_property(hydraulic_aperture, a, ids, "hydraulic_aperture")

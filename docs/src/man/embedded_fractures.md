@@ -48,16 +48,25 @@ Wells retain matrix perforations. For an explicit fracture completion in the
 single form, first obtain `combined_fracture_domain(matrix, embedded)`, then
 pass the appended fracture cell indices to `setup_well` on that domain.
 
-## Use the same fracture objects with DFM
+## Use the same fracture objects with EFM and DFM
 
-Both setup entry points accept the fracture object vector directly:
+`setup_fractured_reservoir_model` handles both methods from the same vector:
 
 ```julia
-efm = setup_embedded_fracture_model(matrix, fractures, system;
-    wells = wells, subtract_fracture_volume = true)
+efm = setup_fractured_reservoir_model(matrix, fractures, system;
+    method = :efm, wells = wells)
 dfm = setup_fractured_reservoir_model(matrix, fractures, system;
-    wells = wells)
+    method = :dfm, wells = wells)
 ```
+
+The default `method=:dfm` keeps the cut-cell setup. EFM accepts
+`representation=:coupled` or `:single`; DFM uses `:coupled`. Any
+`AbstractVector` is accepted, including `Vector{Any}`, abstractly typed vectors,
+views and vectors with nonstandard indices. Entries are validated as fracture
+objects, and fracture IDs always follow the vector's iteration order.
+Both methods subtract fracture storage by default through this shared entry
+point. Set `subtract_fracture_volume=false` to retain the full matrix storage.
+The separate `setup_embedded_fracture_model` entry point remains available.
 
 The DFM path cuts the matrix along fracture planes and polygon boundaries, then
 creates the usual `Jutul.EmbeddedMesh` and DFM cross terms. Rectangles, the
@@ -83,9 +92,8 @@ completions are distributed over their cut-cell
 descendants by volume, preserving the original matrix completion's total well
 index. The object-based DFM setup defaults to `extend_wells=false`, matching
 EFM's matrix completions; use `extend_wells=true` to enable DFM's automatic
-fracture completions for multisegment wells. DFM subtracts fracture storage
-from the matrix, so use `subtract_fracture_volume=true` in EFM for comparable
-storage. Cell-indexed initial states, sources and boundary conditions must be
+fracture completions for multisegment wells. Cell-indexed initial states,
+sources and boundary conditions must be
 transferred with `parents` when creating a case manually.
 
 Pass preprocessing and per-object property overrides in `fracture_arg`, for
@@ -96,6 +104,28 @@ after cutting. Cut-cell DFM can introduce many
 more matrix cells; EFM retains the original mesh.
 
 See `examples/fractures/compare_efm_dfm.jl` for a common water-injection case.
+
+## Fracture collections
+
+Preprocessing groups fractures by concrete type in a `FractureCollection`.
+Each member of `collection.groups` is a vector with a concrete element type;
+`collection.indices` maps each group to the original fracture IDs. Different
+floating-point types form separate groups. Frame construction, property
+extraction and clipping run through specialized functions for these vectors,
+while collection indexing and fracture-cell ordering retain the input order.
+
+```julia
+collection = FractureCollection(fractures)
+collection[1] # the first input fracture
+collection.groups
+collection.indices
+```
+
+Both model setup paths build the collection automatically. A prepared
+collection can be reused directly. Treat its group vectors as read-only and
+rebuild the collection after changing the input list. Collection, geometry and
+mesh displays summarize type counts, cells and connections without printing
+their coordinate and connectivity arrays.
 
 ## Geometry types and precision
 
@@ -260,6 +290,7 @@ embedded_fracture_mesh
 discrete_fracture_domain
 discrete_fracture_mesh
 EmbeddedFractureGeometry
+FractureCollection
 combined_fracture_domain
 setup_embedded_fracture_model
 PolygonFracture

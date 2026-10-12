@@ -59,7 +59,7 @@ function JutulDarcy.setup_fractured_reservoir_model(matrix::DataDomain, fracture
     return setup_embedded_fracture_model(matrix, fractures, system; kwarg...)
 end
 
-const EmbeddedFractureObjects = Union{AbstractEmbeddedFracture, AbstractVector{<:AbstractEmbeddedFracture}, Tuple{Vararg{AbstractEmbeddedFracture}}}
+const EmbeddedFractureObjects = Union{AbstractEmbeddedFracture, AbstractVector, Tuple}
 
 function setup_embedded_fracture_model(matrix::DataDomain, objects::EmbeddedFractureObjects, system;
         fracture_arg = NamedTuple(), kwarg...)
@@ -68,24 +68,40 @@ function setup_embedded_fracture_model(matrix::DataDomain, objects::EmbeddedFrac
 end
 
 """
-    setup_fractured_reservoir_model(matrix, objects, system; fracture_arg=NamedTuple(), wells=[], kwarg...)
+    setup_fractured_reservoir_model(matrix, objects, system; method=:dfm, representation=:coupled, fracture_arg=NamedTuple(), wells=[], kwarg...)
 
-Build a cut-cell DFM model from the same fracture objects accepted by
-`setup_embedded_fracture_model`. Preprocessing options and property overrides
-are passed in `fracture_arg`. Original well perforations are distributed over
+Build either cut-cell DFM (`method=:dfm`, default) or EFM (`method=:efm`) from
+a vector of fracture objects. Any vector element type is accepted; entries are
+validated and grouped in a `FractureCollection`. For EFM, `representation` is
+`:coupled` or `:single`. DFM uses `:coupled`. Preprocessing options and property
+overrides are passed in `fracture_arg`. DFM well perforations are distributed over
 their cut-cell descendants, preserving each completion's total well index.
 `extend_wells=false` keeps matrix completions for comparison with EFM; set it
 to `true` to add DFM fracture completions to multisegment wells.
+Both methods default to `subtract_fracture_volume=true` for matching storage.
 The original domain and well data are unchanged. Use `discrete_fracture_domain`
 when the original-cell mapping is needed for transferring states or forces.
 """
 function JutulDarcy.setup_fractured_reservoir_model(matrix::DataDomain, objects::EmbeddedFractureObjects,
         system::Union{JutulSystem, Symbol};
-        fracture_arg = NamedTuple(), wells = [], extend_wells = false, extra_out = false, kwarg...)
+        method = :dfm, representation = :coupled,
+        fracture_arg = NamedTuple(), wells = [], extend_wells = false,
+        subtract_fracture_volume = true, extra_out = false, kwarg...)
+    method in (:efm, :dfm) || throw(ArgumentError("method must be :efm or :dfm"))
+    objects = FractureCollection(objects)
+    if method == :efm
+        !extend_wells || throw(ArgumentError("automatic fracture well completions require method=:dfm"))
+        return setup_embedded_fracture_model(matrix, objects, system;
+            representation = representation, fracture_arg = fracture_arg,
+            wells = wells, subtract_fracture_volume = subtract_fracture_volume,
+            extra_out = extra_out, kwarg...)
+    end
+    representation == :coupled || throw(ArgumentError("DFM requires representation=:coupled"))
     domains = discrete_fracture_domain(matrix, objects; fracture_arg...)
     remapped = [cut_fracture_well(well, domains.matrix, domains.info[:cell_index]) for well in wells]
     model = setup_fractured_reservoir_model(domains.matrix, domains.fractures, system;
-        wells = remapped, extend_wells = extend_wells, kwarg...)
+        wells = remapped, extend_wells = extend_wells,
+        subtract_fracture_volume = subtract_fracture_volume, kwarg...)
     if extra_out
         return model, setup_parameters(model)
     end

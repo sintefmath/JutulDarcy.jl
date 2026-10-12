@@ -3,7 +3,7 @@ using Jutul, JutulDarcy
 
 matrix = reservoir_domain(reservoir_mesh((8, 8, 4), (80.0, 80.0, 20.0));
     permeability = 0.1si_unit(:darcy), porosity = 0.2)
-fractures = AbstractEmbeddedFracture[
+fractures = [
     RectangleFracture([40, 40, 10], [1, 0, 0], (80, 20); aperture = 1e-3,
         permeability = 100si_unit(:darcy)),
     EllipticalFracture([40, 40, 10], [0, 1, 0], (30, 8); direction = [1, 0, 0],
@@ -13,9 +13,8 @@ wells = [setup_vertical_well(matrix, 1, 1; name = :Injector, simple_well = true)
 system = ImmiscibleSystem((AqueousPhase(), LiquidPhase());
     reference_densities = (1000.0, 1000.0))
 
-efm = setup_embedded_fracture_model(matrix, fractures, system;
-    wells = wells, subtract_fracture_volume = true)
-dfm = setup_fractured_reservoir_model(matrix, fractures, system; wells = wells)
+efm = setup_fractured_reservoir_model(matrix, fractures, system; method = :efm, wells = wells)
+dfm = setup_fractured_reservoir_model(matrix, fractures, system; method = :dfm, wells = wells)
 
 control = Dict(:Injector => InjectorControl(TotalRateTarget(10/si_unit(:day)), [1.0, 0.0]; density = 1000.0),
     :Producer => ProducerControl(BottomHolePressureTarget(100si_unit(:bar))))

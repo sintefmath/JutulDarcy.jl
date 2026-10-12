@@ -149,10 +149,7 @@ function embedded_fracture_mesh(matrix_mesh::JutulMesh, fractures;
     mesh = UnstructuredMesh(matrix_mesh)
     dim(mesh) == 3 || throw(ArgumentError("EFM requires a three-dimensional matrix mesh"))
     number_of_cells(mesh) > 0 || throw(ArgumentError("EFM requires at least one active matrix cell"))
-    if fractures isa AbstractEmbeddedFracture
-        fractures = [fractures]
-    end
-    fractures = AbstractEmbeddedFracture[fractures...]
+    fractures = FractureCollection(fractures)
     isempty(fractures) && throw(ArgumentError("at least one fracture is required"))
     index = CellSpatialIndex(mesh, T)
     if isnothing(tolerance)
@@ -162,69 +159,14 @@ function embedded_fracture_mesh(matrix_mesh::JutulMesh, fractures;
     end
     tol = T(tolerance)
     isfinite(tol) && tol > 0 || throw(ArgumentError("tolerance must be positive and finite"))
-    frames = [fracture_frame(f, tol) for f in fractures]
+    frames = fracture_frames(fractures, tol)
     patches = FracturePatch{T}[]
     face_patches = Dict{Tuple{Int, Int}, Dict{Int, Vector{Tuple{Point3{T}, Point3{T}}}}}()
     coincident = Dict{Tuple{Int, Int}, Vector{Int}}()
-    for (fi, frame) in enumerate(frames)
-        vertices = fracture_polygon(fractures[fi])
-        low, high = reduce((a, b) -> min.(a, b), vertices), reduce((a, b) -> max.(a, b), vertices)
-        for cell in query_cells(index, low, high, tol; origin = frame.origin, normal = frame.normal)
-            loops, segments = cell_section(mesh, cell, frame.origin, frame.normal, frame.u, frame.v, tol)
-            parts = Vector{Point2{T}}[]
-            for loop in loops
-                sections = try
-                    convex_parts(loop, tol; resolve_winding = true)
-                catch err
-                    throw(ArgumentError("Could not triangulate fracture $fi in matrix cell $cell: $(sprint(showerror, err)). Section vertices: $loop"))
-                end
-                for section in sections, boundary in frame.parts
-                    p = clip_polygon(section, boundary, tol)
-                    if length(p) >= 3 && polygon_area_centroid(p)[1] > tol^2
-                        push!(parts, p)
-                    end
-                end
-            end
-            isempty(parts) && continue
-            cf = coincident_faces(mesh, cell, frame, tol)
-            for component in connected_patch_parts(parts, tol)
-                area, centroid = patch_geometry(component, frame)
-                origin = first(first(component))
-                diameter = maximum(norm(p-origin) for part in component for p in part)
-                # Area alone does not detect long, numerically zero-width
-                # sections along split faces. Apply the geometric length
-                # tolerance to their width before creating a storage cell.
-                area > tol*diameter || continue
-                patch = 0
-                for face in cf
-                    key = (fi, face)
-                    for candidate in get(coincident, key, Int[])
-                        p = patches[candidate]
-                        if abs(p.area-area) <= tol*sqrt(area) && norm(p.centroid-centroid) <= tol
-                            patch = candidate
-                            break
-                        end
-                    end
-                    if patch > 0
-                        break
-                    end
-                end
-                if patch == 0
-                    push!(patches, FracturePatch(fi, [cell], component, centroid, area))
-                    patch = length(patches)
-                    for face in cf
-                        push!(get!(coincident, (fi, face), Int[]), patch)
-                    end
-                else
-                    push!(patches[patch].matrix_cells, cell)
-                end
-                for (face, a, b) in clipped_face_segments(frame, segments, tol; parts = component)
-                    connected = get!(face_patches, (fi, face), Dict{Int, Vector{Tuple{Point3{T}, Point3{T}}}}())
-                    push!(get!(connected, patch, Tuple{Point3{T}, Point3{T}}[]), (a, b))
-                end
-            end
-        end
+    foreach(fractures.groups, fractures.indices) do group, ids
+        clip_fracture_group!(patches, face_patches, coincident, mesh, index, group, ids, frames, tol)
     end
+    restore_fracture_order!(patches, face_patches)
     isempty(patches) && throw(ArgumentError("fractures have no positive-area intersection with the active matrix mesh"))
     pairs = Tuple{Int, Int}[]
     lengths = T[]
@@ -471,4 +413,94 @@ function add_fracture_intersections!(pairs, lengths, centers, distances, types, 
         push!(intersections, FractureIntersection(cells, ds, L, center, faces))
     end
     return intersections
+end
+
+function fracture_frames(fractures::FractureCollection, tol::T) where T
+    frames = Vector{FractureFrame{T}}(undef, length(fractures))
+    foreach(fractures.groups, fractures.indices) do group, ids
+        fracture_frames!(frames, group, ids, tol)
+    end
+    return frames
+end
+
+function fracture_frames!(frames, group, ids, tol)
+    for (fracture, id) in zip(group, ids)
+        frames[id] = fracture_frame(fracture, tol)
+    end
+    return frames
+end
+
+function clip_fracture_group!(patches, face_patches, coincident, mesh, index, group, ids, frames, tol::T) where T
+    for (fracture, fi) in zip(group, ids)
+        frame = frames[fi]
+        vertices = fracture_polygon(fracture)
+        low, high = reduce((a, b) -> min.(a, b), vertices), reduce((a, b) -> max.(a, b), vertices)
+        for cell in query_cells(index, low, high, tol; origin = frame.origin, normal = frame.normal)
+            loops, segments = cell_section(mesh, cell, frame.origin, frame.normal, frame.u, frame.v, tol)
+            parts = Vector{Point2{T}}[]
+            for loop in loops
+                sections = try
+                    convex_parts(loop, tol; resolve_winding = true)
+                catch err
+                    throw(ArgumentError("Could not triangulate fracture $fi in matrix cell $cell: $(sprint(showerror, err)). Section vertices: $loop"))
+                end
+                for section in sections, boundary in frame.parts
+                    p = clip_polygon(section, boundary, tol)
+                    if length(p) >= 3 && polygon_area_centroid(p)[1] > tol^2
+                        push!(parts, p)
+                    end
+                end
+            end
+            isempty(parts) && continue
+            cf = coincident_faces(mesh, cell, frame, tol)
+            for component in connected_patch_parts(parts, tol)
+                area, centroid = patch_geometry(component, frame)
+                origin = first(first(component))
+                diameter = maximum(norm(p-origin) for part in component for p in part)
+                # Area alone does not detect long, numerically zero-width
+                # sections along split faces. Apply the geometric length
+                # tolerance to their width before creating a storage cell.
+                area > tol*diameter || continue
+                patch = 0
+                for face in cf
+                    key = (fi, face)
+                    for candidate in get(coincident, key, Int[])
+                        p = patches[candidate]
+                        if abs(p.area-area) <= tol*sqrt(area) && norm(p.centroid-centroid) <= tol
+                            patch = candidate
+                            break
+                        end
+                    end
+                    if patch > 0
+                        break
+                    end
+                end
+                if patch == 0
+                    push!(patches, FracturePatch(fi, [cell], component, centroid, area))
+                    patch = length(patches)
+                    for face in cf
+                        push!(get!(coincident, (fi, face), Int[]), patch)
+                    end
+                else
+                    push!(patches[patch].matrix_cells, cell)
+                end
+                for (face, a, b) in clipped_face_segments(frame, segments, tol; parts = component)
+                    connected = get!(face_patches, (fi, face), Dict{Int, Vector{Tuple{Point3{T}, Point3{T}}}}())
+                    push!(get!(connected, patch, Tuple{Point3{T}, Point3{T}}[]), (a, b))
+                end
+            end
+        end
+    end
+    return patches
+end
+
+function restore_fracture_order!(patches, face_patches)
+    issorted(p.fracture for p in patches) && return patches
+    order = sortperm(patches; by = p -> p.fracture, alg = Base.Sort.MergeSort)
+    renumber = invperm(order)
+    patches[:] = patches[order]
+    for (key, connected) in pairs(face_patches)
+        face_patches[key] = Dict(renumber[cell] => segments for (cell, segments) in pairs(connected))
+    end
+    return patches
 end
