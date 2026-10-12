@@ -264,24 +264,28 @@ computed well indices.
 
 ### Reused geometry and utilities
 
-The object-based DFM path calls Jutul's `cut_mesh` and `EmbeddedMesh`; it does
-not implement another cut-cell or DFM transmissibility algorithm. EFM reuses
-Jutul's cell bounds, edge–plane intersections, tensor expansion and face
-adjacency. Fracture intersection and well searches use the same clipped-patch
-bound construction and spatial-index implementation. Property override
-validation, domain copying, and unified graph/property assembly are shared by
-EFM and DFM inside `EFM`.
-Well extension reuses DFM's completion and well-index setup.
+Generic geometry lives in `Jutul.CutCellMeshes`: planar frames and validation,
+concave polygon decomposition, winding resolution, tolerance-aware clipping,
+cell sections, signed distance integration, segment intersections, spatial
+indexing and prism construction. EFM imports these routines; its geometry
+code assembles fracture cells, connections and physical coefficients.
+`EFM.FractureFrame` is an alias for `Jutul.CutCellMeshes.PlanarFrame` with the
+same fields and constructors. The spatial-index types also come from Jutul.
 
-EFM keeps its tolerance-aware planar clipping, polygon decomposition and
-winding resolution. Jutul's current convex polygon clipping does not provide
-those semantics, and its unsigned triangle-fan area is not a replacement for
-EFM's signed concave-polygon area. The cell-section routine intersects the same
-face-centre triangle fans used for Jutul's warped-face geometry. The EFM plane
-basis also fixes the public default rectangle/ellipse orientation, so it keeps
-that convention rather than adopting the cut-cell projection basis.
-Jutul's shared edge–plane helper uses a scale-relative parallelism check, so
-valid crossings on small Float32 meshes are preserved.
+Jutul's cut/glue helpers use the same planar primitives. Their existing
+interfaces and default projection axes are preserved. The shared
+`plane_basis` selects `convention=:cutting` for those axes or `:axis` for the
+public rectangle/ellipse orientation used by EFM. Planar polygon measures use
+signed contributions for concave boundaries; warped faces keep Jutul's
+face-centre triangle fans. Clipping and normal normalization use scale-aware
+checks to preserve small Float32 geometry.
+
+The object-based DFM path calls Jutul's `cut_mesh` and `EmbeddedMesh`. EFM also
+reuses Jutul's cell bounds, edge–plane intersections, tensor expansion and
+face adjacency. Property override validation, domain copying and unified
+graph/property assembly are shared by EFM and DFM inside `EFM`. Well extension
+uses DFM's completion and well-index setup; its searches use the same shared
+spatial index and clipped-patch bounds as fracture intersections.
 
 ## Fracture geometry and properties
 
@@ -435,10 +439,11 @@ EmbeddedReservoirMesh
 AbstractEmbeddedFracture
 JutulDarcy.EFM.FractureProperties
 JutulDarcy.EFM.FractureFrame
+Jutul.CutCellMeshes.PlanarFrame
 JutulDarcy.EFM.FracturePatch
 JutulDarcy.EFM.FractureIntersection
-JutulDarcy.EFM.BoundingBoxNode
-JutulDarcy.EFM.CellSpatialIndex
+Jutul.CutCellMeshes.BoundingBoxNode
+Jutul.CutCellMeshes.CellSpatialIndex
 JutulDarcy.EFM.EFMFluidThermalConductivities
 JutulDarcy.EFM.FracturePerforationGravityDifference
 FractureCollection

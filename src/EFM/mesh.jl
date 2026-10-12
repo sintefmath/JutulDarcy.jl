@@ -41,22 +41,11 @@ struct FractureGrid{T <: AbstractFloat}
 end
 
 """
-Local planar coordinates for one input fracture.
-
-Fields:
-- `origin`: Reference point in 3D, in metres.
-- `normal`: Unit plane normal.
-- `u`, `v`: Orthonormal in-plane axes with `cross(u, v) == normal`.
-- `parts`: Nonoverlapping convex polygons for the full fracture in local 2D
-  coordinates. `unproject(frame, p) = origin + p[1]*u + p[2]*v`.
+Alias for [`Jutul.CutCellMeshes.PlanarFrame`](@ref), sharing its fields and
+constructors. EFM frame coordinates use metres and `parts` describes the full
+input fracture in local 2D coordinates. Existing field access is unchanged.
 """
-struct FractureFrame{T <: AbstractFloat}
-    origin::Point3{T}
-    normal::Point3{T}
-    u::Point3{T}
-    v::Point3{T}
-    parts::Vector{Vector{Point2{T}}}
-end
+const FractureFrame = Jutul.CutCellMeshes.PlanarFrame
 
 """
 One positive-length intersection interval eliminated by star–delta coupling.
@@ -77,9 +66,6 @@ struct FractureIntersection{T <: AbstractFloat}
     center::Point3{T}
     faces::Vector{Int}
 end
-
-project(frame::FractureFrame{T}, p) where T = Point2{T}(dot(p-frame.origin, frame.u), dot(p-frame.origin, frame.v))
-unproject(frame, p) = frame.origin + p[1]*frame.u + p[2]*frame.v
 
 """
 Clipped surfaces, intersections and connection geometry produced by EFM

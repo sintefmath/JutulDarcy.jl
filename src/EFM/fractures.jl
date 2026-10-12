@@ -60,38 +60,8 @@ struct PolygonFracture{T <: AbstractFloat} <: AbstractEmbeddedFracture{T}
 end
 
 function PolygonFracture(vertices; float_type = nothing, resolution = nothing, cell_length = nothing, kwarg...)
-    if isnothing(float_type)
-        if vertices isa AbstractMatrix
-            float_type = typeof(float(first(vertices)))
-        else
-            float_type = typeof(float(first(first(vertices))))
-        end
-    end
-    T = float_type
-    if vertices isa AbstractMatrix
-        size(vertices, 1) == 3 || throw(ArgumentError("vertices must be a 3-by-n matrix"))
-        pts = [Point3{T}(vertices[:, i]) for i in axes(vertices, 2)]
-    else
-        pts = Point3{T}.(vertices)
-    end
-    if length(pts) > 1 && first(pts) == last(pts)
-        pop!(pts)
-    end
-    length(pts) >= 3 || throw(ArgumentError("a polygon requires at least three vertices"))
-    all(p -> all(isfinite, p), pts) || throw(ArgumentError("vertices must be finite"))
-    origin = first(pts)
-    n = zero(Point3{T})
-    for i in 2:length(pts)-1
-        n += cross(pts[i] - origin, pts[i+1] - origin)
-    end
-    scale = maximum(p -> norm(p - origin), pts)
-    norm(n) > 1e-12*scale^2 || throw(ArgumentError("polygon has zero area"))
-    n /= norm(n)
-    tol = max(1e-10*scale, 64eps(maximum(p -> maximum(abs, p), pts)))
-    all(p -> abs(dot(n, p - origin)) <= tol, pts) || throw(ArgumentError("polygon is not planar"))
-    u, v = plane_basis(n)
-    pts2 = [Point2{T}(dot(p-origin, u), dot(p-origin, v)) for p in pts]
-    validate_polygon(pts2, tol)
+    pts, n, _ = Jutul.CutCellMeshes.planar_polygon_vertices(vertices; float_type = float_type)
+    T = eltype(n)
     options = FractureMeshOptions(; resolution = resolution, cell_length = cell_length, float_type = T)
     return PolygonFracture(pts, n, FractureProperties(; float_type = T, kwarg...), options)
 end
@@ -173,14 +143,7 @@ function EllipticalFracture(center, normal, radii; direction = nothing, angle = 
     return EllipticalFracture(c, n, axes, Tuple(T.(radii)), segments, FractureProperties(; float_type = T, kwarg...), options)
 end
 
-# This basis also fixes the default orientation of rectangular/elliptical axes.
-# Keep it stable; cut-cell projection uses a different reference convention.
-function plane_basis(n::Point3{T}) where T
-    axis = argmin(abs.(n))
-    e = setindex(zero(Point3{T}), 1.0, axis)
-    u = normalize(e-dot(e, n)*n)
-    return u, cross(n, u)
-end
+plane_basis(n::Point3) = Jutul.CutCellMeshes.plane_basis(n; convention = :axis)
 
 function fracture_frame(center, normal, direction, angle, ::Type{T}) where T
     angle = T(angle)

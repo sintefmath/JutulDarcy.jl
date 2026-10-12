@@ -100,13 +100,6 @@ function split_fracture_patch(patch, grid, frame, tol)
     return pieces, tiles
 end
 
-function fracture_component_root(parents, i)
-    while parents[i] != i
-        i = parents[i]
-    end
-    return i
-end
-
 function merged_fracture_patch(pieces, ids, frame, tol)
     T = typeof(tol)
     parts = Vector{Point2{T}}[]

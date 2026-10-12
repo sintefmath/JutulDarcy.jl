@@ -61,4 +61,15 @@ end
     @test first(geometry.patches).area/scale^2 ≈ first(reference.patches).area rtol = 1e-4
     @test first(geometry.patches).centroid/scale ≈ first(reference.patches).centroid rtol = 1e-4
     @test geometry.matrix_distances/scale ≈ reference.matrix_distances rtol = 1e-4
+    matrix = reservoir_domain(reservoir_mesh((1, 1, 1), (scale, scale, scale)))
+    fracture = RectangleFracture(Float32(scale).*Float32.([0.5, 0.5, 0.5]), [0, 0, 1],
+        (Float32(scale), Float32(scale)); resolution = (3, 4))
+    grid = embedded_fracture_mesh(physical_representation(matrix), fracture;
+        float_type = Float32, tolerance = Float32(1e-5*scale))
+    @test number_of_cells(grid) == 12
+    @test sum(tpfv_geometry(grid).volumes)/scale^2 ≈ 1 rtol = 1e-4
+    @test EFM.cell_section === Jutul.CutCellMeshes.cell_section
+    @test EFM.clip_polygon === Jutul.CutCellMeshes.clip_polygon
+    @test EFM.CellSpatialIndex === Jutul.CutCellMeshes.CellSpatialIndex
+    @test EFM.FractureFrame === Jutul.CutCellMeshes.PlanarFrame
 end

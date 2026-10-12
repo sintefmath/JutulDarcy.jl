@@ -123,3 +123,43 @@ was also running. Preprocessing allocated 16.4 GB and 13.0 GB cumulatively,
 respectively, including temporaries; these are not peak memory figures.
 Reproduce through `benchmark_embedded_fractures(...; count=1000, resolution=(4, 8))`
 in `examples/fractures/efm_cornerpoint_benchmark.jl`.
+
+## Shared cut-cell geometry (2026-10-12)
+
+Generic EFM geometry now lives in `Jutul.CutCellMeshes`. EFM imports its
+clipping, polygon decomposition, winding resolution, sections, distance
+integrals, segment operations, spatial index and prism construction. Roughly
+800 lines of geometry were removed from JutulDarcy. `EFM.FractureFrame` aliases
+the shared `PlanarFrame`; its fields and constructors remain available.
+
+Jutul's existing cut/glue helpers use these same primitives through their
+original interfaces. Cut-cell projection axes and EFM fracture axes retain
+their respective conventions. Planar area and centroid calculations now
+handle concave boundaries and large coordinate offsets; warped faces keep the
+existing triangle-fan representation. Shared clipping supports absolute
+tolerances and small Float32 coordinates. Normal normalization avoids
+underflow for tiny nonzero vectors, and empty/degenerate geometry is handled
+explicitly. The shared types, stored fields and API contracts are documented
+in both repositories.
+
+The full OLYMPUS and NORNE cases completed again with 1,000 mixed fractures
+and `resolution=(4, 8)`, producing the same fracture cell counts as the
+previous run. Unified and coupled pressure vectors agreed within relative
+tolerance `1e-5`.
+
+| Grid | Fracture cells | Preprocessing | Unified solve | Coupled solve |
+|:--|--:|--:|--:|--:|
+| OLYMPUS | 32,456 | 10.72 s | 15.68 s | 12.59 s |
+| NORNE | 31,139 | 8.04 s | 2.91 s | 3.67 s |
+
+These timings use the previous section's settings. The first OLYMPUS solve
+includes compilation, and a regression process ran concurrently. All 13
+shared/alias API docstrings registered successfully.
+
+All **3,114 regression checks passed**: 1,635 Jutul cut-cell checks, 586 DFM
+checks and 893 EFM checks. The 101 shared-geometry checks cover concave and
+warped polygons, winding resolution, large offsets, Float32/Float64/BigFloat,
+small-coordinate clipping, legacy projection conventions, distance integrals,
+closed prism boundaries and spatial queries. EFM also checks delegation to
+the shared types/routines and a tiny Float32 independent fracture grid. The
+existing two-phase and geothermal EFM/DFM comparisons continue to pass.
