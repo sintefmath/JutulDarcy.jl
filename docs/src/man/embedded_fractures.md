@@ -34,6 +34,14 @@ coupled = setup_fractured_reservoir_model(matrix, embedded, system)
 ```
 
 Both forms work with the usual state, forces, wells, and simulation routines.
+For the single-model representation, `plot_reservoir(case, result)` displays
+matrix and fracture cell values in simulation order. The mesh can also be
+converted explicitly with `UnstructuredMesh(physical_representation(reservoir_domain(case)))`.
+This copies the original matrix geometry and adds three-dimensional fracture
+prisms with their physical aperture, preserving the connection graph as NNCs.
+The prisms overlap the matrix; simulation continues to use the EFM domain's
+storage and transmissibilities.
+
 The coupled form supports single-phase, immiscible, and geothermal systems. The
 single form can use other fluid systems supported by `setup_reservoir_model`.
 Wells retain matrix perforations. For an explicit fracture completion in the

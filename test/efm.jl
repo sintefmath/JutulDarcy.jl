@@ -247,6 +247,63 @@ end
         @test physical_representation(bd).matrix_areas ≈ ones(4)
     end
 
+    @testset "Unified three-dimensional mesh" begin
+        mesh = reservoir_mesh((3, 3, 3), (3.0, 3.0, 3.0))
+        Jutul.set_mesh_entity_tag!(mesh, Faces(), :faults, :test_fault, [1])
+        matrix = reservoir_domain(mesh)
+        objects = AbstractEmbeddedFracture[
+            RectangleFracture([1, 1.5, 1.5], [1, 0, 0], (3, 3)),
+            EllipticalFracture([1.5, 1.5, 1.5], [1, 1, 1], (0.6, 0.8); segments = 16),
+            PolygonFracture([[2.5, 0, 0], [2.5, 2, 0], [2.5, 2, 1],
+                [2.5, 1, 1], [2.5, 1, 2], [2.5, 0, 2]])]
+        fractures = embedded_fracture_domain(matrix, objects; aperture = [0.01, 0.02, 0.03])
+        combined = combined_fracture_domain(matrix, fractures)
+        embedded = physical_representation(combined)
+        before = deepcopy(mesh)
+        converted = UnstructuredMesh(embedded)
+        nm, nf, nn = number_of_cells(mesh), number_of_faces(mesh), Jutul.number_of_nodes(mesh)
+        @test converted isa UnstructuredMesh{3}
+        @test number_of_cells(converted) == number_of_cells(combined)
+        @test number_of_faces(converted) == number_of_faces(combined)
+        @test get_neighborship(converted) == combined[:neighbors]
+        @test converted.node_points[1:nn] == mesh.node_points
+        @test converted.faces.faces_to_nodes.vals == mesh.faces.faces_to_nodes.vals
+        @test converted.boundary_faces.faces_to_nodes.vals[1:length(mesh.boundary_faces.faces_to_nodes.vals)] == mesh.boundary_faces.faces_to_nodes.vals
+        @test all(f -> isempty(converted.faces.faces_to_nodes[f]), nf+1:number_of_faces(converted))
+        @test Jutul.get_mesh_entity_tag(converted, Faces(), :faults, :test_fault) == [1]
+        @test Jutul.grid_dims_ijk(converted) == Jutul.grid_dims_ijk(mesh)
+        @test [cell_ijk(converted, c) for c in 1:number_of_cells(converted)] ==
+            [cell_ijk(embedded, c) for c in 1:number_of_cells(embedded)]
+        for c in 1:number_of_cells(converted)
+            centroid, volume = Jutul.compute_centroid_and_measure(converted, Cells(), c)
+            @test volume ≈ combined[:volumes][c]
+            @test centroid ≈ combined[:cell_centroids][:, c]
+            @test all(>(0), Jutul.cell_dims(converted, c))
+        end
+        # Each fracture boundary is closed, including partially shared edges
+        # between the convex parts of a concave polygon.
+        for c in nm+1:number_of_cells(converted)
+            edges = Dict{Tuple{Int, Int}, Int}()
+            for face in converted.boundary_faces.cells_to_faces[c]
+                nodes = converted.boundary_faces.faces_to_nodes[face]
+                for i in eachindex(nodes)
+                    edge = (nodes[i], nodes[mod1(i+1, length(nodes))])
+                    edges[edge] = get(edges, edge, 0)+1
+                end
+            end
+            @test all(edge -> edges[edge] == get(edges, reverse(edge), 0), keys(edges))
+        end
+        outer = Jutul.triangulate_mesh(converted; outer = true)
+        @test all(isfinite, outer.points)
+        @test all(c -> c in outer.mapper.indices.Cells, nm+1:number_of_cells(converted))
+        @test outer.mapper.Cells(collect(1:number_of_cells(converted))) == outer.mapper.indices.Cells
+        @test !isempty(Jutul.mesh_linesegments(embedded))
+        @test mesh.node_points == before.node_points
+        @test mesh.faces.neighbors == before.faces.neighbors
+        @test mesh.faces.cells_to_faces.vals == before.faces.cells_to_faces.vals
+        @test mesh.boundary_faces.faces_to_nodes.vals == before.boundary_faces.faces_to_nodes.vals
+    end
+
     @testset "Matrix properties and face-coincident flow paths" begin
         matrix = reservoir_domain(reservoir_mesh((2, 2, 2), (2.0, 2.0, 2.0));
             net_to_gross = 0.4, transmissibility_multiplier = fill(2.0, 12))

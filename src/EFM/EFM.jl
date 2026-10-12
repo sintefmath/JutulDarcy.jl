@@ -15,6 +15,7 @@ module EFM
     include("geometry.jl")
     include("spatial.jl")
     include("mesh.jl")
+    include("unstructured.jl")
     include("preprocessing.jl")
     include("domains.jl")
     include("models.jl")
