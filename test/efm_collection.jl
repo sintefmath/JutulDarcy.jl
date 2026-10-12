@@ -89,11 +89,14 @@ end
         @test_throws ArgumentError setup_fractured_reservoir_model(matrix, Any[], system; method = method)
     end
     @test_throws ArgumentError setup_fractured_reservoir_model(matrix, [fracture], system; method = :bad)
-    @test_throws ArgumentError setup_fractured_reservoir_model(matrix, [fracture], system;
+    dfm_single = setup_fractured_reservoir_model(matrix, Any[fracture], system;
         method = :dfm, unified = true)
+    @test !haskey(dfm_single.models, :Fractures)
+    @test reservoir_domain(dfm_single)[:is_fracture] == domain[:is_fracture]
     @test_throws TypeError setup_fractured_reservoir_model(matrix, [fracture], system;
         method = :efm, unified = :bad)
-    @test_throws ArgumentError setup_fractured_reservoir_model(matrix, [fracture], system;
+    efm_extended = setup_fractured_reservoir_model(matrix, [fracture], system;
         method = :efm, extend_wells = true)
+    @test haskey(efm_extended.models, :Fractures)
     @test sum(matrix[:volumes]) == original
 end

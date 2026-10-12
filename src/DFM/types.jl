@@ -97,11 +97,11 @@ function matrix_fracture_connection_conductivity(fractures::DataDomain, field::S
     matrix_conductivity = fractures[Symbol(:matrix_, field)]
     fracture_conductivity = fractures[field]
     if contains(String(field), "fluid")
-        matrix_conductivity .*= fractures[:matrix_porosity]
-        fracture_conductivity .*= fractures[:porosity]
+        matrix_conductivity = matrix_conductivity.*fractures[:matrix_porosity]
+        fracture_conductivity = fracture_conductivity.*fractures[:porosity]
     elseif contains(String(field), "rock")
-        matrix_conductivity .*= (1.0 .- fractures[:matrix_porosity])
-        fracture_conductivity .*= (1.0 .- fractures[:porosity])
+        matrix_conductivity = matrix_conductivity.*(1.0 .- fractures[:matrix_porosity])
+        fracture_conductivity = fracture_conductivity.*(1.0 .- fractures[:porosity])
     end
     # Compute transmissibilities and gravity potential differences for each
     # matrix-fracture connection

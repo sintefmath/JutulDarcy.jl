@@ -251,6 +251,7 @@ end
 
 ## ═══════════════════════════════════════════════════════════════════════
 @testset "DFM" begin
+    include("dfm_unified.jl")
 
     @testset "fracture_domain (standalone)" begin
         d = setup_simple_dfm()

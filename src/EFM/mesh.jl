@@ -58,7 +58,7 @@ struct EmbeddedFractureMesh{T <: AbstractFloat, M, F} <: Jutul.FiniteVolumeMesh
     tags::Jutul.MeshEntityTags
 end
 
-"""A connection graph with the original matrix cells followed by EFM cells."""
+"""A connection graph with matrix cells followed by EFM or DFM fracture cells."""
 struct EmbeddedReservoirMesh{T <: AbstractFloat, M, F} <: Jutul.FiniteVolumeMesh
     matrix_mesh::M
     fracture_mesh::F
@@ -154,14 +154,29 @@ function Jutul.cell_dims(mesh::EmbeddedReservoirMesh, cell)
 end
 
 function Jutul.cell_ijk(mesh::EmbeddedReservoirMesh, cell::Integer)
+    matrix = UnstructuredMesh(mesh.matrix_mesh)
     nm = number_of_cells(mesh.matrix_mesh)
-    if cell <= nm
-        return Jutul.cell_ijk(mesh.matrix_mesh, cell)
+    if matrix.structure isa CartesianIndex
+        parent = cell
+        if cell > nm
+            parent = fracture_parent_cell(mesh.fracture_mesh, mesh.matrix_mesh, cell-nm)
+        end
+        ijk = Jutul.cell_ijk(matrix, parent)
+    else
+        ijk = (cell, 1, 1)
     end
-    return Jutul.cell_ijk(mesh.matrix_mesh, first(mesh.fracture_mesh.geometry.patches[cell-nm].matrix_cells))
+    return ijk
 end
 
-Jutul.grid_dims_ijk(mesh::EmbeddedReservoirMesh) = Jutul.grid_dims_ijk(mesh.matrix_mesh)
+function Jutul.grid_dims_ijk(mesh::EmbeddedReservoirMesh)
+    matrix = UnstructuredMesh(mesh.matrix_mesh)
+    if matrix.structure isa CartesianIndex
+        dims = Jutul.grid_dims_ijk(matrix)
+    else
+        dims = (number_of_cells(mesh), 1, 1)
+    end
+    return dims
+end
 
 function Jutul.triangulate_mesh(mesh::EmbeddedFractureMesh{T}; outer = false, flatten = true, kwarg...) where T
     points = Point3{T}[]

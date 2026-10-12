@@ -1,7 +1,7 @@
 """
     UnstructuredMesh(mesh::EmbeddedReservoirMesh)
 
-Convert a combined EFM mesh to a three-dimensional `UnstructuredMesh` for
+Convert a combined EFM or DFM mesh to a three-dimensional `UnstructuredMesh` for
 plotting and geometric operations. Matrix cells and nodes retain their indices;
 fracture cells follow the matrix cells in simulation order. Each fracture patch
 is extruded symmetrically about its plane using its physical volume divided by
@@ -35,10 +35,9 @@ function Jutul.UnstructuredMesh(mesh::EmbeddedReservoirMesh)
     cell_boundary_faces = copy(matrix.boundary_faces.cells_to_faces.vals)
     cell_boundary_pos = copy(matrix.boundary_faces.cells_to_faces.pos)
     parents = Int[]
-    for (i, patch) in enumerate(fractures.geometry.patches)
-        frame = fractures.geometry.frames[patch.fracture]
-        aperture = tpfv_geometry(mesh).volumes[nm+i]/patch.area
-        vertices, faces = fracture_prism(patch.parts, frame, aperture, fractures.geometry.tolerance)
+    for i in 1:number_of_cells(fractures)
+        vertices, faces = embedded_fracture_prism(mesh.matrix_mesh, fractures,
+            tpfv_geometry(mesh).volumes[nm+i], i)
         offset = length(points)
         append!(points, vertices)
         for nodes in faces
@@ -48,7 +47,7 @@ function Jutul.UnstructuredMesh(mesh::EmbeddedReservoirMesh)
             push!(cell_boundary_faces, length(boundary_cells))
         end
         push!(cell_boundary_pos, length(cell_boundary_faces)+1)
-        push!(parents, first(patch.matrix_cells))
+        push!(parents, fracture_parent_cell(fractures, mesh.matrix_mesh, i))
     end
     cell_map = collect(1:nm)
     if !isnothing(matrix.cell_map)
@@ -73,6 +72,42 @@ function Jutul.UnstructuredMesh(mesh::EmbeddedReservoirMesh)
         end
     end
     return converted
+end
+
+function embedded_fracture_prism(matrix, fractures::EmbeddedFractureMesh, volume, cell)
+    patch = fractures.geometry.patches[cell]
+    frame = fractures.geometry.frames[patch.fracture]
+    aperture = volume/patch.area
+    return fracture_prism(patch.parts, frame, aperture, fractures.geometry.tolerance)
+end
+
+function embedded_fracture_prism(matrix, fractures::Jutul.EmbeddedMesh, volume, cell)
+    T = eltype(matrix.node_points[1])
+    if cell <= length(fractures.parent_faces)
+        face = fractures.parent_faces[cell]
+        points = matrix.node_points[matrix.faces.faces_to_nodes[face]]
+        tol = T(64)*eps(T)*max(one(T), maximum(norm, points))
+        frame = fracture_frame(PolygonFracture(points; float_type = T), tol)
+        area, center = patch_geometry(frame.parts, frame)
+        vertices, faces = fracture_prism(frame.parts, frame, volume/area, tol)
+    else
+        # Retained intersections are line cells. Give them a square cross section
+        # whose area reproduces their physical (aperture squared) storage.
+        mesh = UnstructuredMesh(fractures)
+        face = first(mesh.faces.cells_to_faces[cell])
+        nodes = mesh.faces.faces_to_nodes[face]
+        a, b = Point3{T}.(mesh.node_points[nodes])
+        segment_length = norm(b-a)
+        aperture = sqrt(volume/segment_length)
+        direction = (b-a)/segment_length
+        u, normal = plane_basis(direction)
+        frame = FractureFrame((a+b)/2, -normal, u, direction, Vector{Point2{T}}[])
+        part = Point2{T}[(-aperture/2, -segment_length/2), (aperture/2, -segment_length/2),
+            (aperture/2, segment_length/2), (-aperture/2, segment_length/2)]
+        tol = T(64)*eps(T)*max(one(T), norm(frame.origin), segment_length)
+        vertices, faces = fracture_prism([part], frame, aperture, tol)
+    end
+    return vertices, faces
 end
 
 function embedded_cell_faces(neighbors, nc)

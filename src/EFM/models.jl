@@ -1,5 +1,5 @@
 """
-    setup_embedded_fracture_model(matrix, fractures, system; unified=false, subtract_fracture_volume=false, kwarg...)
+    setup_embedded_fracture_model(matrix, fractures, system; unified=false, extend_wells=false, subtract_fracture_volume=false, kwarg...)
 
 Set up an EFM reservoir model from a preprocessed fracture domain.
 
@@ -16,43 +16,48 @@ covered fraction of direct matrix connections. Optional volume subtraction
 accounts for fracture storage without modifying either input domain. Wells
 keep their original matrix perforations; explicit fracture well completions
 can be assigned to appended cell indices in the unified model.
+Set `extend_wells=true` to add fracture completions where multisegment well
+segments intersect clipped fracture cells, in either formulation.
 """
 function setup_embedded_fracture_model(matrix::DataDomain, fractures::DataDomain, system;
         unified::Bool = false,
         subtract_fracture_volume = false,
         extra_out = false,
         wells = [],
+        extend_wells = false,
         kwarg...
     )
     mesh = physical_representation(fractures)
     mesh isa EmbeddedFractureMesh || throw(ArgumentError("fractures must be created with embedded_fracture_domain"))
     physical_representation(matrix) === mesh.matrix_mesh || throw(ArgumentError("EFM domains must share the original matrix mesh"))
+    if extend_wells
+        wells = extend_embedded_wells(wells, fractures)
+    end
     if unified
         domain = combined_fracture_domain(matrix, fractures; subtract_fracture_volume = subtract_fracture_volume)
+        wells = [unified_fracture_well(well, number_of_cells(matrix)) for well in wells]
         model = setup_reservoir_model(domain, system; wells = wells, kwarg...)
         if JutulDarcy.model_is_thermal(reservoir_model(model))
             set_parameters!(reservoir_model(model), FluidThermalConductivities = EFMFluidThermalConductivities())
         end
-        if extra_out
-            return model, setup_parameters(model)
+    else
+        system isa Union{ImmiscibleSystem, SinglePhaseSystem} || system == :geothermal || throw(ArgumentError("coupled EFM supports immiscible, single-phase, and :geothermal systems; use unified=true for other systems"))
+        matrix = embedded_matrix_domain(matrix, fractures; subtract_fracture_volume = subtract_fracture_volume)
+        model = setup_reservoir_model(matrix, system; wells = wells, kwarg...)
+        fracture_model = reservoir_model(setup_reservoir_model(fractures, system; kwarg...))
+        fmc = FractureMatrixConnection()
+        fracture_model.domain.entities[fmc] = count_entities(fractures, fmc)
+        if JutulDarcy.model_is_thermal(fracture_model)
+            set_parameters!(fracture_model, FluidThermalConductivities = EFMFluidThermalConductivities())
         end
-        return model
+        model = JutulDarcy.add_fracture_model(model, fracture_model)
+        JutulDarcy.add_fracture_cross_terms!(model, fractures)
     end
-    system isa Union{ImmiscibleSystem, SinglePhaseSystem} || system == :geothermal || throw(ArgumentError("coupled EFM supports immiscible, single-phase, and :geothermal systems; use unified=true for other systems"))
-    matrix = embedded_matrix_domain(matrix, fractures; subtract_fracture_volume = subtract_fracture_volume)
-    model = setup_reservoir_model(matrix, system; wells = wells, kwarg...)
-    fracture_model = reservoir_model(setup_reservoir_model(fractures, system; kwarg...))
-    fmc = FractureMatrixConnection()
-    fracture_model.domain.entities[fmc] = count_entities(fractures, fmc)
-    if JutulDarcy.model_is_thermal(fracture_model)
-        set_parameters!(fracture_model, FluidThermalConductivities = EFMFluidThermalConductivities())
-    end
-    model = JutulDarcy.add_fracture_model(model, fracture_model)
-    JutulDarcy.add_fracture_cross_terms!(model, fractures)
+    out = model
     if extra_out
-        return model, setup_parameters(model)
+        out = (model, setup_parameters(model))
     end
-    return model
+    return out
 end
 
 function JutulDarcy.setup_fractured_reservoir_model(matrix::DataDomain, fractures::DataDomain{<:EmbeddedFractureMesh}, system::Union{JutulSystem, Symbol}; kwarg...)
@@ -72,13 +77,13 @@ end
 
 Build either cut-cell DFM (`method=:dfm`, default) or EFM (`method=:efm`) from
 a vector of fracture objects. Any vector element type is accepted; entries are
-validated and grouped in a `FractureCollection`. For EFM, `unified=true` appends
+validated and grouped in a `FractureCollection`. For either method, `unified=true` appends
 fracture cells to the reservoir model; `unified=false` uses separate matrix and
-fracture models. DFM requires `unified=false`. Preprocessing options and property
+fracture models. Preprocessing options and property
 overrides are passed in `fracture_arg`. DFM well perforations are distributed over
 their cut-cell descendants, preserving each completion's total well index.
-`extend_wells=false` keeps matrix completions for comparison with EFM; set it
-to `true` to add DFM fracture completions to multisegment wells.
+`extend_wells=false` keeps matrix completions; set it to `true` to add
+fracture completions to multisegment wells for either method.
 Both methods default to `subtract_fracture_volume=true` for matching storage.
 The original domain and well data are unchanged. Use `discrete_fracture_domain`
 when the original-cell mapping is needed for transferring states or forces.
@@ -91,22 +96,22 @@ function JutulDarcy.setup_fractured_reservoir_model(matrix::DataDomain, objects:
     method in (:efm, :dfm) || throw(ArgumentError("method must be :efm or :dfm"))
     objects = FractureCollection(objects)
     if method == :efm
-        !extend_wells || throw(ArgumentError("automatic fracture well completions require method=:dfm"))
-        return setup_embedded_fracture_model(matrix, objects, system;
+        model = setup_embedded_fracture_model(matrix, objects, system;
             unified = unified, fracture_arg = fracture_arg,
-            wells = wells, subtract_fracture_volume = subtract_fracture_volume,
-            extra_out = extra_out, kwarg...)
+            wells = wells, extend_wells = extend_wells,
+            subtract_fracture_volume = subtract_fracture_volume, kwarg...)
+    else
+        domains = discrete_fracture_domain(matrix, objects; fracture_arg...)
+        remapped = [cut_fracture_well(well, domains.matrix, domains.info[:cell_index]) for well in wells]
+        model = setup_fractured_reservoir_model(domains.matrix, domains.fractures, system;
+            unified = unified, wells = remapped, extend_wells = extend_wells,
+            subtract_fracture_volume = subtract_fracture_volume, kwarg...)
     end
-    !unified || throw(ArgumentError("DFM requires unified=false"))
-    domains = discrete_fracture_domain(matrix, objects; fracture_arg...)
-    remapped = [cut_fracture_well(well, domains.matrix, domains.info[:cell_index]) for well in wells]
-    model = setup_fractured_reservoir_model(domains.matrix, domains.fractures, system;
-        wells = remapped, extend_wells = extend_wells,
-        subtract_fracture_volume = subtract_fracture_volume, kwarg...)
+    out = model
     if extra_out
-        return model, setup_parameters(model)
+        out = (model, setup_parameters(model))
     end
-    return model
+    return out
 end
 
 function cut_fracture_well(well::DataDomain, matrix, parents)

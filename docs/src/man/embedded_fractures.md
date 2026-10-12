@@ -62,7 +62,10 @@ dfm = setup_fractured_reservoir_model(matrix, fractures, system;
 ```
 
 The default `method=:dfm` keeps the cut-cell setup. EFM accepts
-`unified=false` or `unified=true`; DFM requires `unified=false`. Any
+`unified=false` or `unified=true`, and DFM supports both options as well. Unified
+DFM keeps cut matrix cells first and appends the DFM fracture and retained
+intersection cells, using the same flow and heat coefficients as coupled DFM.
+Both methods store the integer `:is_fracture` indicator in the unified domain. Any
 `AbstractVector` is accepted, including `Vector{Any}`, abstractly typed vectors,
 views and vectors with nonstandard indices. Entries are validated as fracture
 objects, and fracture IDs always follow the vector's iteration order.
@@ -93,8 +96,12 @@ split faces by area; new faces use geometric TPFA coefficients. Existing well
 completions are distributed over their cut-cell
 descendants by volume, preserving the original matrix completion's total well
 index. The object-based DFM setup defaults to `extend_wells=false`, matching
-EFM's matrix completions; use `extend_wells=true` to enable DFM's automatic
-fracture completions for multisegment wells. Cell-indexed initial states,
+EFM's matrix completions; use `extend_wells=true` to enable automatic
+fracture completions for multisegment wells in either method and formulation.
+EFM intersects well segments with the finite clipped fracture surfaces,
+including segments within a fracture plane. Shared patch boundaries do not
+duplicate completions, and simultaneous fracture hits share a well node.
+Simple wells retain their existing matrix completions. Cell-indexed initial states,
 sources and boundary conditions must be
 transferred with `parents` when creating a case manually.
 

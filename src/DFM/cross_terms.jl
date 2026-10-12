@@ -237,7 +237,7 @@ function cross_term_perforation_get_fracture_conn(ct, i, state_s, state_t)
         fracture_cell = ct.fracture_cells[i]
         well_cell = ct.well_cells[i]
         WI = state_s.FractureWellIndices[i]
-        gdz = state_s.PerforationGravityDifference[i]
+        gdz = state_s.FracturePerforationGravityDifference[i]
         p_well = state_s.Pressure
         p_res = state_t.Pressure
         dp = p_well[well_cell] - p_res[fracture_cell]
@@ -277,7 +277,7 @@ function update_cross_term_in_entity!(out, i,
         well_cell = ct.well_cells[i]
         WI = state_well.FractureWellIndices[i]
         WIth = state_well.FractureWellIndicesThermal[i]
-        gdz = state_well.PerforationGravityDifference[i]
+        gdz = state_well.FracturePerforationGravityDifference[i]
         p_well = state_well.Pressure
         p_res = state_res.Pressure
         dp = p_well[well_cell] - p_res[fracture_cell]

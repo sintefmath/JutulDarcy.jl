@@ -22,6 +22,8 @@ module EFM
     include("preprocessing.jl")
     include("domains.jl")
     include("discrete.jl")
+    include("wells.jl")
     include("models.jl")
+    include("unified_dfm.jl")
     include("show.jl")
 end

@@ -79,7 +79,11 @@ end
 
 function Base.show(io::IO, ::MIME"text/plain", mesh::EmbeddedReservoirMesh)
     show(io, mesh)
-    show_fracture_groups(io, mesh.fracture_mesh.fractures)
+    if mesh.fracture_mesh isa EmbeddedFractureMesh
+        show_fracture_groups(io, mesh.fracture_mesh.fractures)
+    else
+        print(io, "\n  Cut-cell DFM fracture network")
+    end
 end
 
 function Base.show(io::IO, fracture::RectangleFracture{T}) where T

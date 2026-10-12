@@ -161,10 +161,13 @@ function fracture_domain(mesh::JutulMesh;
 end
 
 """
-    setup_fractured_reservoir_model(matrix, fractures, system; wells=[], kwarg...)
+    setup_fractured_reservoir_model(matrix, fractures, system; unified=false, wells=[], kwarg...)
 
 Build a `MultiModel` that couples a matrix reservoir model with a discrete
 fracture model (DFM).
+With `unified=true`, fracture cells are instead appended to `:Reservoir` and
+connected through explicit transmissibilities. The integer cell field
+`:is_fracture` distinguishes matrix (`0`) and fracture (`1`) cells.
 
 The function performs the following steps:
 1. Optionally extends each well to include fracture perforations.
@@ -184,6 +187,7 @@ The function performs the following steps:
 
 # Keyword arguments
 - `wells = []`: vector of well configurations to include in the model.
+- `unified = false`: use a single reservoir model when set to `true`.
 - `extend_wells = true`: add fracture completions to multisegment wells.
 - `subtract_fracture_volume = true`: subtract fracture storage from the matrix.
 - Remaining keyword arguments are forwarded to `setup_reservoir_model`.
@@ -193,10 +197,31 @@ A `MultiModel` containing `:Reservoir` (matrix), `:Fracture`, and well
 sub-models with the appropriate DFM cross-terms.
 """
 function setup_fractured_reservoir_model(matrix::DataDomain, fractures::DataDomain, system::Union{JutulSystem, Symbol};
+    unified::Bool=false, wells=[], extend_wells=true, subtract_fracture_volume=true,
+    extra_out=false, kwarg...)
+
+    if unified
+        out = EFM.setup_unified_dfm_model(matrix, fractures, system;
+            wells=wells, extend_wells=extend_wells,
+            subtract_fracture_volume=subtract_fracture_volume,
+            extra_out=extra_out, kwarg...)
+    else
+        model = setup_coupled_dfm_model(matrix, fractures, system;
+            wells=wells, extend_wells=extend_wells,
+            subtract_fracture_volume=subtract_fracture_volume, kwarg...)
+        out = model
+        if extra_out
+            out = (model, setup_parameters(model))
+        end
+    end
+    return out
+end
+
+function setup_coupled_dfm_model(matrix, fractures, system;
     wells=[], extend_wells=true, subtract_fracture_volume=true, kwarg...)
 
-    system isa ImmiscibleSystem || system == :geothermal || error(
-        "DFM currently supports only Immiscible and :geothermal fluid systems.")
+    system isa Union{ImmiscibleSystem, SinglePhaseSystem} || system == :geothermal || error(
+        "DFM currently supports only immiscible, single-phase and :geothermal fluid systems.")
 
     fmc = JutulDarcy.FractureMatrixConnection()
     if haskey(fractures, :matrix_faces)
@@ -338,10 +363,15 @@ function add_fractures_to_well(well::DataDomain{T}, fractures::DataDomain, matri
     neighborship, perforation_cells_fractures, perforation_cells_fractures_self, old_ix = 
     add_fracture_cells_to_well(matrix_mesh, well0.representation, matrix_faces)
 
-    has_fracture_perforations = length(perforation_cells_fractures) > 0
-    if !has_fracture_perforations
-        return well0
+    if !isempty(perforation_cells_fractures)
+        well = extend_fractured_well(well0, fractures, neighborship,
+            perforation_cells_fractures, perforation_cells_fractures_self, old_ix; kwarg...)
     end
+    return well
+end
+
+function extend_fractured_well(well0, fractures, neighborship,
+    perforation_cells_fractures, perforation_cells_fractures_self, old_ix; kwarg...)
 
     num_segments = size(neighborship, 2)
     segment_models = [SegmentWellBoreFrictionHB() for _ in 1:num_segments]
@@ -382,15 +412,11 @@ function add_fractures_to_well(well::DataDomain{T}, fractures::DataDomain, matri
         Λ = Λr
     end
 
-    if has_fracture_perforations
-        fracture_mesh = physical_representation(fractures)
-        tmp_frac = setup_well(fracture_mesh, K_fractures, perforation_cells_fractures;
+    fracture_mesh = physical_representation(fractures)
+    tmp_frac = setup_well(fracture_mesh, K_fractures, perforation_cells_fractures;
         simple_well=false, radius=radius, dir=dir, net_to_gross=ntg,
         thermal_conductivity=Λ,
         kwarg...)
-    else
-        tmp_frac = missing
-    end
 
     W = MultiSegmentWell(
         well0.representation.type,
@@ -408,14 +434,18 @@ function add_fractures_to_well(well::DataDomain{T}, fractures::DataDomain, matri
     )
 
     well = DataDomain(W)
+    new_nodes = Dict{Int, Int}()
+    for (perf, node) in enumerate(perforation_cells_fractures_self)
+        if node > well0.representation.num_nodes && !haskey(new_nodes, node)
+            new_nodes[node] = perf
+        end
+    end
+    node_perforations = [new_nodes[node] for node in sort!(collect(keys(new_nodes)))]
     for (k, v) in well0.data
         val, entity = v
-        if ismissing(tmp_frac)
-            well[k, entity] = val
-            continue
-        end
         frac_val = tmp_frac[k, entity]
         if entity == Cells()
+            frac_val = EFM.fracture_cell_subset(frac_val, node_perforations)
             # Cell data
             if k ∈ [:cell_centroids, :perforation_centroids]
                 new_val = hcat(val, frac_val)
@@ -423,25 +453,7 @@ function add_fractures_to_well(well::DataDomain{T}, fractures::DataDomain, matri
                 new_val = vcat(val, frac_val)
             end
         elseif entity == Faces()
-            new_val = similar(val, count_entities(W, Faces()))
-            new_val[old_ix .!= 0] = val[old_ix[old_ix .!= 0]]
-            fixed = old_ix .!= 0
-            # Insert nearby values for new fracture perforation faces
-            while any(.!fixed)
-                for seg in 1:num_segments
-                    if !fixed[seg]
-                        pseg = max(seg-1, 1)
-                        nseg = min(seg+1, num_segments)
-                        if fixed[pseg]
-                            new_val[seg] = new_val[pseg]
-                            fixed[seg] = true
-                        elseif fixed[nseg]
-                            new_val[seg] = new_val[nseg]
-                            fixed[seg] = true
-                        end
-                    end
-                end
-            end
+            new_val = EFM.fracture_cell_subset(val, old_ix)
         elseif entity == Perforations()
             well[k, entity] = val
             new_val = frac_val
@@ -454,7 +466,11 @@ function add_fractures_to_well(well::DataDomain{T}, fractures::DataDomain, matri
     wc = well.representation.perforations.self_fracture
     fc = well.representation.perforations.fracture
     
-    well[:cell_length][wc] = fractures[:aperture][fc]
+    for (node, cell) in zip(wc, fc)
+        if node > well0.representation.num_nodes
+            well[:cell_length][node] = fractures[:aperture][cell]
+        end
+    end
     Δ = well[:cell_dims_frac, FracturePerforations()]
     dir = well[:perforation_direction_frac, FracturePerforations()]
     for (c, (Δ_k, dir_k)) in enumerate(zip(Δ, dir))
@@ -502,7 +518,7 @@ function add_fracture_cells_to_well(g_matrix, representation, fracture_faces)
                 m2f = [N[1, seg], wc]
                 f2m = [wc, N[2, seg]]
                 N_new = hcat(N_new, m2f, f2m)
-                push!(old_ix, 0, 0)
+                push!(old_ix, seg, seg)
                 added = true
             end
         end
@@ -574,7 +590,8 @@ function add_fracture_cross_terms!(model::MultiModel, fractures::DataDomain)
             fc = vec(g.perforations.fracture)
             wc = vec(g.perforations.self_fracture)
             set_parameters!(model.models[name],
-                FractureWellIndices = FractureWellIndices()
+                FractureWellIndices = FractureWellIndices(),
+                FracturePerforationGravityDifference = EFM.FracturePerforationGravityDifference()
             )
             ct = FracturesFromWellFlowCT(fc, wc)
             add_cross_term!(model, ct, target = :Fractures, source = name, equation = :mass_conservation)
