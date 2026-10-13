@@ -280,11 +280,11 @@ end
 function set_trans_override!(tran_override, mesh, ijk, dir, tran_xyz, num_nnc)
     N = mesh.faces.neighbors
     active_ix = mesh.cell_map
-    if isnothing(active_ix)
-        active_ix = 1:number_of_cells(mesh)
+    if !isnothing(active_ix) && length(tran_xyz) != length(active_ix)
+        tran_xyz = tran_xyz[active_ix]
     end
     nf = number_of_faces(mesh)
-    for (c, val) in enumerate(tran_xyz[active_ix])
+    for (c, val) in enumerate(tran_xyz)
         ijk_c = ijk[c][dir]
         if !isfinite(val) || val < 0.0
             continue
