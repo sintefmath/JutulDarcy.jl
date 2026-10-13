@@ -119,15 +119,16 @@ TSTEP
         @test haskey(case.parameters[:Reservoir], :VaporDiffusivities)
         @test haskey(model.data_domain, :vapor_diffusion, Cells())
         @test case.forces[end][:Facility].limits[:WELL].bhp ≈ 5e6
-        # Diffusion acts directly on flash mole fractions. Reverse the face
-        # orientation and remove gas to check conservation and phase cutoff.
+        # Diffusion takes cached phase mass fractions but acts on mole-fraction
+        # gradients and returns component mass fluxes. Reverse the face orientation
+        # and remove gas to check conservation and phase cutoff.
         mw = MultiComponentFlash.molar_masses(sys.equation_of_state)
         x = [1.0, 0.0, 0.0]
         yl, yr = [0.01, 0.89, 0.10], [0.01, 0.79, 0.20]
-        flash(y) = FlashedMixture2Phase(MultiComponentFlash.two_phase_lv,
-            ones(3), 0.5, x, y, 1.0, 1.0)
+        mass_fraction(z) = mw.*z/sum(mw.*z)
         diffusion_state = (
-            FlashResults = [flash(yl), flash(yr)],
+            LiquidMassFractions = hcat(mass_fraction(x), mass_fraction(x)),
+            VaporMassFractions = hcat(mass_fraction(yl), mass_fraction(yr)),
             VaporDiffusivities = case.parameters[:Reservoir][:VaporDiffusivities],
             PhaseMassDensities = [1000.0 1000.0; 5.0 7.0],
             Saturations = [0.2 0.4; 0.8 0.6])
