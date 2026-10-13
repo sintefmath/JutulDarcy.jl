@@ -145,16 +145,9 @@ end
     @inbounds s_l = s[phase, l]
     @inbounds s_r = s[phase, r]
 
-    s_l_tiny = s_l <= ϵ
-    s_r_tiny = s_r <= ϵ
-    if s_l_tiny && s_r_tiny
-        ρ_avg = zero(s_l)
-    elseif s_l_tiny
-        ρ_avg = ρ_r
-    elseif s_r_tiny
-        ρ_avg = ρ_l
+    if s_l + s_r > ϵ
+        ρ_avg =  (s_l*ρ_r + s_r*ρ_l)/(s_l + s_r)
     else
-        # alt def: (s_l*ρ_r + s_r*ρ_l)/(s_l + s_r)
         ρ_avg = 0.5*(ρ_r + ρ_l)
     end
     return ρ_avg
