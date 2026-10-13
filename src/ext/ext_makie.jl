@@ -11,7 +11,8 @@ end
     plot_well_results(wr::WellResults)
     plot_well_results(v::Vector{WellResults})
 
-Launch interactive viewer for well results. Needs GLMakie to be loaded.
+Launch interactive viewer for well results. Needs a Makie backend such as GLMakie
+or WGLMakie to be loaded.
 """
 function plot_well_results
 
@@ -22,7 +23,8 @@ export plot_reservoir_measurables
 """
     plot_reservoir_measurables(case::JutulCase, result::ReservoirSimResult)
 
-Launch interactive viewer for reservoir measurables. Needs GLMakie to be loaded.
+Launch interactive viewer for reservoir measurables. Needs a Makie backend such as
+GLMakie or WGLMakie to be loaded.
 """
 function plot_reservoir_measurables
 
@@ -381,7 +383,8 @@ end
     plot_well_vs_meters_drilled!(ax, well_model, values; label=nothing, kwargs...)
 
 Plot well data vs meters drilled on the given axis. If the well has sections,
-each section is plotted with a distinct color. Needs GLMakie to be loaded.
+each section is plotted with a distinct color. Needs a Makie backend such as
+GLMakie or WGLMakie to be loaded.
 """
 function plot_well_vs_meters_drilled!
 
@@ -390,7 +393,8 @@ end
 """
     plot_well_vs_meters_drilled(well_model, values; figure_kwargs=NamedTuple(), axis_kwargs=NamedTuple(), kwargs...)
 
-Create a new figure and plot well data vs meters drilled. Needs GLMakie to be loaded.
+Create a new figure and plot well data vs meters drilled. Needs a Makie backend
+such as GLMakie or WGLMakie to be loaded.
 """
 function plot_well_vs_meters_drilled
 
@@ -400,7 +404,8 @@ end
     plot_well_states_interactive(well_model, states; time=missing, names=missing, resolution=(1200, 800), kwargs...)
     plot_well_states_interactive(well_name::Symbol, model, states; kwargs...)
 
-Interactive GUI for plotting multisegment well data vs meters drilled. Needs GLMakie to be loaded.
+Interactive GUI for plotting multisegment well data vs meters drilled. Needs a
+Makie backend such as GLMakie or WGLMakie to be loaded.
 """
 function plot_well_states_interactive
 

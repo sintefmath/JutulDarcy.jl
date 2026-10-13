@@ -1,5 +1,3 @@
-using Dates, Printf
-
 function JutulDarcy.plot_well!(ax, g, w;
         color = :darkred,
         textcolor = nothing,
@@ -371,7 +369,7 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = missing;
         end
         time = newtime
     end
-    lighten(x) = GLMakie.ARGB(x.r, x.g, x.b, 0.2)
+    lighten(x) = Makie.ARGB(x.r, x.g, x.b, 0.2)
     toggles = [
             Checkbox(fig,
             checked = true,
@@ -501,7 +499,7 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = missing;
         )
     end
     if new_window
-        display(GLMakie.Screen(), fig)
+        display(Makie.current_backend().Screen(), fig)
     end
     return fig
 end

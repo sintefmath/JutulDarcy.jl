@@ -1,5 +1,5 @@
 # Multisegment well plotting functionality
-# Requires GLMakie for interactive plotting
+# Requires a Makie backend (e.g. GLMakie or WGLMakie) for interactive plotting
 
 # NOTE: This module was developed with the assistance of AI agent tools.
 
