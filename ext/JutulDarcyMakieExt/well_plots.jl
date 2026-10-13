@@ -79,7 +79,7 @@ function JutulDarcy.plot_well!(ax, g, w;
     npts = length(x)
     spts = fill(markersize, npts)
     spts[1] = 0
-    plt = scatterlines!(ax, x, y, z,
+    plt = scatterlines!(ax, x, y, z;
         transparency = transparency,
         linewidth = linewidth,
         color = color,
