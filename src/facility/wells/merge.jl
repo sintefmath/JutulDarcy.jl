@@ -5,12 +5,14 @@ using DataStructures: OrderedDict
 
 import ..JutulDarcy:
     SimpleWell, MultiSegmentWell, MultiWellInfo, WellDomain, PerforationMask,
-    add_thermal_to_model!, model_energy_formulation, transfer_variables_and_parameters!,
+    add_thermal_to_model!, transfer_variables_and_parameters!,
     ReservoirFromWellFlowCT, ReservoirFromWellThermalCT,
     WellFromFacilityFlowCT, WellFromFacilityThermalCT,
     FacilityFromWellBottomHolePressureCT, FacilityFromWellSurfaceComponentRatesCT,
     FacilityFromWellTemperatureCT, FacilityFromWellEnthalpyCT,
     setup_reservoir_cross_terms!
+
+# import ..JutulDarcy: model_energy_formulation
 
 """
     merge_similar_wells(case::JutulCase)
@@ -152,7 +154,8 @@ function build_merged_well_model(original_model, names, merged_key)
         optimization_level = template.optimization_level)
     if haskey(template.primary_variables, :Temperature)
         add_thermal_to_model!(merged_model;
-            energy_formulation = model_energy_formulation(template))
+        #    energy_formulation = model_energy_formulation(template)
+        )
     end
 
     template_equations = Set(keys(template.equations))
