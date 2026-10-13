@@ -146,7 +146,7 @@ end
     @inbounds s_r = s[phase, r]
 
     if s_l + s_r > ϵ
-        ρ_avg =  (s_l*ρ_r + s_r*ρ_l)/(s_l + s_r)
+        ρ_avg =  (s_l*ρ_l + s_r*ρ_r)/(s_l + s_r)
     else
         ρ_avg = 0.5*(ρ_r + ρ_l)
     end
