@@ -156,10 +156,10 @@ function setup_reservoir_domain_afi(d::AFIInputFile, mesh;
             end
             grid = pillar_grid[first(keys(pillar_grid))]
             for (k, v) in grid["CellDoubleProperty"]
-                set_grid_entry!(data, k, v, ncells)
+                set_grid_entry!(data, k, v[active], ncells)
             end
             for (k, v) in grid["CellIntegerProperty"]
-                set_grid_entry!(data, k, v, ncells)
+                set_grid_entry!(data, k, v[active], ncells)
             end
         end
     end
