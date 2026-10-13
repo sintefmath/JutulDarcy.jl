@@ -201,14 +201,14 @@ function plot_reservoir(model, states = missing;
         # Include face centres in those dimensions to keep the default finite.
         ranges = map(1:size(cell_centroids, 1)) do i
             lo, hi = extrema(view(cell_centroids, i, :))
-            if lo == hi
+            if isapprox(lo, hi)
                 for key in (:face_centroids, :boundary_centroids)
                     if haskey(data_domain, key)
-                        for v in view(data_domain[key], i, :)
-                            if isfinite(v)
-                                lo = min(lo, v)
-                                hi = max(hi, v)
-                            end
+                        values = filter(isfinite, view(data_domain[key], i, :))
+                        if !isempty(values)
+                            face_lo, face_hi = extrema(values)
+                            lo = min(lo, face_lo)
+                            hi = max(hi, face_hi)
                         end
                     end
                 end
@@ -345,9 +345,10 @@ function plot_reservoir_static(g, static_data, states;
     nc = number_of_cells(g)
     valid_keys = filter(collect(keys(data))) do k
         v = data[k]
-        return v isa AbstractArray{<:Real} &&
-            ((v isa AbstractVector && length(v) == nc) ||
-             (v isa AbstractMatrix && size(v, 2) == nc))
+        is_numeric = v isa AbstractArray{<:Real}
+        is_cell_vector = v isa AbstractVector && length(v) == nc
+        is_cell_matrix = v isa AbstractMatrix && size(v, 2) == nc
+        return is_numeric && (is_cell_vector || is_cell_matrix)
     end
     sort!(valid_keys; by = string)
     isempty(valid_keys) && throw(ArgumentError("No plottable cell properties found."))

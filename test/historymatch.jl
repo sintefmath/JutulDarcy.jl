@@ -109,11 +109,19 @@ end
 ##
 
 @testset "Inclusive mismatch periods" begin
-    data = Dict(:Injector => [(target = :bhp, start = 1, stop = 3, value = 6.0)],
-        :Producer => [(target = :rate, start = 1, stop = 1, value = 1.0),
-                      (target = :rate, start = 2, stop = 3, value = 4.0)])
-    contribution(; kwarg...) = sum(first(JutulDarcy.HistoryMatching.compute_well_target_contribution_matrix(data; kwarg...)))
-    totals = [contribution(step = i) for i in 0:4]
-    @test totals ≈ [0.0, 3.0, 4.0, 4.0, 0.0]
-    @test sum(totals) ≈ contribution()
+    # A period's mismatch is shared equally by every step, including both
+    # endpoints. Steps outside the period must not contribute.
+    period = (target = :bhp, start = 2, stop = 4, value = 6.0)
+    data = Dict(:Producer => [period])
+    for (step, expected) in ((1, 0.0), (2, 2.0), (3, 2.0), (4, 2.0), (5, 0.0))
+        result = JutulDarcy.HistoryMatching.compute_well_target_contribution_matrix(data; step)
+        @test only(result.impact) ≈ expected
+    end
+    result = JutulDarcy.HistoryMatching.compute_well_target_contribution_matrix(data)
+    @test only(result.impact) ≈ period.value
+
+    # A one-step period has coincident endpoints and contributes its full value.
+    data[:Producer] = [(target = :bhp, start = 2, stop = 2, value = 6.0)]
+    result = JutulDarcy.HistoryMatching.compute_well_target_contribution_matrix(data; step = 2)
+    @test only(result.impact) ≈ 6.0
 end
