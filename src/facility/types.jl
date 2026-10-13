@@ -717,7 +717,8 @@ The density of the injected fluid at surface conditions is given by `density` wh
 if not given.
 
 `enthalpy` controls the injected specific enthalpy. Supported modes are:
-- `missing`: derive the injected enthalpy from the injector temperature and well state.
+- `missing`: derive the injected enthalpy from the injector temperature and fluid
+  energy model. Tabulated enthalpies use the injection mixture's mass fractions.
 - `::Real`: use a constant injected specific enthalpy.
 - `::Function`: use a callback `(p, T) -> h` evaluated at the well top node pressure and target temperature.
 

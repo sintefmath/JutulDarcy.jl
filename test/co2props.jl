@@ -32,29 +32,78 @@ import JutulDarcy.CO2Properties: compute_co2_brine_props
     @test props[:density] ≈ [1170.37, 668.644] rtol = 1e-3
 end
 
-@testset "CO2-Brine injector heat capacities" begin
-    for (simple_well, const_p, const_T) in ((true, 101325.0, 298.15), (false, 2e7, 310.0))
+@testset "CO2-Brine tabulated thermal properties" begin
+    tables = JutulDarcy.CO2Properties.co2_brine_property_tables(co2_source = :csp11)
+    for simple_well in (true, false), co2_physics in (:kvalue, :immiscible)
         reservoir = get_1d_reservoir(2)
         well = setup_well(reservoir, [1, 2]; name = :INJ, simple_well)
         model, parameters = setup_reservoir_model(reservoir, :co2brine;
             wells = [well], thermal = true, co2_source = :csp11,
-            const_p, const_T, extra_out = true)
-        tables = JutulDarcy.CO2Properties.co2_brine_property_tables(co2_source = :csp11)
-        expected = collect(tables[:heat_capacity_constant_volume](const_p, const_T))
+            co2_physics, extra_out = true)
+        composition = co2_physics == :kvalue ?
+            (OverallMoleFractions = [0.8, 0.2],) : (Saturations = [0.8, 0.2],)
+        state0 = setup_reservoir_state(model; Pressure = 3e7, Temperature = 320.0,
+            composition...)
         for name in (:Reservoir, :INJ)
-            capacity = parameters[name][:ComponentHeatCapacity]
-            @test capacity ≈ repeat(expected, 1, size(capacity, 2))
+            m = model[name]
+            variables = m.secondary_variables
+            @test variables[:FluidEnthalpy] isa JutulDarcy.PressureTemperatureDependentEnthalpy
+            @test variables[:FluidInternalEnergy] isa JutulDarcy.FluidInternalEnergyFromFluidEnthalpy
+            @test !haskey(parameters[name], :ComponentHeatCapacity)
+            state = Jutul.evaluate_all_secondary_variables(m, state0[name], parameters[name])
+            for c in eachindex(state[:Pressure])
+                pure_H = tables[:enthalpy](state[:Pressure][c], state[:Temperature][c])
+                if co2_physics == :kvalue
+                    l, v = JutulDarcy.phase_indices(m.system)
+                    @test state[:FluidEnthalpy][l, c] ≈ sum(pure_H .* state[:LiquidMassFractions][:, c])
+                    @test state[:FluidEnthalpy][v, c] ≈ sum(pure_H .* state[:VaporMassFractions][:, c])
+                else
+                    @test state[:FluidEnthalpy][:, c] ≈ pure_H
+                end
+                @test state[:FluidInternalEnergy][:, c] ≈
+                    state[:FluidEnthalpy][:, c] .- state[:Pressure][c] ./ state[:PhaseMassDensities][:, c]
+            end
         end
 
-        # Compare the actual well parameters with the reservoir's pure-CO2
-        # energy model, rather than constructing a well state with reservoir cv.
+        # Injector temperature and mixture can differ from the local well state.
         p, T = 3e7, 283.15
-        densities = collect(tables[:density](p, T))
-        state = (Pressure = [p], Saturations = reshape([0.0, 1.0], 2, 1),
-            PhaseMassDensities = reshape(densities, 2, 1),
-            ComponentHeatCapacity = parameters[:INJ][:ComponentHeatCapacity])
-        control = InjectorControl(TotalMassRateTarget(0.035), [0.0, 1.0]; temperature = T)
-        h = JutulDarcy.well_top_node_enthalpy(control, model[:INJ], state, T, 1)
-        @test h ≈ parameters[:Reservoir][:ComponentHeatCapacity][2, 1]*T + p/densities[2]
+        state = (Pressure = [p],)
+        for mix in ([1.0, 0.0], [0.0, 1.0], [0.25, 0.75])
+            control = InjectorControl(TotalMassRateTarget(0.035), mix; temperature = T)
+            h = JutulDarcy.well_top_node_enthalpy(control, model[:INJ], state, T, 1)
+            @test h ≈ sum(mix .* tables[:enthalpy](p, T))
+        end
+        for enthalpy in (12345.0, (p, T) -> p/T)
+            control = InjectorControl(TotalMassRateTarget(0.035), [0.0, 1.0]; temperature = T, enthalpy)
+            h = JutulDarcy.well_top_node_enthalpy(control, model[:INJ], state, T, 1)
+            @test h ≈ (enthalpy isa Real ? enthalpy : enthalpy(p, T))
+        end
+    end
+end
+
+@testset "Geothermal tabulated thermal properties" begin
+    tables = JutulDarcy.Geothermal.geothermal_setup_tables()
+    for simple_well in (true, false)
+        reservoir = get_1d_reservoir(2)
+        well = setup_well(reservoir, [1, 2]; name = :INJ, simple_well)
+        model, parameters = setup_reservoir_model(reservoir, :geothermal;
+            wells = [well], extra_out = true)
+        state0 = setup_reservoir_state(model; Pressure = 2e7, Temperature = 330.0)
+        for name in (:Reservoir, :INJ)
+            m = model[name]
+            @test m.secondary_variables[:FluidEnthalpy] isa JutulDarcy.PressureTemperatureDependentEnthalpy
+            @test m.secondary_variables[:FluidInternalEnergy] isa JutulDarcy.FluidInternalEnergyFromFluidEnthalpy
+            state = Jutul.evaluate_all_secondary_variables(m, state0[name], parameters[name])
+            for c in eachindex(state[:Pressure])
+                p, T = state[:Pressure][c], state[:Temperature][c]
+                h = tables[:enthalpy](p, T)
+                @test state[:FluidEnthalpy][1, c] ≈ h
+                @test state[:FluidInternalEnergy][1, c] ≈ h - p/state[:PhaseMassDensities][1, c]
+            end
+        end
+        p, T = 2e7, 310.0
+        control = InjectorControl(TotalMassRateTarget(0.035), [1.0]; temperature = T)
+        h = JutulDarcy.well_top_node_enthalpy(control, model[:INJ], (; Pressure = [p]), T, 1)
+        @test h ≈ tables[:enthalpy](p, T)
     end
 end
