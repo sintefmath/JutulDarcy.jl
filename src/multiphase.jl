@@ -248,11 +248,10 @@ One diffusive face conductance per component. Use the parameter names
 `LiquidDiffusivities`, `VaporDiffusivities`, and `AqueousDiffusivities` for
 phases present in the model. The corresponding data-domain keys are
 `liquid_diffusion` on cells or `liquid_diffusivities` on faces, with the same
-prefixes for vapor and aqueous phases. Matrices have one row per component,
-in the system's component order. Coefficients use the mole-fraction Fick law.
-The resulting component molar flux is multiplied by the component's molar mass
-for the mass conservation equations. Black-oil diffusion requires component
-molar masses in kg/mol as `component_molar_masses` on `nothing` in the data domain.
+prefixes for vapor and aqueous phases. Matrices have one row per component, in
+the system's component order. Coefficients use the mole-fraction Fick law.
+Black-oil diffusion requires component molar masses in kg/mol as
+`component_molar_masses` on `nothing` in the data domain.
 
 Unprefixed `diffusion` and `diffusivities` retain the pre-0.4 JutulDarcy
 per-phase format; each phase row is expanded over components during parameter
