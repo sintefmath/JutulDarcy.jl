@@ -233,7 +233,7 @@ function compute_well_target_contribution_matrix(w; step = missing)
                 w_step = 1.0
             else
                 # For periods we divide it by the number of steps in the period
-                if el.start >= step && el.stop <= step
+                if el.start <= step <= el.stop
                     w_step = 1.0/(el.stop - el.start + 1)
                 else
                     continue

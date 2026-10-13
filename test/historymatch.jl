@@ -107,3 +107,13 @@ using Test
     end
 end
 ##
+
+@testset "Inclusive mismatch periods" begin
+    data = Dict(:Injector => [(target = :bhp, start = 1, stop = 3, value = 6.0)],
+        :Producer => [(target = :rate, start = 1, stop = 1, value = 1.0),
+                      (target = :rate, start = 2, stop = 3, value = 4.0)])
+    contribution(; kwarg...) = sum(first(JutulDarcy.HistoryMatching.compute_well_target_contribution_matrix(data; kwarg...)))
+    totals = [contribution(step = i) for i in 0:4]
+    @test totals ≈ [0.0, 3.0, 4.0, 4.0, 0.0]
+    @test sum(totals) ≈ contribution()
+end
