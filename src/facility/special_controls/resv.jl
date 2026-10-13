@@ -78,7 +78,12 @@ function setup_average_resv_state(model::StandardBlackOilModel, rstate; qw = 0.0
     end
 
     svar = Jutul.get_secondary_variables(model)
-    b_var = svar[:ShrinkageFactors]
+    # TODO: Better solution here...
+    maybe_gpu = !(rstate.Pressure isa Array)
+    if maybe_gpu
+        b_var = Adapt.adapt(Array, svar[:ShrinkageFactors])
+        sys = Adapt.adapt(Array, sys)
+    end
     reg = b_var.regions
     if has_water
         a, l, v = phase_indices(sys)
