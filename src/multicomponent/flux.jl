@@ -27,7 +27,7 @@ end
     return setindex(q, mass_fluxes[a], N + 1)
 end
 
-@inline function inner_compositional!(q::SVector, X, Y, q_l, q_v, upw, ::Val{N}) where N
+@inline function inner_compositional!(q::StaticVector, X, Y, q_l, q_v, upw, ::Val{N}) where N
     # Static component indices avoid SVector copies and large GPU local-memory buffers.
     return map(q, eachindex(q)) do q_i, i
         if i <= N
@@ -82,7 +82,7 @@ end
     end
 end
 
-@inline function add_phase_diffusive_component_flux(q::SVector, D::AbstractMatrix, face, grad, S, ρ, mass_fractions::AbstractMatrix, phase, masses, ::Val{N}) where N
+@inline function add_phase_diffusive_component_flux(q::StaticVector, D::AbstractMatrix, face, grad, S, ρ, mass_fractions::AbstractMatrix, phase, masses, ::Val{N}) where N
     fractions = diffusive_mole_fraction_accessor(mass_fractions, masses, grad, Val(N))
     molar_density = phase_diffusive_molar_density(ρ, phase, S, grad, fractions, masses)
     return map(q, eachindex(q)) do q_i, i
