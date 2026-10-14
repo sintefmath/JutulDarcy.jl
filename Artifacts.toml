@@ -13,3 +13,12 @@ lazy = true
     [[spe10_model2.download]]
     sha256 = "3a4b0d7b9f37d21dad2453ebfa5cc02d07b0acb64b6cb88567d5c36f610c66d2"
     url = "https://github.com/sintefmath/JutulDarcy.jl/releases/download/v0.3.0/spe10_model2.tar.bz2"
+
+[spe11a_geo]
+git-tree-sha1 = "41ce5c62832a0703b1354689842642484ba6252f"
+lazy = true
+
+    [[spe11a_geo.download]]
+    sha256 = "56b201ca4a20f5a1752cfc366b8a70688c3837d8f2195df5617e406711a063ec"
+    size = 9199
+    url = "https://github.com/sintefmath/JutulDarcy.jl/releases/download/v0.3.3/spe11geo.tar.gz"

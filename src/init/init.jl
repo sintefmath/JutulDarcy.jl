@@ -943,12 +943,12 @@ end
 
 
 
-function phase_pressure_depth_table(depth, zmin, zmax, datum_pressure, density_f, phase)
+function phase_pressure_depth_table(depth, zmin, zmax, datum_pressure, density_f, phase; g = Jutul.gravity_constant)
     if zmin > depth
         z_up = Float64[]
         p_up = Float64[]
     else
-        z_up, p_up = integrate_phase_density(depth, zmin, datum_pressure, density_f, phase)
+        z_up, p_up = integrate_phase_density(depth, zmin, datum_pressure, density_f, phase, g = g)
         # Remove top point
         z_up = reverse!(z_up[2:end])
         p_up = reverse!(p_up[2:end])
@@ -957,7 +957,7 @@ function phase_pressure_depth_table(depth, zmin, zmax, datum_pressure, density_f
         z_down = Float64[]
         p_down = Float64[]
     else
-        z_down, p_down = integrate_phase_density(depth, zmax, datum_pressure, density_f, phase)
+        z_down, p_down = integrate_phase_density(depth, zmax, datum_pressure, density_f, phase, g = g)
     end
     z = vcat(z_up, z_down)
     p = vcat(p_up, p_down)

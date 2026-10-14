@@ -254,6 +254,9 @@ module JutulDarcy
     # Validation utilities
     include("CaseValidation/CaseValidation.jl")
 
+    # CSP11 benchmark cases
+    include("CSP11/CSP11.jl")
+
 
     @compile_workload begin
         try

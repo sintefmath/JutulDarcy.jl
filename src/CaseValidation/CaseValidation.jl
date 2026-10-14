@@ -230,7 +230,17 @@ module CaseValidation
     function validate_reservoir(res::DataDomain, model, result)
         for k in keys(res)
             allow_nonfinite = startswith(String(k), "scaler")
-            check(res[k], k, result, "reservoir_domain", allow_nonfinite = allow_nonfinite)
+            vals = res[k]
+            if k == :permeability && vals isa AbstractMatrix && all(isfinite, vals)
+                # Cross terms can be signed. Check xx/yy/zz directly through
+                # views, without constructing another cell-sized array.
+                dimension = Jutul.dim(physical_representation(res))
+                for row in JutulDarcy.permeability_diagonal_rows(vals, dimension)
+                    check(view(vals, row, :), k, result, "reservoir_domain")
+                end
+            else
+                check(vals, k, result, "reservoir_domain", allow_nonfinite = allow_nonfinite)
+            end
         end
     end
 
