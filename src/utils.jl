@@ -155,7 +155,6 @@ function reservoir_domain(g;
         all(isfinite, diffusion) || throw(ArgumentError("Keyword argument diffusion has non-finite entries."))
         kwarg = (diffusion = diffusion, kwarg...)
     end
-    minimum(permeability) >= 0 || throw(ArgumentError("All permeability values must be non-negative."))
     nk = length(permeability)
     nc = number_of_cells(g)
     if nk != nc && permeability isa AbstractVector
@@ -163,6 +162,15 @@ function reservoir_domain(g;
         if nk == d || (d == 2 && nk == 3) || (d == 3 && nk == 6)
             permeability = repeat(permeability, 1, nc)
         end
+    end
+
+    if permeability isa AbstractMatrix
+        for row in permeability_diagonal_rows(permeability, dim(g))
+            minimum(view(permeability, row, :)) >= 0 ||
+                throw(ArgumentError("Diagonal permeability values must be non-negative."))
+        end
+    else
+        minimum(permeability) >= 0 || throw(ArgumentError("All permeability values must be non-negative."))
     end
 
     reservoir = DataDomain(g;
@@ -269,6 +277,16 @@ function reservoir_domain(g;
         reservoir[:max_coordinate, Cells()] = max_bounds
     end
     return reservoir
+end
+
+function permeability_diagonal_rows(permeability::AbstractMatrix, dimension)
+    if dimension == 2 && size(permeability, 1) == 3
+        return (1, 3) # xx, yy
+    elseif dimension == 3 && size(permeability, 1) == 6
+        return (1, 4, 6) # xx, yy, zz
+    else
+        return axes(permeability, 1)
+    end
 end
 
 """
