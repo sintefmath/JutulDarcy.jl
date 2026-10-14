@@ -174,6 +174,15 @@ Thermal effects are modelled as an additional residual equation that comes in ad
 r_i = \frac{\partial}{\partial t}\Bigl(\rho_r U_r (1-\phi) + \sum_\alpha \rho_\alpha S_\alpha U_\alpha \phi \Bigr) + \nabla \cdot \left (\sum_\alpha ( H_\alpha \rho_\alpha v_\alpha - S_\alpha \lambda_\alpha \nabla T)-\lambda_r \nabla T \right) - Q_e
 ```
 
+### Fluid enthalpy and internal energy
+
+By default, the specific internal energy of the fluid is ``U_\alpha = C T`` where ``C`` is a constant heat capacity, and the enthalpy is ``H_\alpha = U_\alpha + p/\rho_\alpha``. For more accurate fluid physics, the enthalpy can instead be tabulated as a function of pressure and temperature using [`JutulDarcy.PressureTemperatureDependentEnthalpy`](@ref), with the internal energy given by ``U_\alpha = H_\alpha - p/\rho_\alpha`` ([`JutulDarcy.FluidInternalEnergyFromFluidEnthalpy`](@ref)). This is done automatically for the geothermal (`:geothermal`) and CO₂-brine (`:co2brine`) property setups. The enthalpy of injected fluid is then evaluated from the same tables at the injection temperature, unless the enthalpy is explicitly given in the [`InjectorControl`](@ref), so that the injected enthalpy is consistent with the reference state of the tables.
+
+```@docs
+JutulDarcy.PressureTemperatureDependentEnthalpy
+JutulDarcy.FluidInternalEnergyFromFluidEnthalpy
+```
+
 ### Total energy formulation
 
 By default, the conserved quantity is the thermal energy. Alternatively, the total energy formulation (`energy_formulation = :total` in [`setup_reservoir_model`](@ref) or [`JutulDarcy.add_thermal_to_model!`](@ref)) also includes the gravitational potential energy of the fluid, ``\Phi = -g z`` per unit mass:
