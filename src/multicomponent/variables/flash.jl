@@ -65,6 +65,12 @@ function initialize_variable_ad!(state, model, pvar::FlashResults, symb,
     return state
 end
 
+# Flash results do not support value/local AD access. Use the phase mass
+# fractions and other secondary variables in equation assembly instead.
+@inline function Jutul.value(::FlashedMixture2Phase)
+    throw(ArgumentError("FlashResults cannot be accessed through a value or local AD state. Use phase mass fractions instead."))
+end
+
 @inline function cell_composition(::Val{N}, composition, cell) where N
     T = eltype(composition)
     return SVector{N, T}(ntuple(i -> @inbounds(composition[i, cell]), Val(N)))
@@ -117,7 +123,8 @@ end
 @inline function phase_compressibility(eos, cond, phase)
     T = flash_condition_type(cond)
     phase_cond = (p = cond.p, T = cond.T, z = cond.z, phase = phase)
-    forces = MultiComponentFlash.static_force_coefficients(
+    # This condition already specifies the phase, so only build its coefficients.
+    forces = MultiComponentFlash.static_phase_force_coefficients(
         eos, phase_cond, T)
     scalars = force_scalars(eos, phase_cond, forces)
     return mixture_compressibility_factor(

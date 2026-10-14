@@ -62,56 +62,53 @@ Compute the component mass fluxes for a given face in a black oil model.
         q_v = rhoVS*λb_v*∇ψ_v
     end
 
-    if haskey(state, :Diffusivities)
-        S = state.Saturations
-        density = state.PhaseMassDensities
-        D = state.Diffusivities
-        if has_disgas(sys)
-            qo_diffusive_l, qo_diffusive_v = blackoil_diffusion(Rs, S, density, rhoLS, rhoVS, face, D, l, kgrad, upw)
-            q_l += qo_diffusive_l
-            q_v += qo_diffusive_v
-        end
-
-        if has_vapoil(sys)
-            qg_diffusive_v, qg_diffusive_l = blackoil_diffusion(Rv, S, density, rhoVS, rhoLS, face, D, v, kgrad, upw)
-            q_l += qg_diffusive_l
-            q_v += qg_diffusive_v
-        end
+    Dl = phase_diffusivities(state, LiquidPhase())
+    Dv = phase_diffusivities(state, VaporPhase())
+    S = state.Saturations
+    density = state.PhaseMassDensities
+    if has_disgas(sys) && !isnothing(Dl)
+        cell, = Jutul.cell_pair(kgrad)
+        masses = state.ComponentMolarMasses
+        qo_diffusive_l, qo_diffusive_v = blackoil_diffusion(Rs, S, density,
+            rhoLS, rhoVS, masses[l, cell], masses[v, cell], face, Dl, l, (l, v), kgrad)
+        q_l += qo_diffusive_l
+        q_v += qo_diffusive_v
+    end
+    if has_vapoil(sys) && !isnothing(Dv)
+        cell, = Jutul.cell_pair(kgrad)
+        masses = state.ComponentMolarMasses
+        qg_diffusive_v, qg_diffusive_l = blackoil_diffusion(Rv, S, density,
+            rhoVS, rhoLS, masses[v, cell], masses[l, cell], face, Dv, v, (v, l), kgrad)
+        q_l += qg_diffusive_l
+        q_v += qg_diffusive_v
     end
     q = setindex(q, q_l, l)
     q = setindex(q, q_v, v)
     return q
 end
 
-function blackoil_diffusion(R, S, density, rhoS_self, rhoS_dissolved, face, D, α, kgrad, upw)
-    @inbounds D_α = D[α, face]
-    X_self = cell -> black_oil_phase_mass_fraction(rhoS_self, rhoS_dissolved, R, cell)
-    # Two components: 1 - X_l - (1 - X_r) = - X_l + X_r = -(X_l - X_r) = ΔX
-    ΔX_self = -gradient(X_self, kgrad)
-    ΔX_other = -ΔX_self
-
-    T = typeof(ΔX_self)
-    mass_l = cell -> density[α, cell]*S[α, cell]
-    # TODO: Upwind or average here? Maybe doesn't matter, should be in
-    # parabolic limit for diffusion
-    # q_l += D_l*upwind(upw, mass_l, ΔX_o)*ΔX_o
-    # q_v += D_l*upwind(upw, mass_l, ΔX_g)*ΔX_g
-
-    diffused_mass = D_α*face_average(mass_l, kgrad)
-    diff_self = convert(T, diffused_mass*ΔX_self)
-    diff_dissolved = convert(T, diffused_mass*ΔX_other)
-    return (diff_self::T, diff_dissolved::T)::Tuple{T, T}
+function blackoil_diffusion(R, S, density, rhoS_self, rhoS_dissolved,
+        mass_self, mass_dissolved, face, D, α, components, kgrad)
+    self, other = components
+    X_self = cell -> black_oil_phase_mole_fraction(rhoS_self, rhoS_dissolved,
+        mass_self, mass_dissolved, R, cell)
+    function fractions(cell)
+        x = X_self(cell)
+        return (x, 1 - x)
+    end
+    molar_density = phase_diffusive_molar_density(density, α, S, kgrad,
+        fractions, (mass_self, mass_dissolved))
+    ΔX_self = gradient(X_self, kgrad)
+    diff_self = -D[self, face]*molar_density*mass_self*ΔX_self
+    diff_dissolved = D[other, face]*molar_density*mass_dissolved*ΔX_self
+    return (diff_self, diff_dissolved)
 end
 
-@inline function black_oil_phase_mass_fraction(rhoLS, rhoVS, Rs, cell)
-    # TODO: Should have molar weights here maybe, but not part of standard input
+@inline function black_oil_phase_mole_fraction(rhoLS, rhoVS, mass_self, mass_dissolved, Rs, cell)
     @inbounds rs = Rs[cell]
-    if rs < 1e-10
-        v = one(rs)
-    else
-        v = rhoLS/(rhoLS + rs*rhoVS)
-    end
-    return v
+    n_self = rhoLS/mass_self
+    n_dissolved = rhoVS/mass_dissolved
+    return n_self/(n_self + rs*n_dissolved)
 end
 
 function apply_flow_bc!(acc, q, bc, model::StandardBlackOilModel, state, time)

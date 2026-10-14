@@ -12,6 +12,8 @@ import ..JutulDarcy:
     FacilityFromWellTemperatureCT, FacilityFromWellEnthalpyCT,
     setup_reservoir_cross_terms!
 
+# import ..JutulDarcy: model_energy_formulation
+
 """
     merge_similar_wells(case::JutulCase)
 
@@ -151,7 +153,9 @@ function build_merged_well_model(original_model, names, merged_key)
         context = template.context, formulation = template.formulation,
         optimization_level = template.optimization_level)
     if haskey(template.primary_variables, :Temperature)
-        add_thermal_to_model!(merged_model)
+        add_thermal_to_model!(merged_model;
+        #    energy_formulation = model_energy_formulation(template)
+        )
     end
 
     template_equations = Set(keys(template.equations))
@@ -160,6 +164,11 @@ function build_merged_well_model(original_model, names, merged_key)
         throw(ArgumentError("Merging wells with additional equations is not supported."))
     end
 
+    # The template may have removed default variables (e.g. heat capacity when
+    # using tabulated internal energy). Preserve its complete variable set.
+    for field in (:primary_variables, :secondary_variables, :parameters)
+        empty!(getproperty(merged_model, field))
+    end
     transfer_variables_and_parameters!(merged_model, template, check_type = false)
     empty!(merged_model.output_variables)
     append!(merged_model.output_variables, template.output_variables)

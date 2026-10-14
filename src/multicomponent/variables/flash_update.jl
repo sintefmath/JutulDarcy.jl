@@ -134,8 +134,14 @@ end
 
     Num = promote_type(typeof(P), typeof(temperature), eltype(z))
     cond = (p = convert(Num, P), T = convert(Num, temperature), z = z)
-    if isnan(V_numeric)
-        is_vapor = single_phase_label(eos, cond_numeric) > 0.5
+    if isnan(V_numeric) || V_numeric <= 0 || V_numeric >= 1
+        # SSI can converge at a physical Rachford–Rice endpoint after the
+        # stability test. Implicit two-phase derivatives require 0 < V < 1.
+        if isnan(V_numeric)
+            is_vapor = single_phase_label(eos, cond_numeric) > 0.5
+        else
+            is_vapor = V_numeric >= 1
+        end
         state, V, x, y, Z_l, Z_v = single_phase_flash_result(
             eos, cond, cond_numeric, K_numeric, stability, is_vapor)
     else

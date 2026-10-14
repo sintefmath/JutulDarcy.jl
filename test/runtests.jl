@@ -64,6 +64,14 @@ end
     include("thermal.jl")
 end
 
+@testitem "Tabulated thermal properties" begin
+    include("thermal_properties.jl")
+end
+
+@testitem "Tabulated thermal backends" begin
+    include("thermal_backends.jl")
+end
+
 @testitem "NLDD" begin
     include("nldd.jl")
 end
@@ -86,6 +94,18 @@ end
 
 @testitem "Compositional validation" begin
     include("compositional.jl")
+end
+
+@testitem "Compositional flux sparsity tracing" begin
+    include("compositional_flux.jl")
+end
+
+@testitem "Component diffusion parameters and fluxes" begin
+    include("diffusion.jl")
+end
+
+@testitem "GASWAT deck physics" begin
+    include("gas_water.jl")
 end
 
 @testitem "Two-phase flash derivatives" begin

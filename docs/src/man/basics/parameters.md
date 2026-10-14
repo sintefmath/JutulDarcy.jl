@@ -12,6 +12,7 @@ JutulDarcy.FluidVolume
 
 ```@docs
 JutulDarcy.Transmissibilities
+JutulDarcy.Diffusivities
 ```
 
 ```@docs

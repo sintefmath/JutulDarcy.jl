@@ -16,7 +16,7 @@ function compute_bc_mass_fluxes(system::CompositionalSystemLV, bc, gmap, state)
     # TODO: Capillary pressure.
     T = Base.promote_type(typeof(q_vol), eltype(rho), eltype(mob))
     if q_vol > 0
-        q = zeros(T, nph, ncomp)
+        q = zero(MMatrix{nph, ncomp, T, nph*ncomp})
         X = state.LiquidMassFractions
         Y = state.VaporMassFractions
         # Pressure inside is higher than outside, flow out from domain
@@ -36,7 +36,7 @@ function compute_bc_mass_fluxes(system::CompositionalSystemLV, bc, gmap, state)
             q[v, i] = q_v*Y[i, c]
         end
     else
-        q = zeros(T, 1, ncomp)
+        q = zero(MMatrix{1, ncomp, T, ncomp})
         # TODO: This is duplicated code, factor out...
         # Injection of mass
         λ_t = 0.0
@@ -70,7 +70,7 @@ function compute_bc_mass_fluxes(system::CompositionalSystemLV, bc, gmap, state)
             end
         end
     end
-    return q
+    return SMatrix(q)
 
 end
 

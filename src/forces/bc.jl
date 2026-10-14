@@ -10,7 +10,9 @@
     trans_thermal = 1e-6
     )
 
-Dirchlet boundary condition for constant values (pressure/temperature) at some inflow boundary
+Dirichlet boundary condition for constant pressure/temperature at a boundary.
+Set `trans_flow = 0.0` for a mass-impermeable thermal boundary. Its
+`trans_thermal` is the conductive heat conductance in W/K.
 """
 function FlowBoundaryCondition(
         cell::Int,
@@ -174,10 +176,12 @@ function Jutul.apply_forces_to_equation!(acc, storage, model::SimulationModel{D,
     gmap = global_map(model)
     Jutul.threaded_loop(length(force), model.context) do index
         @inbounds bc = force[index]
-        c = bc.cell
-        acc_i = view(acc, :, c)
-        q = compute_bc_mass_fluxes(system, bc, gmap, state)
-        apply_flow_bc!(acc_i, q, bc, model, state, time)
+        if !iszero(bc.trans_flow)
+            c = bc.cell
+            acc_i = view(acc, :, c)
+            q = compute_bc_mass_fluxes(system, bc, gmap, state)
+            apply_flow_bc!(acc_i, q, bc, model, state, time)
+        end
     end
     return acc
 end
@@ -189,9 +193,23 @@ function Jutul.apply_forces_to_equation!(acc, storage, model::SimulationModel{D,
     Jutul.threaded_loop(length(force), model.context) do index
         @inbounds bc = force[index]
         c = bc.cell
-        acc_i = view(acc, :, c)
-        qh_adv, qh_cond = compute_bc_heat_fluxes(system, bc, gmap, state)
-        apply_flow_bc!(acc_i, qh_adv + qh_cond, bc, model, state, time)
+        if iszero(bc.trans_flow)
+            # Pure conduction needs no phase-flow allocation and can also be
+            # evaluated by a device kernel.
+            cell = Jutul.full_cell(c, gmap)
+            qh = bc.trans_thermal*(state.Temperature[cell] - bc.temperature)
+        else
+            qh_adv, qh_cond = compute_bc_heat_fluxes(system, bc, gmap, state)
+            qh = qh_adv + qh_cond
+        end
+        if eq isa ConservationLaw{:TotalEnergy} && !iszero(bc.trans_flow)
+            # Mass crossing the boundary carries the potential energy of the
+            # boundary cell
+            q = compute_bc_mass_fluxes(system, bc, gmap, state)
+            qh += sum(q)*state.UnitPotentialEnergy[Jutul.full_cell(c, gmap)]
+        end
+        # Energy has one equation per cell, including compositional models.
+        acc[1, c] += qh
     end
     return acc
 end

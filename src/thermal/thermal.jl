@@ -62,6 +62,12 @@ function Jutul.default_parameter_values(data_domain, model, param::ComponentHeat
 end
 
 struct FluidInternalEnergy <: PhaseVariables end
+"""
+    FluidInternalEnergyFromFluidEnthalpy()
+
+Compute phase-specific internal energy from specific enthalpy as `u = h - p/ρ`.
+"""
+struct FluidInternalEnergyFromFluidEnthalpy <: PhaseVariables end
 struct FluidEnthalpy <: PhaseVariables end
 
 struct TemperatureDependentVariable{T, R, N} <: VectorVariables
@@ -138,7 +144,14 @@ end
     return result
 end
 
-struct PressureTemperatureDependentEnthalpy{T, R, N} <: VectorVariables
+"""
+    PressureTemperatureDependentEnthalpy(tab; regions = nothing)
+
+Tabulated specific enthalpy as a function of pressure and temperature. Tables
+provide phase enthalpies for immiscible systems and pure component enthalpies
+for compositional systems, where phase mass fractions define a linear mixing rule.
+"""
+struct PressureTemperatureDependentEnthalpy{T, R, N} <: PhaseVariables
     tab::T
     regions::R
     function PressureTemperatureDependentEnthalpy(tab; regions = nothing)
@@ -157,28 +170,48 @@ function Jutul.values_per_entity(model, ::PressureTemperatureDependentEnthalpy{T
     return N
 end
 
-@jutul_secondary function update_temperature_dependent_enthalpy!(H_phases, var::PressureTemperatureDependentEnthalpy{T, R, N}, model::CompositionalModel, Pressure, Temperature, LiquidMassFractions, VaporMassFractions, PhaseMassDensities, ix) where {T, R, N}
+function Jutul.values_per_entity(model::CompositionalModel, ::PressureTemperatureDependentEnthalpy)
+    return number_of_phases(model.system)
+end
+
+function Jutul.subvariable(var::PressureTemperatureDependentEnthalpy{T, R, N}, map::FiniteVolumeGlobalMap) where {T, R, N}
+    regions = Jutul.partition_variable_slice(var.regions, map.cells)
+    return PressureTemperatureDependentEnthalpy(var.tab, regions, Val(N))
+end
+
+@jutul_secondary function update_temperature_dependent_enthalpy!(H_phases, var::PressureTemperatureDependentEnthalpy{T, R, N}, model, Pressure, Temperature, ix) where {T, R, N}
+    for c in ix
+        reg = region(var.regions, c)
+        interpolator = table_by_region(var.tab, reg)
+        phase_H = interpolator(Pressure[c], Temperature[c])
+        for ph in 1:N
+            H_phases[ph, c] = phase_H[ph]
+        end
+    end
+    return H_phases
+end
+
+@jutul_secondary function update_temperature_dependent_enthalpy!(H_phases, var::PressureTemperatureDependentEnthalpy{Tab, R, N}, model::CompositionalModel, Pressure, Temperature, LiquidMassFractions, VaporMassFractions, ix) where {Tab, R, N}
     fsys = model.system
     @assert !has_other_phase(fsys)
     @assert N == number_of_components(fsys)
     l, v = phase_indices(fsys)
 
     X, Y = LiquidMassFractions, VaporMassFractions
-    rho = PhaseMassDensities
     for c in ix
         reg = region(var.regions, c)
         interpolator = table_by_region(var.tab, reg)
         component_H = interpolator(Pressure[c], Temperature[c])
-        H_l = 0.0
-        H_v = 0.0
+        T = eltype(component_H)
+        H_l = zero(T)
+        H_v = zero(T)
         for i in 1:N
             H_i = component_H[i]
             H_l += X[i, c]*H_i
             H_v += Y[i, c]*H_i
         end
-        # p = Pressure[c]
-        H_phases[l, c] = H_l# + p/rho[l, c]
-        H_phases[v, c] = H_v# + p/rho[v, c]
+        H_phases[l, c] = H_l
+        H_phases[v, c] = H_v
     end
     return H_phases
 end
