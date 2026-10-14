@@ -28,6 +28,9 @@ regions, observation points and boundary conditions. It must provide
 `:permeability` and `:porosity`; `:satnum` is inferred from the geometry when
 missing.
 
+`pc_limit` caps the capillary-pressure tables in pascals (default: 20 bar).
+Use `pc_limit = Inf` to retain the full benchmark curves.
+
 """
 function setup_spe11_case(domain_or_dims;
         case = :b,
@@ -37,17 +40,25 @@ function setup_spe11_case(domain_or_dims;
         domain_kwargs = NamedTuple(),
         well_kwargs = NamedTuple(),
         thermal = case != :a,
-        nstep_initialization = ifelse(thermal, 10, 0),
+        nstep_initialization = nothing,
         nstep_injection1 = 50,
         nstep_injection2 = 50,
         nstep_migration = 100,
         use_reporting_steps = false,
         divide_c_wells = true,
         kgrad = :tpfa,
+        pc_limit = 20*si_unit(:bar),
         kwarg...
     )
     check_spe11_case(case)
     case == :a && thermal && throw(ArgumentError("SPE11A is isothermal; use thermal = false"))
+    if isnothing(nstep_initialization)
+        if thermal
+            nstep_initialization = 10
+        else
+            nstep_initialization = 0
+        end
+    end
     if domain_or_dims isa Tuple && all(x -> x isa Integer, domain_or_dims)
         dims = Tuple(Int.(domain_or_dims))
         domain = setup_spe11_domain(dims; case = case, domain_kwargs...)
@@ -76,7 +87,7 @@ function setup_spe11_case(domain_or_dims;
     end
     model, parameters = setup_reservoir_model_csp11(domain;
         case = case, wells = wells, thermal = thermal, dT_max_abs = 30.0,
-        kgrad = kgrad, kwarg...)
+        kgrad = kgrad, pc_limit = pc_limit, kwarg...)
     check_spe11_volumes(model, parameters, case)
     rates2 = copy(domain[:well_rates])
     rates1 = copy(rates2)
@@ -89,7 +100,11 @@ function setup_spe11_case(domain_or_dims;
         nstep_injection2 = nstep_injection2,
         nstep_migration = nstep_migration,
         use_reporting_steps = use_reporting_steps)
-    othername = thermal ? "thermal" : "isothermal"
+    if thermal
+        othername = "thermal"
+    else
+        othername = "isothermal"
+    end
     name = "spe11$(case)_$(name)_$(othername)_$kgrad"
     state0 = setup_state0_csp11(model, case)
 
@@ -203,10 +218,11 @@ function spe11_reporting_regions!(domain, case)
     A = zeros(nc)
     B = zeros(nc)
     C = zeros(nc)
-    boxes = spe11_case_specification(case).reporting_boxes
+    spec = spe11_case_specification(case)
+    boxes = spec.reporting_boxes
     for i in 1:nc
         x = cc[1, i]
-        elevation = (case == :a ? 1.2 : spe11_size_z) - cc[3, i]
+        elevation = spec.physical_size[3] - cc[3, i]
         for (weights, box) in zip((A, B, C), boxes)
             xmin, xmax, zmin, zmax = box
             weights[i] = xmin <= x <= xmax && zmin <= elevation <= zmax
@@ -294,7 +310,11 @@ function spe11_thermal_boundary_conditions(model; well_rates = Dict{Symbol, Floa
     # The impermeable top/bottom facies contain water. Match the reservoir's
     # parallel rock/fluid conductivity, using the physical boundary geometry.
     fluid = domain[:fluid_thermal_conductivity]
-    water = fluid isa AbstractVector ? fluid : vec(fluid[1, :])
+    if fluid isa AbstractVector
+        water = fluid
+    else
+        water = vec(fluid[1, :])
+    end
     conductivity = (1.0 .- phi).*domain[:rock_thermal_conductivity] .+ phi.*water
     trans = compute_boundary_trans(domain, conductivity)
     # Aggregate by cell so even a one-layer grid has one force per cell. This
@@ -460,7 +480,11 @@ function reservoir_domain_csp11(G, case = :b; satnum,
     nc = number_of_cells(G)
     length(satnum) == nc || throw(ArgumentError("satnum must have number of cells entries ($nc), was $(length(satnum))"))
     all(in(1:7), satnum) || throw(ArgumentError("SPE11 saturation regions must be in 1:7"))
-    porosity = porosity isa Real ? fill(porosity, nc) : copy(porosity)
+    if porosity isa Real
+        porosity = fill(porosity, nc)
+    else
+        porosity = copy(porosity)
+    end
     porosity[satnum .== 7] .= spe11_facies7_porosity
     options = merge(spe11_thermal_properties(satnum, case), values(kwarg))
     domain = reservoir_domain(G; satnum = satnum, permeability = permeability,
@@ -468,7 +492,10 @@ function reservoir_domain_csp11(G, case = :b; satnum,
     if isnothing(temperature)
         temperature = spe11_temperature.(domain[:cell_centroids][3, :], case)
     end
-    domain[:temperature, Cells()] = temperature isa Real ? fill(temperature, nc) : temperature
+    if temperature isa Real
+        temperature = fill(temperature, nc)
+    end
+    domain[:temperature, Cells()] = temperature
     domain[:spe11_case, nothing] = case
     return domain
 end
@@ -521,7 +548,11 @@ function spe11_erf(x)
         tail = t*exp(-ax^2 - 1.26551223 + t*polynomial)
         value = 1.0 - tail
     end
-    return signbit(x) ? -value : value
+    if signbit(x)
+        return -value
+    else
+        return value
+    end
 end
 
 function spe11_capillary_pressure(sg, immobile, entry_pressure;
@@ -540,9 +571,11 @@ end
 function spe11_capillary_pressure_table(immobile, entry_pressure;
         relative_tolerance = 1e-3,
         absolute_tolerance = 1.0,
+        pc_limit = 20*si_unit(:bar),
         kwarg...
     )
-    pc(sg) = spe11_capillary_pressure(sg, immobile, entry_pressure; kwarg...)
+    pc_limit > 0.0 || throw(ArgumentError("pc_limit must be positive; use Inf for no truncation"))
+    pc(sg) = min(pc_limit, spe11_capillary_pressure(sg, immobile, entry_pressure; kwarg...))
     effective_saturation = vcat(
         collect(range(0.0, 1.0; length = 17)),
         10.0.^range(-14.0, 0.0; length = 33)
@@ -585,7 +618,7 @@ function spe11_capillary_pressure_table(immobile, entry_pressure;
 end
 
 """
-    spe11_saturation_functions(satnum; case = :b)
+    spe11_saturation_functions(satnum; case = :b, pc_limit = 20*si_unit(:bar))
 
 Construct the SPE11 Brooks-Corey relative-permeability and capillary-
 pressure functions directly from the benchmark parameters. The original
@@ -593,9 +626,12 @@ PYOPMSPE11 deck represented the same functions with 200,000 coupled `SGOF`
 rows per permeable facies. Relative permeability is sampled independently on a
 small uniform effective-saturation grid, while capillary pressure uses adaptive
 sampling around its much sharper transition.
+`pc_limit` truncates the tables in pascals without changing the underlying
+benchmark curve below the limit. Use `Inf` for the full benchmark curve.
 """
-function spe11_saturation_functions(satnum; case = :b)
+function spe11_saturation_functions(satnum; case = :b, pc_limit = 20*si_unit(:bar))
     check_spe11_case(case)
+    pc_limit > 0.0 || throw(ArgumentError("pc_limit must be positive; use Inf for no truncation"))
     spec = spe11_case_specification(case)
     exponent = spec.exponent
     max_pressure = spec.max_capillary_pressure
@@ -605,7 +641,13 @@ function spe11_saturation_functions(satnum; case = :b)
     gas = spe11_phase_relative_permeability(
         spe11_nonwetting_immobile_saturation, :g; exponent = exponent)
     impermeable_gas = PhaseRelativePermeability([0.0, 1.0], [0.0, 1.0]; label = :g)
-    gas_tables = ntuple(i -> i == 7 ? impermeable_gas : gas, 7)
+    gas_tables = ntuple(7) do i
+        if i == 7
+            impermeable_gas
+        else
+            gas
+        end
+    end
 
     impermeable_liquid = PhaseRelativePermeability([0.0, 1.0], [0.0, 1.0]; label = :og)
     liquid_tables = ntuple(7) do i
@@ -625,15 +667,22 @@ function spe11_saturation_functions(satnum; case = :b)
     capillary_tables = ntuple(7) do i
         if i == 7
             # The deck used a two-point fallback for the impermeable facies.
-            Jutul.LinearInterpolant(
-                [0.0, 1.0], [0.0, max_pressure];
-                constant_dx = false
-            )
+            if pc_limit < max_pressure
+                Jutul.LinearInterpolant(
+                    [0.0, pc_limit/max_pressure, 1.0], [0.0, pc_limit, pc_limit];
+                    constant_dx = false
+                )
+            else
+                Jutul.LinearInterpolant(
+                    [0.0, 1.0], [0.0, max_pressure];
+                    constant_dx = false
+                )
+            end
         else
             entry_pressure = spec.entry_pressure[i]
             spe11_capillary_pressure_table(
                 spe11_wetting_immobile_saturation[i], entry_pressure;
-                exponent = exponent, max_pressure = max_pressure)
+                exponent = exponent, max_pressure = max_pressure, pc_limit = pc_limit)
         end
     end
     capillary_pressure = JutulDarcy.SimpleCapillaryPressure(
@@ -643,7 +692,7 @@ end
 
 function setup_reservoir_model_csp11(reservoir::DataDomain;
         case = get(reservoir, :spe11_case, :b), include_satfun = true,
-        thermal = false, kwarg...)
+        thermal = false, pc_limit = 20*si_unit(:bar), kwarg...)
     check_spe11_case(case)
     case == :a && thermal && throw(ArgumentError("SPE11A is isothermal; use thermal = false"))
     reservoir[:gdz, Faces()] = JutulDarcy.compute_face_gdz(reservoir[:neighbors], reservoir[:cell_centroids][3, :]; g = spe11_gravity)
@@ -657,7 +706,7 @@ function setup_reservoir_model_csp11(reservoir::DataDomain;
         parameters[name][:PerforationGravityDifference] .*= spe11_gravity/Jutul.gravity_constant
     end
     if include_satfun
-        kr, pc = spe11_saturation_functions(reservoir[:satnum]; case = case)
+        kr, pc = spe11_saturation_functions(reservoir[:satnum]; case = case, pc_limit = pc_limit)
         set_secondary_variables!(model[:Reservoir],
             RelativePermeabilities = kr,
             CapillaryPressure = pc
@@ -685,13 +734,26 @@ end
 
 function setup_reservoir_forces_and_timesteps_csp11(model, case = :b;
         well_labels = JutulDarcy.well_symbols(model),
-        nstep_initialization = case == :a ? 0 : 1,
+        nstep_initialization = nothing,
         nstep_injection1 = 1, nstep_injection2 = 1, nstep_migration = 1,
-        rate_injection1 = [i == 1 ? spe11_case_specification(case).injection_rate : 0.0 for i in eachindex(well_labels)],
+        rate_injection1 = nothing,
         rate_injection2 = fill(spe11_case_specification(case).injection_rate, length(well_labels)),
         use_reporting_steps = false,
         injection_temperature = spe11_case_specification(case).injection_temperature)
     spec = spe11_case_specification(case)
+    if isnothing(nstep_initialization)
+        if case == :a
+            nstep_initialization = 0
+        else
+            nstep_initialization = 1
+        end
+    end
+    if isnothing(rate_injection1)
+        rate_injection1 = zeros(length(well_labels))
+        if !isempty(rate_injection1)
+            rate_injection1[1] = spec.injection_rate
+        end
+    end
     counts = (nstep_initialization, nstep_injection1, nstep_injection2, nstep_migration)
     all(n -> n isa Integer && n >= 0, counts) || throw(ArgumentError("Step counts must be non-negative integers"))
     all(>(0), counts[2:end]) || throw(ArgumentError("Injection and migration periods must have at least one step"))
@@ -702,27 +764,55 @@ function setup_reservoir_forces_and_timesteps_csp11(model, case = :b;
     _, rho_co2 = JutulDarcy.reference_densities(reservoir_model(model).system)
     dt = Float64[]
     forces = Dict{Symbol, Any}[]
-    base_bc = case == :a ? spe11_pressure_boundary_conditions(model) : spe11_thermal_boundary_conditions(model)
+    if case == :a
+        base_bc = spe11_pressure_boundary_conditions(model)
+    else
+        base_bc = nothing
+    end
     function forcing(rates)
         controls = Dict(name => rate_to_injection_control(rate, rho_co2, injection_temperature)
             for (name, rate) in zip(well_labels, rates))
-        bc = case == :a ? base_bc : spe11_thermal_boundary_conditions(model;
-            well_rates = Dict(zip(well_labels, rates)), injection_temperature = injection_temperature)
-        well_forces = Dict(name => setup_forces(model[name];
-            mask = PerforationMask(fill(rate > 0.0 ? 1.0 : 0.0,
-                length(physical_representation(model[name].data_domain).perforations.reservoir))))
-            for (name, rate) in zip(well_labels, rates))
+        if case == :a
+            bc = base_bc
+        else
+            bc = spe11_thermal_boundary_conditions(model;
+                well_rates = Dict(zip(well_labels, rates)), injection_temperature = injection_temperature)
+        end
+        well_forces = Dict{Symbol, Any}()
+        for (name, rate) in zip(well_labels, rates)
+            if rate > 0.0
+                multiplier = 1.0
+            else
+                multiplier = 0.0
+            end
+            well = physical_representation(model[name].data_domain)
+            mask = PerforationMask(fill(multiplier, length(well.perforations.reservoir)))
+            well_forces[name] = setup_forces(model[name]; mask = mask)
+        end
         return setup_reservoir_forces(model; control = controls, bc = bc, well_forces...)
     end
     disabled = forcing(zeros(length(well_labels)))
-    initialization = nstep_initialization == 0 ? 0.0 : spec.initialization_time
+    if nstep_initialization == 0
+        initialization = 0.0
+    else
+        initialization = spec.initialization_time
+    end
     reservoir_domain(model)[:spe11_initialization_time, nothing] = initialization
     if initialization > 0.0
-        steps = use_reporting_steps ? 1 : nstep_initialization
+        if use_reporting_steps
+            steps = 1
+        else
+            steps = nstep_initialization
+        end
         add_timesteps_and_forces!(dt, forces, fill(initialization/steps, steps), disabled)
     end
     if use_reporting_steps
-        times = spe11_reporting_times(case; kind = case == :a ? :sparse : :dense)
+        if case == :a
+            kind = :sparse
+        else
+            kind = :dense
+        end
+        times = spe11_reporting_times(case; kind = kind)
     else
         t1, t2 = spec.injection_times
         times = [0.0;
@@ -734,7 +824,13 @@ function setup_reservoir_forces_and_timesteps_csp11(model, case = :b;
     injection1_end, injection_end = spec.injection_times[1], sum(spec.injection_times)
     for i in 2:length(times)
         start = times[i-1]
-        force = start < injection1_end ? f1 : start < injection_end ? f2 : disabled
+        if start < injection1_end
+            force = f1
+        elseif start < injection_end
+            force = f2
+        else
+            force = disabled
+        end
         add_timesteps_and_forces!(dt, forces, (times[i] - start,), force)
     end
     return forces, dt

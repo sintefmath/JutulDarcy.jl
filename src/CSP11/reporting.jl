@@ -24,7 +24,13 @@ function CSP11ReportHelper(domain; specase = get(domain, :spe11_case, :b))
         findall(==(1), domain[:satnum]), reformat_weights(buffer_fraction), domain[:satnum])
 end
 
-reservoir_reporting_state(state) = haskey(state, :Reservoir) ? state[:Reservoir] : state
+function reservoir_reporting_state(state)
+    if haskey(state, :Reservoir)
+        return state[:Reservoir]
+    else
+        return state
+    end
+end
 
 """
     get_reporting_hook(path, domain; time_offset, interval)
@@ -42,8 +48,11 @@ function get_reporting_hook(path, domain; specase = get(domain, :spe11_case, :b)
     file = joinpath(path, "spe11$(specase)_time_series.csv")
     helper = CSP11ReportHelper(domain; specase = specase)
     header = "# t [s], p1 [Pa], p2 [Pa], mobA [kg], immA [kg], dissA [kg], sealA [kg], mobB [kg], immB [kg], dissB [kg], sealB [kg], M_C [m^2], sealTot [kg]"
+    if specase != :a
+        header *= ", boundTot [kg]"
+    end
     open(file, "w") do io
-        println(io, specase == :a ? header : header * ", boundTot [kg]")
+        println(io, header)
     end
     handler = CSP11ReportHandler(0.0, 0.0)
     final_time = spe11_case_specification(specase).simulation_time
@@ -83,7 +92,17 @@ function reporting_values(helper::CSP11ReportHelper, state)
 end
 
 function write_reporting_values(io, values)
-    println(io, join((x isa Real ? Jutul.@sprintf("%1.15e", Jutul.value(x)) : string(x) for x in values), ", "))
+    for (i, x) in enumerate(values)
+        if i > 1
+            print(io, ", ")
+        end
+        if x isa Real
+            Jutul.@printf(io, "%1.15e", Jutul.value(x))
+        else
+            print(io, x)
+        end
+    end
+    println(io)
 end
 
 function co2_measures(state, cells, satnum)
@@ -156,7 +175,11 @@ end
 
 function map_to_reporting_grid(case, states::AbstractVector; weights, dims)
     mapping = reporting_mapping(weights, number_of_cells(case.model[:Reservoir].domain), dims)
-    temperature = hasproperty(case, :parameters) ? get(case.parameters[:Reservoir], :Temperature, nothing) : nothing
+    if hasproperty(case, :parameters)
+        temperature = get(case.parameters[:Reservoir], :Temperature, nothing)
+    else
+        temperature = nothing
+    end
     return [map_to_reporting_grid(state, mapping; temperature = temperature) for state in states]
 end
 
@@ -197,8 +220,14 @@ function write_reporting_grid(case, states, path, specase::Symbol; weights,
             fraction = (time - times[index])/(times[index+1] - times[index])
             data = Dict(key => mapped[index][key] .+ fraction.*(mapped[index+1][key] .- mapped[index][key]) for key in keys(mapped[index]))
         end
-        unit = specase == :a ? si_unit(:hour) : spe11_year
-        stamp, suffix = round(Int, time/unit), specase == :a ? "h" : "y"
+        if specase == :a
+            unit = si_unit(:hour)
+            suffix = "h"
+        else
+            unit = spe11_year
+            suffix = "y"
+        end
+        stamp = round(Int, time/unit)
         file = joinpath(path, "spe11$(specase)_spatial_map_$(stamp)$(suffix).csv")
         write_timestep_dense(file, dims, spec.physical_size, data;
             thermal = specase != :a, three_dimensional = specase == :c)
@@ -209,14 +238,28 @@ function write_timestep_dense(file, dims, physical_size, data; thermal, three_di
     nx, ny, nz = dims
     dx, dy, dz = physical_size./dims
     open(file, "w") do io
-        header = three_dimensional ? "# x [m], y [m], z [m]" : "# x [m], z [m]"
+        if three_dimensional
+            header = "# x [m], y [m], z [m]"
+        else
+            header = "# x [m], z [m]"
+        end
         header *= ", pressure [Pa], gas saturation [-], mass fraction of CO2 in liquid [-], mass fraction of H2O in vapor [-], phase mass density gas [kg/m3], phase mass density water [kg/m3], total mass CO2 [kg]"
-        println(io, thermal ? header * ", temperature [C]" : header)
+        if thermal
+            header *= ", temperature [C]"
+        end
+        println(io, header)
         index = 1
         for k in 1:nz, j in 1:ny, i in 1:nx
-            coordinates = three_dimensional ? ((i - 0.5)*dx, (j - 0.5)*dy, (k - 0.5)*dz) : ((i - 0.5)*dx, (k - 0.5)*dz)
+            if three_dimensional
+                coordinates = ((i - 0.5)*dx, (j - 0.5)*dy, (k - 0.5)*dz)
+            else
+                coordinates = ((i - 0.5)*dx, (k - 0.5)*dz)
+            end
             values = (coordinates..., (data[key][index] for key in (:p, :sg, :x_co2, :y_h2o, :rho_g, :rho_w, :co2_mass))...)
-            write_reporting_values(io, thermal ? (values..., data[:T][index] - 273.15) : values)
+            if thermal
+                values = (values..., data[:T][index] - 273.15)
+            end
+            write_reporting_values(io, values)
             index += 1
         end
     end
@@ -225,7 +268,11 @@ end
 function print_performance(path, states, reports, specase::Symbol; model = nothing,
         time_offset = spe11_case_specification(specase).initialization_time)
     mkpath(path)
-    degrees_of_freedom = isnothing(model) ? "n/a" : Jutul.number_of_degrees_of_freedom(model)
+    if isnothing(model)
+        degrees_of_freedom = "n/a"
+    else
+        degrees_of_freedom = Jutul.number_of_degrees_of_freedom(model)
+    end
     current_time = total_time = 0.0
     open(joinpath(path, "spe11$(specase)_performance_time_series_detailed.csv"), "w") do io
         println(io, "# t [s], avg timestep [s], failed timesteps, mass of CO2 [kg], ndof, nliter, nres, liniter, runtime [s], tlinsol [s]")
@@ -235,7 +282,11 @@ function print_performance(path, states, reports, specase::Symbol; model = nothi
             current_time < time_offset && continue
             ministeps = report[:ministeps]
             successful = filter(step -> step[:success], ministeps)
-            average_step = isempty(successful) ? "n/a" : sum(step[:dt] for step in successful)/length(successful)
+            if isempty(successful)
+                average_step = "n/a"
+            else
+                average_step = sum(step[:dt] for step in successful)/length(successful)
+            end
             stats = [step[:stats] for step in ministeps]
             state = reservoir_reporting_state(states[i])
             values = (current_time - time_offset, average_step, count(step -> !step[:success], ministeps),

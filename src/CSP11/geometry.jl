@@ -89,7 +89,8 @@ function spe11_reference_volumes(case)
     check_spe11_case(case)
     areas = zeros(7)
     side_lengths = zeros(7)
-    scale_x, scale_z = spe11_case_specification(case).geometry_scale
+    spec = spe11_case_specification(case)
+    scale_x, scale_z = spec.geometry_scale
     xmax = 2.8
     for p in spe11_geometry()
         polygon = p.polygon
@@ -104,19 +105,24 @@ function spe11_reference_volumes(case)
         end
         areas[p.facies] += abs(signed_area)*scale_x*scale_z/2
     end
-    thickness = case == :a ? 0.01 : case == :b ? 1.0 : spe11_size_y
+    thickness = spec.physical_size[2]
     boundary_areas = side_lengths.*thickness
     if case == :c
         # The C mapping preserves both volume and the areas of the lateral
         # boundary planes. Front and back each contain the B cross-section.
         boundary_areas .+= 2 .* areas
     end
-    facies = spe11_case_specification(case).buffer_facies
+    facies = spec.buffer_facies
     _, porosity = rock_props_from_satnum(collect(1:7), case)
     physical_bulk = sum(areas)*thickness
     physical_pore = sum(areas.*porosity)*thickness
-    buffer_bulk = case == :a ? 0.0 : spe11_buffer_length*sum(boundary_areas[facies])
-    buffer_pore = case == :a ? 0.0 : spe11_buffer_length*sum((boundary_areas.*porosity)[facies])
+    if case == :a
+        buffer_bulk = 0.0
+        buffer_pore = 0.0
+    else
+        buffer_bulk = spe11_buffer_length*sum(boundary_areas[facies])
+        buffer_pore = spe11_buffer_length*sum((boundary_areas.*porosity)[facies])
+    end
     return (physical_bulk = physical_bulk, physical_pore = physical_pore,
         buffer_bulk = buffer_bulk, buffer_pore = buffer_pore,
         bulk = physical_bulk + buffer_bulk, pore = physical_pore + buffer_pore)
@@ -177,8 +183,12 @@ before querying the two-dimensional reference geometry.
 """
 function spe11_facies(x, y, depth; case = :c)
     check_spe11_case(case)
-    offset = case == :c ? spe11c_elevation_offset(y) : 0.0
-    height = case == :a ? 1.2 : spe11_size_z
+    if case == :c
+        offset = spe11c_elevation_offset(y)
+    else
+        offset = 0.0
+    end
+    height = spe11_case_specification(case).physical_size[3]
     reference_elevation = height - depth - offset
     return spe11_facies(x, reference_elevation; case = case)
 end
