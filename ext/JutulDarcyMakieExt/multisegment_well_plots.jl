@@ -246,15 +246,17 @@ function JutulDarcy.plot_well_vs_meters_drilled!(ax, well_model, values;
 
     if has_sections
         sections = well_model.data_domain[:section]
-        if length(values) == n_segments
-            sections = max.(sections[N[1,:]], sections[N[2,:]])
-            joints = findall(sections[N[1,:]] .!= sections[N[2,:]])
-            sections[joints] .= -1  # Assign a new section for joints
-        end
         num_sections = maximum(sections)
+        if length(values) == n_segments
+            left_sections = sections[N[1,:]]
+            right_sections = sections[N[2,:]]
+            sections = max.(left_sections, right_sections)
+            joints = findall(left_sections .!= right_sections)
+            sections[joints] .= -1  # Do not join lines across section boundaries.
+        end
         if ismissing(colors)
             if num_sections <= 7
-                colors = Makie.wong_colors(num_sections)  # Use Wong's color palette for better distinction
+                colors = Makie.wong_colors()  # Use Wong's color palette for better distinction
             elseif num_sections <= 10
                 colors = cgrad(:tab10, num_sections, categorical = true) # Use Tab10 for up to 10 sections
             elseif num_sections <= 20

@@ -49,7 +49,7 @@ function JutulDarcy.plot_co2_inventory(t, inventory; plot_type = :stack)
         for k in targets
             val = getd(k)
             push!(cake_data, val[end])
-            lines!(ax, x, lower, upper, label = get_label(k))
+            lines!(ax, x, val, label = get_label(k))
         end
     end
     axislegend(position = :lt)
