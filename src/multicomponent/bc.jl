@@ -1,5 +1,5 @@
 function compute_bc_mass_fluxes(system::CompositionalSystemLV, bc, gmap, state)
-    c = bc.cell
+    c = Jutul.full_cell(bc.cell, gmap)
     T_f = bc.trans_flow
     p = state.Pressure
     Δp = p[c] - bc.pressure
@@ -12,7 +12,6 @@ function compute_bc_mass_fluxes(system::CompositionalSystemLV, bc, gmap, state)
 
     rho_inj = bc.density
     f_inj = bc.fractional_flow
-    c = bc.cell
     # TODO: Capillary pressure.
     T = Base.promote_type(typeof(q_vol), eltype(rho), eltype(mob))
     if q_vol > 0
