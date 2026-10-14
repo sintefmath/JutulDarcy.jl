@@ -387,6 +387,10 @@ function forces_from_constraints(well_setup, observation_data, streams, date, sy
                         continue
                     end
                     if endswith(uppercase(k), "_RATE")
+                        if abs(v) < 1e-16
+                            # Do not set zero limits!
+                            continue
+                        end
                         v *= wsgn
                     end
                     if ck == :bhp

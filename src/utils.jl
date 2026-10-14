@@ -3505,7 +3505,6 @@ function unit_system_unit_conversion(unit_sys, lbl, t)
             u = :centipoise
             lbl = "cP"
         elseif t == :volume
-            u = missing
             lbl = "m³"
         elseif t == :mass
             u = :kilogram
@@ -3513,7 +3512,7 @@ function unit_system_unit_conversion(unit_sys, lbl, t)
         end
     elseif unit_sys == "field"
         if t == :gas_volume_surface
-            u = si_unit(:kilo)*si_unit(:feet)^3
+            u = inv(si_unit(:kilo)*si_unit(:feet)^3)
             lbl = "MScf"
         elseif t == :gas_volume_reservoir
             u = :stb
@@ -3546,7 +3545,7 @@ function unit_system_unit_conversion(unit_sys, lbl, t)
             u = :centipoise
             lbl = "cP"
         elseif t == :volume
-            u = missing
+            u = inv(si_unit(:feet)^3)
             lbl = "ft³"
         elseif t == :mass
             u = :pound

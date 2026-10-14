@@ -90,3 +90,9 @@ end
     @test Tt_computed[end-1] == 0.2
     @test Tt_computed[end] == 0.3
 end
+
+@testset "Plot unit conversion factors" begin
+    @test JutulDarcy.unit_system_unit_conversion("Metric", "", :volume) == (1.0, "m³")
+    @test first(JutulDarcy.unit_system_unit_conversion("Field", "", :volume)) ≈ 1 / 0.3048^3
+    @test first(JutulDarcy.unit_system_unit_conversion("Field", "", :gas_volume_surface)) ≈ 1 / (1000 * 0.3048^3)
+end

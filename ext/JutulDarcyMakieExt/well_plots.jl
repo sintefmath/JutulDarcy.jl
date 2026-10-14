@@ -1,5 +1,3 @@
-using Dates, Printf
-
 function JutulDarcy.plot_well!(ax, g, w;
         color = :darkred,
         textcolor = nothing,
@@ -81,7 +79,7 @@ function JutulDarcy.plot_well!(ax, g, w;
     npts = length(x)
     spts = fill(markersize, npts)
     spts[1] = 0
-    plt = scatterlines!(ax, x, y, z,
+    plt = scatterlines!(ax, x, y, z;
         transparency = transparency,
         linewidth = linewidth,
         color = color,
@@ -129,6 +127,13 @@ function JutulDarcy.plot_well_results(r::JutulDarcy.ReservoirSimResult; kwarg...
     return JutulDarcy.plot_well_results(r.wells; kwarg...)
 end
 
+function plot_unit_system(unit_system)
+    names = ("Metric", "SI", "Field")
+    index = findfirst(u -> lowercase(u) == lowercase(unit_system), names)
+    isnothing(index) && throw(ArgumentError("Unknown unit system: $unit_system"))
+    return names[index]
+end
+
 function JutulDarcy.plot_well_results(well_data, arg...; name = "Data", kwarg...)
     JutulDarcy.plot_well_results([well_data], arg...; names = [name], kwarg...)
 end
@@ -153,7 +158,7 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = missing;
     is_accum = Observable(accumulated)
     is_abs = Observable(false)
     is_line = Observable(true)
-    unit_sys = Observable(unit_sys)
+    unit_sys = Observable(plot_unit_system(unit_sys))
 
     # Figure part
     names = Vector{String}(names)
@@ -208,6 +213,7 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = missing;
     if ismissing(field) || !(field in responses)
         field = first(responses)
     end
+    response_ix[] = findfirst(isequal(field), responses)
     y_l = Observable(response_label_to_unit(field, is_accum))
     title_l = Observable(response_label_to_descr(field))
 
@@ -225,7 +231,7 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = missing;
     end
     wellstr = [String(x) for x in wells]
 
-    type_menu = Menu(fig, options = respstr, prompt = respstr[1], width = LEFT_COLUMN_ITEM_WIDTH)
+    type_menu = Menu(fig, options = respstr, default = String(field), width = LEFT_COLUMN_ITEM_WIDTH)
 
     on(type_menu.selection) do s
         val = findfirst(isequal(s), respstr)
@@ -235,7 +241,7 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = missing;
         autolimits!(ax)
     end
 
-    unit_menu = Menu(fig, options = ["Metric", "SI", "Field"], prompt = unit_sys[], width = LEFT_COLUMN_ITEM_WIDTH)
+    unit_menu = Menu(fig, options = ["Metric", "SI", "Field"], default = unit_sys[], width = LEFT_COLUMN_ITEM_WIDTH)
 
     on(unit_menu.selection) do s
         unit_sys[] = s
@@ -371,7 +377,7 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = missing;
         end
         time = newtime
     end
-    lighten(x) = GLMakie.ARGB(x.r, x.g, x.b, 0.2)
+    lighten(x) = Makie.ARGB(x.r, x.g, x.b, 0.2)
     toggles = [
             Checkbox(fig,
             checked = true,
@@ -501,7 +507,7 @@ function JutulDarcy.plot_well_results(well_data::Vector, time = missing;
         )
     end
     if new_window
-        display(GLMakie.Screen(), fig)
+        display(Makie.current_backend().Screen(), fig)
     end
     return fig
 end
@@ -533,6 +539,7 @@ function JutulDarcy.plot_reservoir_measurables(arg...;
         unit_system = "Metric",
         kwarg...
     )
+    unit_system = plot_unit_system(unit_system)
     if length(arg) == 1
         fieldvals = only(arg)
     else
@@ -554,7 +561,7 @@ function JutulDarcy.plot_reservoir_measurables(arg...;
             if factor isa Symbol
                 out = convert_from_si.(out, factor)
             else
-                factor *= factor
+                out = out .* factor
             end
             if data.is_rate
                 out = out.*si_unit(:day)
@@ -570,7 +577,8 @@ function JutulDarcy.plot_reservoir_measurables(arg...;
     end
 
     mkeys = String[]
-    left_found = right_found = false
+    left_found = !ismissing(left) && left == "none"
+    right_found = !ismissing(right) && right == "none"
     for (k, v) in pairs(fieldvals)
         if k == :time
             continue
@@ -645,7 +653,7 @@ function JutulDarcy.plot_reservoir_measurables(arg...;
         lgroup = GridLayout()
         unit_menu = Menu(fig,
             options = ["Metric", "SI", "Field"],
-            prompt = unit_system,
+            default = unit_system,
         )
         lgroup[1, 1] = unit_menu
         reset_left = Button(fig, label = "Reset axis")

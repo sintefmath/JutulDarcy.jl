@@ -11,7 +11,8 @@ end
     plot_well_results(wr::WellResults)
     plot_well_results(v::Vector{WellResults})
 
-Launch interactive viewer for well results. Needs GLMakie to be loaded.
+Launch interactive viewer for well results. Needs a Makie backend such as GLMakie
+or WGLMakie to be loaded.
 """
 function plot_well_results
 
@@ -22,7 +23,8 @@ export plot_reservoir_measurables
 """
     plot_reservoir_measurables(case::JutulCase, result::ReservoirSimResult)
 
-Launch interactive viewer for reservoir measurables. Needs GLMakie to be loaded.
+Launch interactive viewer for reservoir measurables. Needs a Makie backend such as
+GLMakie or WGLMakie to be loaded.
 """
 function plot_reservoir_measurables
 
@@ -109,7 +111,7 @@ end
     plot_reservoir(model, states)
 
 Launch interactive plotter of reservoir + well trajectories in reservoir.
-Requires GLMakie to be loaded (using GLMakie). If the keyword `fancy=true`, a
+Requires a Makie backend, such as GLMakie or WGLMakie. If the keyword `fancy=true`, a
 more advanced GUI with more options will be launched that allows for panning and
 zooming. If `fancy=false`, a fixed-axis plot will be launched instead. The
 keyword `gui=false` can be used to just get a static plot without interactivity
@@ -118,6 +120,11 @@ keyword `gui=false` can be used to just get a static plot without interactivity
 Displayed units are determined by the `unit_system` keyword, which defaults to
 `"metric"`. The source units are assumed to be `"si"` by default. Unit
 conversion can be disabled altogether by setting `convert_units=false`.
+
+For `gui=false`, select a cell field with `key`, a report step with `step`
+(default `1`), and a matrix-valued field component with `row` (default `1`).
+Both the original field name and its displayed name with units are accepted.
+If `key` is omitted, the first plottable field in alphabetical order is used.
 
 # Positional arguments
 The first entry can be a `model::MultiModel` (from `setup_reservoir_model`), a
@@ -185,19 +192,32 @@ function plot_reservoir(model, states = missing;
         end
     end
     Jutul.check_plotting_availability()
-    if force_glmakie
+    if gui && force_glmakie
         @assert Jutul.plotting_check_interactive(warn = true) "Function requires interactive plotting. Set force_glmakie = false to override."
     end
     cell_centroids = data_domain[:cell_centroids]
     if ismissing(aspect)
-        x = cell_centroids[1, :]
-        y = cell_centroids[2, :]
-        z = cell_centroids[3, :]
-        xrng = maximum(x) - minimum(x)
-        yrng = maximum(y) - minimum(y)
-        zrng = maximum(z) - minimum(z)
-        zaspect = zaspect*xrng/zrng
-        aspect = (1.0, max(yrng/xrng, 0.001), zaspect)
+        # Cell-centre extents vanish for single-layer and single-cell models.
+        # Include face centres in those dimensions to keep the default finite.
+        ranges = map(1:size(cell_centroids, 1)) do i
+            lo, hi = extrema(view(cell_centroids, i, :))
+            if isapprox(lo, hi)
+                for key in (:face_centroids, :boundary_centroids)
+                    if haskey(data_domain, key)
+                        values = filter(isfinite, view(data_domain[key], i, :))
+                        if !isempty(values)
+                            face_lo, face_hi = extrema(values)
+                            lo = min(lo, face_lo)
+                            hi = max(hi, face_hi)
+                        end
+                    end
+                end
+            end
+            return max(hi - lo, eps(Float64))
+        end
+        xrng, yrng = ranges[1:2]
+        zscale = length(ranges) == 3 ? zaspect*xrng/ranges[3] : 1.0
+        aspect = (1.0, max(yrng/xrng, 0.001), zscale)
     end
     if haskey(data_domain, :boundary_centroids)
         bc = data_domain[:boundary_centroids]
@@ -261,7 +281,10 @@ function plot_reservoir(model, states = missing;
             retval = fig
         end
     else
-        fig, ax, _ = plot_cell_data(g, arg...; z_is_depth = true, kwarg...)
+        fig, ax, _ = plot_reservoir_static(g, static_data, states; kwarg...)
+        if Jutul.dim(g) == 3
+            ax.aspect[] = aspect
+        end
         retval = fig
     end
     if ismissing(wells)
@@ -311,6 +334,39 @@ function plot_reservoir(model, states = missing;
         plot_faults!(ax, g; domain = data_domain, toggle = ftoggle, alpha = fault_alpha)
     end
     return retval
+end
+
+# Use the same converted fields as the interactive plotter, but select one
+# explicitly without creating menus, sliders or a live browser dependency.
+function plot_reservoir_static(g, static_data, states;
+        key = missing, step = 1, row = 1, kwarg...
+    )
+    data = ismissing(states) ? static_data : merge(static_data, states[step])
+    nc = number_of_cells(g)
+    valid_keys = filter(collect(keys(data))) do k
+        v = data[k]
+        is_numeric = v isa AbstractArray{<:Real}
+        is_cell_vector = v isa AbstractVector && length(v) == nc
+        is_cell_matrix = v isa AbstractMatrix && size(v, 2) == nc
+        return is_numeric && (is_cell_vector || is_cell_matrix)
+    end
+    sort!(valid_keys; by = string)
+    isempty(valid_keys) && throw(ArgumentError("No plottable cell properties found."))
+    if ismissing(key)
+        key = first(valid_keys)
+    else
+        match = findfirst(k -> string(k) == string(key), valid_keys)
+        if isnothing(match)
+            match = findfirst(k -> startswith(string(k), string(key)*" / "), valid_keys)
+        end
+        isnothing(match) && throw(ArgumentError("Cell property $key not found."))
+        key = valid_keys[match]
+    end
+    values = data[key]
+    if values isa AbstractMatrix
+        values = view(values, row, :)
+    end
+    return plot_cell_data(g, values; z_is_depth = true, kwarg...)
 end
 
 function plot_reservoir(model::Union{MultiModel, SimulationModel,}, result::ReservoirSimResult; kwarg...)
@@ -381,7 +437,8 @@ end
     plot_well_vs_meters_drilled!(ax, well_model, values; label=nothing, kwargs...)
 
 Plot well data vs meters drilled on the given axis. If the well has sections,
-each section is plotted with a distinct color. Needs GLMakie to be loaded.
+each section is plotted with a distinct color. Needs a Makie backend such as
+GLMakie or WGLMakie to be loaded.
 """
 function plot_well_vs_meters_drilled!
 
@@ -390,7 +447,8 @@ end
 """
     plot_well_vs_meters_drilled(well_model, values; figure_kwargs=NamedTuple(), axis_kwargs=NamedTuple(), kwargs...)
 
-Create a new figure and plot well data vs meters drilled. Needs GLMakie to be loaded.
+Create a new figure and plot well data vs meters drilled. Needs a Makie backend
+such as GLMakie or WGLMakie to be loaded.
 """
 function plot_well_vs_meters_drilled
 
@@ -400,7 +458,8 @@ end
     plot_well_states_interactive(well_model, states; time=missing, names=missing, resolution=(1200, 800), kwargs...)
     plot_well_states_interactive(well_name::Symbol, model, states; kwargs...)
 
-Interactive GUI for plotting multisegment well data vs meters drilled. Needs GLMakie to be loaded.
+Interactive GUI for plotting multisegment well data vs meters drilled. Needs a
+Makie backend such as GLMakie or WGLMakie to be loaded.
 """
 function plot_well_states_interactive
 
