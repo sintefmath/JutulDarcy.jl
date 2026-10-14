@@ -61,13 +61,13 @@ function test_geothermal_with_wells(; kwarg...)
         @testset "Reservoir" begin
             res = states[end][:Reservoir]
             p = res[:Pressure]
-            p_ref = [ 1.752674975682637e7, 2.31028597242247e7, 3.1743743289613646e7]
+            p_ref = [1.7278792240231726e7, 2.2683915081719533e7, 3.0976431568454076e7]
             @test isapprox(p, p_ref, rtol = 1e-4)
         end
 
         @testset "Injector" begin
             T = states[end][:Facility][:SurfaceTemperature]
-            T_ref = [300.00391984220215, 386.55300762290307]
+            T_ref = [300.00000002472547, 390.6713962760968]
             @test isapprox(T, T_ref, rtol = 1e-4)
         end
     end
@@ -152,6 +152,7 @@ end
                     test_compositional_with_wells(; fast_flash = true, arg...)
                     test_immiscible_with_wells(; arg...)
                     test_blackoil_with_wells(; arg...)
+                    test_geothermal_with_wells(; arg...)
                 end
             end
         end

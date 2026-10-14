@@ -1,91 +1,104 @@
 @inline function component_mass_fluxes!(q, face, state, model::SimulationModel{<:Any, <:CompositionalSystem, <:Any, <:Any}, flux_type, kgrad, upw)
     sys = model.system
     aqua = Val(has_other_phase(sys))
-    component_count = Val(MultiComponentFlash.number_of_components(
-        sys.equation_of_state))
+    component_count = Val(MultiComponentFlash.number_of_components(sys.equation_of_state))
     ph_ix = phase_indices(sys)
 
     X = state.LiquidMassFractions
     Y = state.VaporMassFractions
-    S = state.Saturations
-    ρ = state.PhaseMassDensities
-    if haskey(state, :Diffusivities)
-        D = state.Diffusivities
-    else
-        D = nothing
-    end
     mass_fluxes = darcy_phase_mass_fluxes(face, state, model, flux_type, kgrad, upw)
-    q = compositional_fluxes!(q, face, state, S, ρ, X, Y, D, model,
-        flux_type, kgrad, mass_fluxes, upw, aqua, ph_ix, component_count)
-    return q
+    q = compositional_fluxes!(q, X, Y, mass_fluxes, upw, aqua, ph_ix, component_count)
+
+    Dl = phase_diffusivities(state, LiquidPhase())
+    Dv = phase_diffusivities(state, VaporPhase())
+    return add_diffusive_component_flux(q, Dl, Dv, face, state, model, kgrad, component_count)
 end
 
-@inline function compositional_fluxes!(q, face, state, S, ρ, X, Y, D,
-        model, flux_type, kgrad, mass_fluxes, upw, aqua::Val{false},
-        phase_ix, component_count::Val{N}) where N
+@inline function compositional_fluxes!(q, X, Y, mass_fluxes, upw, ::Val{false},
+        phase_ix, component_count)
     l, v = phase_ix
-    q_l = mass_fluxes[l]
-    q_v = mass_fluxes[v]
-
-    q = inner_compositional!(q, S, ρ, X, Y, D, q_l, q_v, face,
-        kgrad, upw, component_count, phase_ix)
-    return q
+    return inner_compositional!(q, X, Y, mass_fluxes[l], mass_fluxes[v], upw, component_count)
 end
 
-@inline function compositional_fluxes!(q, face, state, S, ρ, X, Y, D,
-        model, flux_type, kgrad, mass_fluxes, upw, aqua::Val{true},
+@inline function compositional_fluxes!(q, X, Y, mass_fluxes, upw, ::Val{true},
         phase_ix, component_count::Val{N}) where N
     a, l, v = phase_ix
-    q_a = mass_fluxes[a]
-    q_l = mass_fluxes[l]
-    q_v = mass_fluxes[v]
-
-    q = inner_compositional!(q, S, ρ, X, Y, D, q_l, q_v, face,
-        kgrad, upw, component_count, (l, v))
-    q = setindex(q, q_a, N + 1)
-    return q
+    q = inner_compositional!(q, X, Y, mass_fluxes[l], mass_fluxes[v], upw, component_count)
+    return setindex(q, mass_fluxes[a], N + 1)
 end
 
-@inline function inner_compositional!(q, S, ρ, X, Y, D, q_l, q_v,
-        face, grad, upw, ::Val{N}, lv) where N
-    for i in 1:N
-        X_f = upwind(upw, cell -> @inbounds(X[i, cell]), q_l)
-        Y_f = upwind(upw, cell -> @inbounds(Y[i, cell]), q_v)
-        q_i = q_l*X_f + q_v*Y_f
-        q = setindex(q, q_i, i)
+@inline function inner_compositional!(q::StaticVector, X, Y, q_l, q_v, upw, ::Val{N}) where N
+    # Static component indices avoid SVector copies and large GPU local-memory buffers.
+    return map(q, eachindex(q)) do q_i, i
+        if i <= N
+            X_f = upwind(upw, cell -> @inbounds(X[i, cell]), q_l)
+            Y_f = upwind(upw, cell -> @inbounds(Y[i, cell]), q_v)
+            oftype(q_i, q_l*X_f + q_v*Y_f)
+        else
+            q_i
+        end
     end
-    q = add_diffusive_component_flux(q, S, ρ, X, Y, D, face, grad,
-        lv, Val(N))
+end
+
+function add_diffusive_component_flux(q, ::Nothing, ::Nothing, face, state, model, grad, component_count)
     return q
 end
 
-function add_diffusive_component_flux(q, S, ρ, X, Y, D::Nothing, face,
-        grad, lv, component_count::Val)
+function add_diffusive_component_flux(q, Dl, Dv, face, state, model, grad, component_count)
+    sys = model.system
+    masses = MultiComponentFlash.molar_masses(sys.equation_of_state)
+    liquid = state.LiquidMassFractions
+    vapor = state.VaporMassFractions
+    S = state.Saturations
+    ρ = state.PhaseMassDensities
+    q = add_phase_diffusive_component_flux(q, Dl, face, grad, S, ρ,
+        liquid, liquid_phase_index(sys), masses, component_count)
+    q = add_phase_diffusive_component_flux(q, Dv, face, grad, S, ρ,
+        vapor, vapor_phase_index(sys), masses, component_count)
     return q
 end
 
-function add_diffusive_component_flux(q, S, ρ, X, Y, D, face, grad, lv,
-        ::Val{N}) where N
-    l, v = lv
-    diff_mass_l = phase_diffused_mass(D, ρ, l, S, face, grad)
-    diff_mass_v = phase_diffused_mass(D, ρ, v, S, face, grad)
-
-    @inbounds for i in 1:N
-        q_i = q[i]
-        dX = gradient(X, i, grad)
-        dY = gradient(Y, i, grad)
-
-        q_i += diff_mass_l*dX + diff_mass_v*dY
-        q = setindex(q, q_i, i)
-    end
+function add_phase_diffusive_component_flux(q, ::Nothing, face, grad, S, ρ, fractions, phase, masses, component_count::Val)
     return q
 end
 
-function phase_diffused_mass(D, ρ, α, S, face, grad)
-    @inbounds D_α = D[α, face]
-    den_α = cell -> @inbounds ρ[α, cell]
-    # Take minimum - diffusion should not cross phase boundaries.
+@inline function mass_to_mole_fractions(X, masses, cell, ::Val{N}) where N
+    amounts = SVector{N}(ntuple(i -> @inbounds(X[i, cell]/masses[i]), Val(N)))
+    return amounts/sum(amounts)
+end
+
+@inline diffusive_mole_fraction_accessor(X, masses, grad, count) =
+    cell -> mass_to_mole_fractions(X, masses, cell, count)
+
+@inline function diffusive_mole_fraction_accessor(X, masses, grad::TPFA, count)
+    # Convert once per cell on a two-point face, rather than once per component.
     left, right = Jutul.cell_pair(grad)
-    S = min(S[α, left], S[α, right])
-    return -D_α*S*face_average(den_α, grad)
+    x_left = mass_to_mole_fractions(X, masses, left, count)
+    x_right = mass_to_mole_fractions(X, masses, right, count)
+    return cell -> if cell == left
+        x_left
+    else
+        x_right
+    end
+end
+
+@inline function add_phase_diffusive_component_flux(q::StaticVector, D::AbstractMatrix, face, grad, S, ρ, mass_fractions::AbstractMatrix, phase, masses, ::Val{N}) where N
+    fractions = diffusive_mole_fraction_accessor(mass_fractions, masses, grad, Val(N))
+    molar_density = phase_diffusive_molar_density(ρ, phase, S, grad, fractions, masses)
+    return map(q, eachindex(q)) do q_i, i
+        @inbounds if i <= N
+            fraction = cell -> fractions(cell)[i]
+            molar_flux = -D[i, face]*molar_density*gradient(fraction, grad)
+            oftype(q_i, q_i + masses[i]*molar_flux)
+        else
+            q_i
+        end
+    end
+end
+
+function phase_diffusive_molar_density(ρ, phase, S, grad, fractions, masses)
+    density = cell -> @inbounds ρ[phase, cell]/dot(masses, fractions(cell))
+    left, right = Jutul.cell_pair(grad)
+    saturation = min(S[phase, left], S[phase, right])
+    return saturation*face_average(density, grad)
 end

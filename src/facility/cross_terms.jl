@@ -407,20 +407,37 @@ function well_top_node_enthalpy(ctrl::InjectorControl, model, state_well, T, cel
     # T = ctrl.temperature
     H_w = ctrl.enthalpy
     if ismissing(H_w)
-        H = 0.0
-        for ph in axes(state_well.Saturations, 1)
-            # Define it via the volume weighted internal energy
-            S = state_well.Saturations[ph, cell]
-            dens = state_well.PhaseMassDensities[ph, cell]
-            C = state_well.ComponentHeatCapacity[ph, cell]
-            H += S*(C*T + p/dens)
-        end
+        enthalpy = Jutul.get_secondary_variables(model)[:FluidEnthalpy]
+        H = injected_fluid_enthalpy(ctrl, enthalpy, model, state_well, p, T, cell)
     elseif H_w isa Real
         H = H_w
     elseif H_w isa Function
         H = H_w(p, T)
     else
         error("InjectorControl.enthalpy must be missing, a real or a function (p, T).")
+    end
+    return H
+end
+
+function injected_fluid_enthalpy(ctrl, enthalpy, model, state_well, p, T, cell)
+    H = zero(p*T)
+    for ph in axes(state_well.Saturations, 1)
+        S = state_well.Saturations[ph, cell]
+        dens = state_well.PhaseMassDensities[ph, cell]
+        C = state_well.ComponentHeatCapacity[ph, cell]
+        H += S*(C*T + p/dens)
+    end
+    return H
+end
+
+function injected_fluid_enthalpy(ctrl, enthalpy::PressureTemperatureDependentEnthalpy{Tab, R, N}, model, state_well, p, T, cell) where {Tab, R, N}
+    reg = region(enthalpy.regions, cell)
+    component_H = table_by_region(enthalpy.tab, reg)(p, T)
+    # The control specifies the injected component mass fractions. Evaluate at
+    # the injection temperature, which can differ from the well temperature.
+    H = zero(component_H[1]*ctrl.injection_mixture[1])
+    for c in 1:N
+        H += ctrl.injection_mixture[c]*component_H[c]
     end
     return H
 end

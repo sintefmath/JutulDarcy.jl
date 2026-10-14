@@ -50,6 +50,16 @@ end
     end
 end
 
+@jutul_secondary function update_fluid_internal_energy!(U, fe::FluidInternalEnergyFromFluidEnthalpy, model, FluidEnthalpy, Pressure, PhaseMassDensities, ix)
+    for i in ix
+        p = Pressure[i]
+        for ph in axes(U, 1)
+            U[ph, i] = FluidEnthalpy[ph, i] - p/PhaseMassDensities[ph, i]
+        end
+    end
+    return U
+end
+
 @jutul_secondary function update_fluid_enthalpy!(H, fe::FluidEnthalpy, model, FluidInternalEnergy, Pressure, PhaseMassDensities, ix)
     for i in ix
         p = Pressure[i]
