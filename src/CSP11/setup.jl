@@ -429,11 +429,7 @@ end
 
 function setup_spe11_wells!(domain::DataDomain, case; divide_c_wells = true, kwarg...)
     spec = spe11_case_specification(case)
-    # The benchmark prescribes fluxes at the holes, without a wellbore storage
-    # volume. Keep a small positive native volume to avoid singular equations
-    # while making well accumulation negligible, also at the lab-scale rates.
-    default_options = (simple_well = true, radius = spec.well_radius, dir = :y,
-        volume_multiplier = 1e-8)
+    default_options = (simple_well = true, radius = spec.well_radius, dir = :y)
     options = merge(default_options, values(kwarg))
     if case in (:a, :b)
         cc = domain[:cell_centroids]
