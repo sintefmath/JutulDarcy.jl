@@ -346,6 +346,16 @@ end
         p = state0[:Producer][:Pressure][1]
         H_ref = tables[:enthalpy](p, 330.0)
         @test H_surface ≈ H_ref rtol = 1e-6
+        # Differentiating through the setup (parameters are dual numbers)
+        function setup_and_sum(x)
+            d = reservoir_domain(g, permeability = 1e-13, porosity = x[1])
+            W = setup_well(d, [(1, 1, 1)], name = :Producer, simple_well = false)
+            model = setup_reservoir_model(d, :geothermal, wells = [W])
+            state0 = setup_reservoir_state(model, Pressure = 100e5, Temperature = 330.0)
+            return x[1]*only(state0[:Facility][:SurfaceEnthalpy])
+        end
+        dHdx = JutulDarcy.ForwardDiff.gradient(setup_and_sum, [0.2])
+        @test only(dHdx) ≈ H_ref rtol = 1e-6
     end
     @testset "table edges" begin
         H = JutulDarcy.PressureTemperatureDependentEnthalpy(tables[:enthalpy])

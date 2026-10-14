@@ -393,7 +393,9 @@ function values_for_secondary_evaluation(state)
             if T <: AbstractFloat
                 out[k] = v
             elseif T <: ForwardDiff.Dual
-                out[k] = value.(v)
+                # ForwardDiff.value also strips duals with foreign tags (e.g.
+                # when differentiating through the case setup)
+                out[k] = ForwardDiff.value.(v)
             else
                 return nothing
             end
