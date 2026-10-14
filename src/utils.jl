@@ -167,12 +167,15 @@ function reservoir_domain(g;
     if permeability isa AbstractMatrix
         for row in permeability_diagonal_rows(permeability, dim(g))
             row_minval = minimum(view(permeability, row, :))
-            if row_minval <= 0.0
+            if row_minval < 0.0
                 throw(ArgumentError("Diagonal permeability values must be non-negative, was $row_minval for row $row."))
             end
         end
     else
-        minimum(permeability) >= 0.0 || throw(ArgumentError("All permeability values must be non-negative."))
+        minval = minimum(permeability)
+        if minval < 0.0
+            throw(ArgumentError("All permeability values must be non-negative, was $minval."))
+        end
     end
 
     reservoir = DataDomain(g;
