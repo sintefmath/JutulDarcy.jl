@@ -30,6 +30,7 @@ missing.
 
 `pc_limit` caps the capillary-pressure tables in pascals (default: 20 bar).
 Use `pc_limit = Inf` to retain the full benchmark curves.
+Set `diffusion = false` to disable molecular diffusion.
 
 """
 function setup_spe11_case(domain_or_dims;
@@ -40,6 +41,7 @@ function setup_spe11_case(domain_or_dims;
         domain_kwargs = NamedTuple(),
         well_kwargs = NamedTuple(),
         thermal = case != :a,
+        diffusion::Bool = true,
         nstep_initialization = nothing,
         nstep_injection1 = 50,
         nstep_injection2 = 50,
@@ -87,7 +89,7 @@ function setup_spe11_case(domain_or_dims;
     end
     model, parameters = setup_reservoir_model_csp11(domain;
         case = case, wells = wells, thermal = thermal, dT_max_abs = 30.0,
-        kgrad = kgrad, pc_limit = pc_limit, kwarg...)
+        kgrad = kgrad, pc_limit = pc_limit, diffusion = diffusion, kwarg...)
     check_spe11_volumes(model, parameters, case)
     rates2 = copy(domain[:well_rates])
     rates1 = copy(rates2)
@@ -692,13 +694,14 @@ end
 
 function setup_reservoir_model_csp11(reservoir::DataDomain;
         case = get(reservoir, :spe11_case, :b), include_satfun = true,
-        thermal = false, pc_limit = 20*si_unit(:bar), kwarg...)
+        thermal = false, diffusion::Bool = true, pc_limit = 20*si_unit(:bar), kwarg...)
     check_spe11_case(case)
     case == :a && thermal && throw(ArgumentError("SPE11A is isothermal; use thermal = false"))
     reservoir[:gdz, Faces()] = JutulDarcy.compute_face_gdz(reservoir[:neighbors], reservoir[:cell_centroids][3, :]; g = spe11_gravity)
     model, parameters = setup_reservoir_model(reservoir, :co2brine;
         co2_source = :csp11,
         thermal = thermal,
+        diffusion = diffusion,
         extra_out = true,
         kwarg...
     )

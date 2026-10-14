@@ -395,6 +395,8 @@ reservoir and that facility.
   symbols to be output, `true` for all variables and `false` for the minimal set
   required to restart simulations (typically only the primary variables and mass
   of each component)
+- `diffusion=true`: Enable molecular diffusion when coefficients are present in
+  the reservoir domain. Set to `false` to omit diffusion from the model.
 
 ## Advanced model setup
 Advanced options govern internals of the simulator, like type of automatic
@@ -477,6 +479,7 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         general_ad = false,
         backend = :csr,
         thermal = false,
+        diffusion::Bool = true,
         extra_outputs = [:LiquidMassFractions, :VaporMassFractions, :Rs, :Rv, :Saturations],
         split_wells = false,
         assemble_wells_together = true,
@@ -587,7 +590,7 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
             unique!(rmodel.output_variables)
         end
     end
-    if haskey(reservoir, :diffusion) || haskey(reservoir, :diffusivity)
+    if diffusion && (haskey(reservoir, :diffusion) || haskey(reservoir, :diffusivity))
         rmodel.parameters[:Diffusivities] = Diffusivities()
     end
     models[:Reservoir] = rmodel
