@@ -37,11 +37,11 @@ function setup_spe11_case(domain_or_dims;
         domain_kwargs = NamedTuple(),
         well_kwargs = NamedTuple(),
         thermal = case != :a,
-        nstep_initialization = case == :a ? 0 : 10,
+        nstep_initialization = ifelse(thermal, 10, 0),
         nstep_injection1 = 50,
         nstep_injection2 = 50,
         nstep_migration = 100,
-        use_reporting_steps = true,
+        use_reporting_steps = false,
         divide_c_wells = true,
         kgrad = :tpfa,
         kwarg...
