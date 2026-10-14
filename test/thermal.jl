@@ -226,7 +226,42 @@ function solve_deep_injector(energy_formulation)
     return T_well[end] - T_well[1]
 end
 
+function solve_column_with_bcs(energy_formulation; T0 = 350.0)
+    bar = 1e5
+    day = 3600*24
+    nz = 10
+    g = CartesianMesh((1, 1, nz), (10.0, 10.0, 1000.0), origin = [0.0, 0.0, 1000.0])
+    res = reservoir_domain(g, porosity = 0.2, permeability = 1e-12)
+    sys = SinglePhaseSystem(AqueousPhase(), reference_density = 1000.0)
+    model, parameters = setup_reservoir_model(res, sys,
+        thermal = true,
+        energy_formulation = energy_formulation,
+        extra_out = true
+    )
+    z = res[:cell_centroids][3, :]
+    p_h = 100*bar .+ 1000.0*9.81.*(z .- z[1])
+    state0 = setup_reservoir_state(model, Pressure = p_h, Temperature = T0)
+    # Overpressure at the bottom drives an upward flow through the column. The
+    # fluid enters at the initial temperature.
+    bc = flow_boundary_condition([1, nz], res, [p_h[1], p_h[end] + 10*bar], T0)
+    forces = setup_reservoir_forces(model, bc = bc)
+    result = simulate_reservoir(state0, model, fill(10.0*day, 20),
+        forces = forces, parameters = parameters, info_level = -1)
+    return result
+end
+
 @testset "total energy formulation" begin
+    @testset "boundary conditions" begin
+        # Mass entering and leaving through boundary conditions must carry its
+        # energy for both formulations, so that the column stays (close to)
+        # isothermal.
+        T0 = 350.0
+        for form in (:thermal, :total)
+            result = solve_column_with_bcs(form, T0 = T0)
+            T = result.states[end][:Temperature]
+            @test maximum(abs, T .- T0) < 1.0
+        end
+    end
     @testset "closed system conserves total energy" begin
         result, model, = solve_thermal_column(energy_formulation = :total)
         @test JutulDarcy.model_energy_formulation(model) == :total
