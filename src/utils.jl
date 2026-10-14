@@ -602,7 +602,9 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
             unique!(rmodel.output_variables)
         end
     end
-    set_diffusivity_parameters!(rmodel)
+    if diffusion
+        set_diffusivity_parameters!(rmodel)
+    end
     models[:Reservoir] = rmodel
     # Then we set up all the wells
     facility_system = FacilitySystem(system)
