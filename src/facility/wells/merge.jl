@@ -12,7 +12,7 @@ import ..JutulDarcy:
     FacilityFromWellTemperatureCT, FacilityFromWellEnthalpyCT,
     setup_reservoir_cross_terms!
 
-# import ..JutulDarcy: model_energy_formulation
+import ..JutulDarcy: model_energy_formulation
 
 """
     merge_similar_wells(case::JutulCase)
@@ -154,7 +154,7 @@ function build_merged_well_model(original_model, names, merged_key)
         optimization_level = template.optimization_level)
     if haskey(template.primary_variables, :Temperature)
         add_thermal_to_model!(merged_model;
-        #    energy_formulation = model_energy_formulation(template)
+            energy_formulation = model_energy_formulation(template)
         )
     end
 
