@@ -43,6 +43,7 @@ function setup_reservoir_model_geothermal(
             delete!(m.parameters, :ComponentHeatCapacity)
         end
     end
+    JutulDarcy.lower_temperature_limit!(model)
     rmodel = reservoir_model(model)
     outvar = rmodel.output_variables
 

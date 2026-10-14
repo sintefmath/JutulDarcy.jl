@@ -168,12 +168,17 @@ end
 Tabulated specific enthalpy as a function of pressure and temperature. Tables
 provide phase enthalpies for immiscible systems and pure component enthalpies
 for compositional systems, where phase mass fractions define a linear mixing rule.
+
+Constant (padded) first/last temperature columns in the tables are replaced by
+linear extrapolation, and the enthalpy is extrapolated linearly in temperature
+outside the table range, so that the heat capacity ``\\partial h/\\partial T``
+stays positive. See [`tabulated_enthalpy`](@ref).
 """
 struct PressureTemperatureDependentEnthalpy{T, R, N} <: PhaseVariables
     tab::T
     regions::R
     function PressureTemperatureDependentEnthalpy(tab; regions = nothing)
-        tab = region_wrap(tab, regions)
+        tab = region_wrap(remove_constant_temperature_caps(tab), regions)
         ex = first(tab)
         N = length(ex(1e8, 273.15 + 30.0))
         new{typeof(tab), typeof(regions), N}(tab, regions)
@@ -197,11 +202,108 @@ function Jutul.subvariable(var::PressureTemperatureDependentEnthalpy{T, R, N}, m
     return PressureTemperatureDependentEnthalpy(var.tab, regions, Val(N))
 end
 
+"""
+    tabulated_enthalpy(var::PressureTemperatureDependentEnthalpy, p, T, cell)
+
+Evaluate the table of `var` at pressure `p` and temperature `T` for the region
+of `cell`. Returns per-phase values (immiscible) or per-component values
+(compositional). The enthalpy is extrapolated linearly in temperature outside
+the table range.
+"""
+function tabulated_enthalpy(var::PressureTemperatureDependentEnthalpy, p, T, cell)
+    interpolator = table_by_region(var.tab, region(var.regions, cell))
+    return value_with_temperature_extrapolation(interpolator, p, T)
+end
+
+"""
+    remove_constant_temperature_caps(tab)
+
+Tables are often padded with a duplicate first/last temperature column to get
+constant extrapolation. For enthalpy, this gives zero heat capacity (dh/dT = 0)
+in the padded interval and a singular energy equation if the temperature enters
+it. Replace such columns with linear extrapolation from the neighbouring
+interval.
+"""
+remove_constant_temperature_caps(tab) = tab
+remove_constant_temperature_caps(tab::Union{Tuple, AbstractVector}) = map(remove_constant_temperature_caps, tab)
+
+function remove_constant_temperature_caps(tab::Jutul.BilinearInterpolant)
+    Y = tab.Y
+    n = length(Y)
+    n >= 3 || return tab
+    F = copy(tab.F)
+    if all(F[:, 1] .== F[:, 2])
+        F[:, 1] = F[:, 2] .- (F[:, 3] .- F[:, 2]).*((Y[2] - Y[1])/(Y[3] - Y[2]))
+    end
+    if all(F[:, n] .== F[:, n-1])
+        F[:, n] = F[:, n-1] .+ (F[:, n-1] .- F[:, n-2]).*((Y[n] - Y[n-1])/(Y[n-1] - Y[n-2]))
+    end
+    return Jutul.BilinearInterpolant(tab.X, Y, F)
+end
+
+function value_with_temperature_extrapolation(tab, p, T)
+    return tab(p, T)
+end
+
+function value_with_temperature_extrapolation(tab::Jutul.BilinearInterpolant, p, T)
+    # Tables are constant outside their range, which gives zero heat capacity
+    # (dh/dT = 0) and a singular energy equation if the temperature leaves the
+    # table during the nonlinear iterations. Extrapolate linearly in temperature
+    # using the slope of the first/last table interval instead.
+    Y = tab.Y
+    T_lo, T_hi = first(Y), last(Y)
+    if T < T_lo
+        v_lo = tab(p, T_lo)
+        dvdT = (tab(p, Y[2]) - v_lo)/(Y[2] - T_lo)
+        v = v_lo + dvdT*(T - T_lo)
+    elseif T > T_hi
+        v_hi = tab(p, T_hi)
+        dvdT = (v_hi - tab(p, Y[end-1]))/(T_hi - Y[end-1])
+        v = v_hi + dvdT*(T - T_hi)
+    else
+        v = tab(p, T)
+    end
+    return v
+end
+
+"""
+    lower_temperature_limit!(model, temperature_min = 200.0)
+
+Lower the hard lower limit of the `Temperature` primary variable to
+`temperature_min` (if it is higher) for the reservoir and all wells. With a
+realistic (tabulated) enthalpy, the temperature can drop below 0 °C during the
+nonlinear iterations, for instance from cooling when liquid is compressed at
+constant enthalpy (Joule-Thomson effect) during large transient pressure
+changes. A limit at 0 °C then makes the energy equation impossible to satisfy.
+The tabulated enthalpy is extrapolated linearly outside the table range so that
+such iterates are well-defined.
+"""
+function lower_temperature_limit!(model::MultiModel, temperature_min = 200.0)
+    for (k, m) in pairs(model.models)
+        if k == :Reservoir || model_or_domain_is_well(m)
+            lower_temperature_limit!(m, temperature_min)
+        end
+    end
+    return model
+end
+
+function lower_temperature_limit!(model::SimulationModel, temperature_min = 200.0)
+    T_var = get(Jutul.get_primary_variables(model), :Temperature, nothing)
+    if T_var isa Temperature && T_var.min > temperature_min
+        T_new = Temperature(
+            min = temperature_min,
+            max = T_var.max,
+            max_rel = T_var.max_rel,
+            max_abs = T_var.max_abs
+        )
+        set_primary_variables!(model, Temperature = T_new)
+    end
+    return model
+end
+
 @jutul_secondary function update_temperature_dependent_enthalpy!(H_phases, var::PressureTemperatureDependentEnthalpy{T, R, N}, model, Pressure, Temperature, ix) where {T, R, N}
     for c in ix
-        reg = region(var.regions, c)
-        interpolator = table_by_region(var.tab, reg)
-        phase_H = interpolator(Pressure[c], Temperature[c])
+        phase_H = tabulated_enthalpy(var, Pressure[c], Temperature[c], c)
         for ph in 1:N
             H_phases[ph, c] = phase_H[ph]
         end
@@ -217,9 +319,7 @@ end
 
     X, Y = LiquidMassFractions, VaporMassFractions
     for c in ix
-        reg = region(var.regions, c)
-        interpolator = table_by_region(var.tab, reg)
-        component_H = interpolator(Pressure[c], Temperature[c])
+        component_H = tabulated_enthalpy(var, Pressure[c], Temperature[c], c)
         T = eltype(component_H)
         H_l = zero(T)
         H_v = zero(T)

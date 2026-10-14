@@ -334,6 +334,34 @@ end
         # Joule-Thomson effects.
         @test all(x -> abs(x - T0) < 0.5, res[:Temperature])
     end
+    @testset "initial surface enthalpy" begin
+        # The facility surface enthalpy should be initialized from the fluid
+        # enthalpy at the well top node, not from unevaluated (zero) values.
+        g = CartesianMesh((3, 1, 2), (300.0, 100.0, 20.0), origin = [0.0, 0.0, 1000.0])
+        d = reservoir_domain(g, permeability = 1e-13, porosity = 0.2)
+        W = setup_well(d, [(1, 1, 1)], name = :Producer, simple_well = false)
+        model = setup_reservoir_model(d, :geothermal, wells = [W])
+        state0 = setup_reservoir_state(model, Pressure = 100e5, Temperature = 330.0)
+        H_surface = only(state0[:Facility][:SurfaceEnthalpy])
+        p = state0[:Producer][:Pressure][1]
+        H_ref = tables[:enthalpy](p, 330.0)
+        @test H_surface ≈ H_ref rtol = 1e-6
+    end
+    @testset "table edges" begin
+        H = JutulDarcy.PressureTemperatureDependentEnthalpy(tables[:enthalpy])
+        T_lo, T_hi = first(tables[:enthalpy].Y), last(tables[:enthalpy].Y)
+        h(T) = JutulDarcy.tabulated_enthalpy(H, 5e5, T, 1)
+        dhdT(T) = (h(T + 0.01) - h(T - 0.01))/0.02
+        # The tables are padded with a constant first column. This should not
+        # give zero heat capacity inside the table, and the enthalpy should be
+        # extrapolated linearly outside it.
+        for T in [T_lo - 20.0, T_lo + 0.5, 273.15, T_hi + 20.0]
+            @test dhdT(T) > 1000.0
+        end
+        # Temperature limit is lowered so that sub-zero iterates are allowed
+        model = setup_reservoir_model(reservoir_domain(CartesianMesh((2, 1, 1))), :geothermal)
+        @test Jutul.get_primary_variables(model[:Reservoir])[:Temperature].min == 200.0
+    end
     @testset "co2-brine $physics" for physics in (:kvalue, :immiscible)
         T0 = 320.0
         result, model = solve_isothermal_injection(:co2brine, T0,

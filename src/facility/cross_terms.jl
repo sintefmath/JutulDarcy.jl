@@ -457,8 +457,7 @@ function injected_fluid_enthalpy(ctrl, enthalpy, model, state_well, p, T, cell)
 end
 
 function injected_fluid_enthalpy(ctrl, enthalpy::PressureTemperatureDependentEnthalpy{Tab, R, N}, model, state_well, p, T, cell) where {Tab, R, N}
-    reg = region(enthalpy.regions, cell)
-    component_H = table_by_region(enthalpy.tab, reg)(p, T)
+    component_H = tabulated_enthalpy(enthalpy, p, T, cell)
     # The control specifies the injected component mass fractions. Evaluate at
     # the injection temperature, which can differ from the well temperature.
     H = zero(component_H[1]*ctrl.injection_mixture[1])

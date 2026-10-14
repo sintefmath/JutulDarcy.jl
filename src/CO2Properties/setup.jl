@@ -79,6 +79,9 @@ function setup_reservoir_model_co2_brine(reservoir::DataDomain;
             end
         end
     end
+    if thermal
+        JutulDarcy.lower_temperature_limit!(model)
+    end
     if extra_out
         parameters = setup_parameters(model, parameters)
         out = (model, parameters)
