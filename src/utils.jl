@@ -167,13 +167,26 @@ function reservoir_domain(g;
         all(isfinite, diffusion) || throw(ArgumentError("Keyword argument diffusion has non-finite entries."))
         kwarg = (diffusion = diffusion, kwarg...)
     end
-    minimum(permeability) >= 0 || throw(ArgumentError("All permeability values must be non-negative."))
     nk = length(permeability)
     nc = number_of_cells(g)
     if nk != nc && permeability isa AbstractVector
         d = dim(g)
         if nk == d || (d == 2 && nk == 3) || (d == 3 && nk == 6)
             permeability = repeat(permeability, 1, nc)
+        end
+    end
+
+    if permeability isa AbstractMatrix
+        for row in permeability_diagonal_rows(permeability, dim(g))
+            row_minval = minimum(view(permeability, row, :))
+            if row_minval < 0.0
+                throw(ArgumentError("Diagonal permeability values must be non-negative, was $row_minval for row $row."))
+            end
+        end
+    else
+        minval = minimum(permeability)
+        if minval < 0.0
+            throw(ArgumentError("All permeability values must be non-negative, was $minval."))
         end
     end
 
@@ -283,6 +296,16 @@ function reservoir_domain(g;
     return reservoir
 end
 
+function permeability_diagonal_rows(permeability::AbstractMatrix, dimension)
+    if dimension == 2 && size(permeability, 1) == 3
+        return (1, 3) # xx, yy
+    elseif dimension == 3 && size(permeability, 1) == 6
+        return (1, 4, 6) # xx, yy, zz
+    else
+        return axes(permeability, 1)
+    end
+end
+
 """
     reservoir_domain(m::Union{SimulationModel, MultiModel})
 
@@ -384,6 +407,8 @@ reservoir and that facility.
   symbols to be output, `true` for all variables and `false` for the minimal set
   required to restart simulations (typically only the primary variables and mass
   of each component)
+- `diffusion=true`: Enable molecular diffusion when coefficients are present in
+  the reservoir domain. Set to `false` to omit diffusion from the model.
 
 ## Advanced model setup
 Advanced options govern internals of the simulator, like type of automatic
@@ -466,6 +491,7 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         general_ad = false,
         backend = :csr,
         thermal = false,
+        diffusion::Bool = true,
         extra_outputs = [:LiquidMassFractions, :VaporMassFractions, :Rs, :Rv, :Saturations],
         split_wells = false,
         assemble_wells_together = true,
@@ -576,7 +602,9 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
             unique!(rmodel.output_variables)
         end
     end
-    set_diffusivity_parameters!(rmodel)
+    if diffusion
+        set_diffusivity_parameters!(rmodel)
+    end
     models[:Reservoir] = rmodel
     # Then we set up all the wells
     facility_system = FacilitySystem(system)
