@@ -142,6 +142,44 @@ end
 
     end
 
+    @testset "NLDD with BCs (compositional)" begin
+        # Boundary conditions in subdomains must be evaluated using the local
+        # cell index of the subdomain state.
+        nc = 10
+        grid = reservoir_mesh((nc, 1, nc), (10.0, 1.0, 10.0))
+        domain = reservoir_domain(grid)
+        MCF = JutulDarcy.MultiComponentFlash
+        co2 = MCF.MolecularProperty(0.0440, 7.38e6, 304.1, 9.412e-5, 0.224)
+        c1 = MCF.MolecularProperty(0.0160, 4.60e6, 190.6, 9.863e-5, 0.011)
+        mixture = MCF.MultiComponentMixture([co2, c1], names = ["CO2", "C1"])
+        eos = MCF.GenericCubicEOS(mixture, MCF.PengRobinson())
+        sys = MultiPhaseCompositionalSystemLV(eos, (LiquidPhase(), VaporPhase()))
+        model = setup_reservoir_model(domain, sys)
+        p0, T0 = 50.0si_unit(:bar), convert_to_si(30.0, :Celsius)
+        state0 = setup_reservoir_state(model; Pressure = p0, Temperature = T0,
+            OverallMoleFractions = [0.5, 0.5])
+        # Boundary conditions on the left and right columns
+        left = [1 + (k - 1)*nc for k in 1:nc]
+        right = [k*nc for k in 1:nc]
+        bc = flow_boundary_condition(vcat(left, right), domain,
+            vcat(fill(2*p0, nc), fill(0.5*p0, nc)), fill(T0, 2nc))
+        forces = setup_reservoir_forces(model; bc = bc)
+        case = JutulCase(model, [1si_unit(:day)], forces, state0 = state0)
+
+        get_its(result) = Jutul.report_stats(result.result.reports).newtons
+        args = (info_level = -1, max_timestep = Inf)
+        results_newton = simulate_reservoir(case; method = :newton, args...)
+        results_nldd = simulate_reservoir(case;
+            method = :nldd, nldd_arg = (no_blocks = 4, ), args...)
+        # NLDD should need considerably fewer global iterations than Newton
+        @test get_its(results_nldd) < get_its(results_newton)/2
+        for k in [:Pressure, :OverallMoleFractions]
+            v_newton = results_newton.states[end][k]
+            v_nldd = results_nldd.states[end][k]
+            @test all(isapprox.(v_nldd, v_newton, rtol = 1e-3))
+        end
+    end
+
     @testset "NLDD on MRST cases" begin
         for use_blocks in [true, false]
             test_on_mrst_case("spe1", use_blocks)
