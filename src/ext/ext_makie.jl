@@ -123,6 +123,12 @@ conversion can be disabled altogether by setting `convert_units=false`.
 
 For `gui=false`, select a cell field with `key`, a report step with `step`
 (default `1`), and a matrix-valued field component with `row` (default `1`).
+
+If some states are `missing` (e.g. when simulating with
+`reservoir_report_steps`), only the stored states are shown and the plotter
+displays their report step numbers. In this case, `step` refers to the report
+step number and must be one of the stored steps. Custom step numbers can also be
+given for each state with the `step_labels` keyword.
 Both the original field name and its displayed name with units are accepted.
 If `key` is omitted, the first plottable field in alphabetical order is used.
 
@@ -154,6 +160,8 @@ function plot_reservoir(model, states = missing;
         source_unit_system = "si",
         unit_lookup = Dict(),
         wells = missing,
+        step = missing,
+        step_labels = missing,
         kwarg...
     )
     function maybe_convert_units(x; kwarg...)
@@ -167,6 +175,16 @@ function plot_reservoir(model, states = missing;
     end
     if states isa AbstractDict
         states = [states]
+    end
+    if !ismissing(states)
+        states, step_labels = filter_stored_states(states, step_labels)
+    end
+    if ismissing(step)
+        step = 1
+    elseif !ismissing(step_labels)
+        step_ix = findfirst(isequal(step), step_labels)
+        isnothing(step_ix) && throw(ArgumentError("Step $step is not among the plotted steps $(step_labels)."))
+        step = step_ix
     end
     if model isa DataDomain
         data_domain = model
@@ -252,6 +270,8 @@ function plot_reservoir(model, states = missing;
                 static = static_data,
                 zreversed = true,
                 aspect = aspect,
+                step = step,
+                step_labels = step_labels,
                 extra_arg...,
                 kwarg...
             )
@@ -276,12 +296,12 @@ function plot_reservoir(model, states = missing;
                 end
                 arg = (merged_states, )
             end
-            fig = plot_interactive(data_domain, arg...; z_is_depth = true, aspect = aspect, kwarg...)
+            fig = plot_interactive(data_domain, arg...; z_is_depth = true, aspect = aspect, step = step, step_labels = step_labels, kwarg...)
             ax = fig.current_axis[]
             retval = fig
         end
     else
-        fig, ax, _ = plot_reservoir_static(g, static_data, states; kwarg...)
+        fig, ax, _ = plot_reservoir_static(g, static_data, states; step = step, kwarg...)
         if Jutul.dim(g) == 3
             ax.aspect[] = aspect
         end
@@ -338,6 +358,20 @@ end
 
 # Use the same converted fields as the interactive plotter, but select one
 # explicitly without creating menus, sliders or a live browser dependency.
+function filter_stored_states(states, step_labels)
+    stored = findall(!ismissing, states)
+    if length(stored) < length(states)
+        length(stored) > 0 || throw(ArgumentError("All states are missing, nothing to plot (see `reservoir_report_steps`)."))
+        if ismissing(step_labels)
+            step_labels = stored
+        else
+            step_labels = step_labels[stored]
+        end
+        states = map(identity, states[stored])
+    end
+    return (states, step_labels)
+end
+
 function plot_reservoir_static(g, static_data, states;
         key = missing, step = 1, row = 1, kwarg...
     )
@@ -380,6 +414,10 @@ function plot_reservoir(case::JutulCase, states = missing; state0 = true, kwarg.
     if states isa AbstractDict
         states = [states]
     end
+    if state0 && !ismissing(states) && any(ismissing, states) && !all(ismissing, states)
+        # Label state0 as step 0 so that the stored steps keep their numbers
+        kwarg = (step_labels = 0:length(states), kwarg...)
+    end
     if state0
         s0 = case.state0
         m = case.model
@@ -388,10 +426,10 @@ function plot_reservoir(case::JutulCase, states = missing; state0 = true, kwarg.
             m = m[:Reservoir]
         end
         s0 = Jutul.evaluate_all_secondary_variables(m, s0)
-        if ismissing(states) || length(states) == 0
+        if ismissing(states) || all(ismissing, states)
             states = [s0]
         else
-            s = states[1]
+            s = states[findfirst(!ismissing, states)]
             s0_new = typeof(s)()
             for (k, v) in pairs(s)
                 s0_new[k] = v
