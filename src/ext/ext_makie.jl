@@ -346,7 +346,9 @@ function reservoir_plot_aspect(ranges, zaspect; use_scaling)
     elseif use_scaling
         zaspect = zaspect*xrng/ranges[3]
     end
-    return (1.0, max(yrng/xrng, 0.001), zaspect)
+    # Coordinate scaling must preserve the mesh's horizontal proportions.
+    yaspect = use_scaling ? 1.0 : max(yrng/xrng, 0.001)
+    return (1.0, yaspect, zaspect)
 end
 
 # Use the same converted fields as the interactive plotter, but select one
