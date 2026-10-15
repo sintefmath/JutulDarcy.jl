@@ -7,8 +7,8 @@ JutulDarcy uses a conservative configuration by default that is efficient for se
 There are four main ways of running Jutul/JutulDarcy in parallel:
 
 - Kernel-based threading. This parallelizes all aspects of the simulator and uses an alternative linear solver suitable for massive parallelization. **This is the preferred way of speeding up simulations on both CPU*. This can be enabled by passing `mode=:ka` to [`simulate_reservoir`](@ref) or [`setup_reservoir_simulator`](@ref).
-- GPU execution. Massively parallelizes all parts of the code by running it on a GPU. See []
-- MPI support. Run the same case across multiple compute nodes that do not share memory.
+- GPU execution. Massively parallelizes all parts of the code by running it on a GPU. See [GPU support](@ref)
+- MPI support. Run the same case across multiple compute nodes that do not share memory, and only handle their part of the reservoir domain. Somewhat cumbersome to use relative to a standard script-based workflow, but can be very powerful on multi-node systems to run very large models.
 - Standard threading. This is automatically enabled by launching julia with threads (`julia --threads=N` where `N` is the number of threads). This speeds up many operations, but the default linear solver is only partially parallel. This is a conservative parallelization that works without changes to your simulation setup. You should likely try the kernel-based threading if you have large cases that can leverage many threads.
 
 ### MPI parallelization
@@ -48,9 +48,9 @@ You can mix MPI and threaded approaches approaches: Adding multiple threads to e
 
 A few hints when you are looking at performance:
 
-- Reservoir simulations are memory bound, cannot expect that 10 threads = 10x performance
+- Reservoir simulations are memory bound, cannot expect that 10 threads = 10x performance.
 - CPUs can often boost single-core performance when resources are available
-- MPI in JutulDarcy is less tested than single-process simulations, but is natural for larger models
+- MPI in JutulDarcy is less tested than single-process simulations, but is natural for larger models.
 - There is always some cost to parallelism: If running a large ensemble with limited compute, many serial runs handled by Julia's task system is usually a better option
 - Adding the maximum number of processes does not always give the best performance. Typically you want at least 10 000 cells per process. Can be case dependent.
 
