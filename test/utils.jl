@@ -96,3 +96,35 @@ end
     @test first(JutulDarcy.unit_system_unit_conversion("Field", "", :volume)) ≈ 1 / 0.3048^3
     @test first(JutulDarcy.unit_system_unit_conversion("Field", "", :gas_volume_surface)) ≈ 1 / (1000 * 0.3048^3)
 end
+
+@testset "Reservoir plot axis proportions" begin
+    # Axis3 must display the requested z-to-x ratio regardless of reservoir
+    # thickness. A coordinate scale (e.g. 10 for a shallow grid) is not that ratio.
+    for thickness in (0.01, 50.0, 1500.0, 15000.0)
+        ranges = (1500.0, 800.0, thickness)
+        fixed = JutulDarcy.reservoir_plot_aspect(ranges, 1/3; use_scaling = false)
+        @test fixed[3]/fixed[1] ≈ 1/3
+        @test fixed[2]/fixed[1] ≈ 800/1500
+    end
+    @test JutulDarcy.reservoir_plot_aspect((20.0, 40.0, 2.0), 0.5;
+        use_scaling = false) == (1.0, 2.0, 0.5)
+
+    # Only scale depth in the fancy viewer; keep its existing 2D z scale.
+    @test JutulDarcy.reservoir_plot_aspect((1500.0, 800.0, 50.0), 1/3;
+        use_scaling = true) == (1.0, 1.0, 10.0)
+    @test JutulDarcy.reservoir_plot_aspect((20.0, 40.0), 1/3;
+        use_scaling = true) == (1.0, 1.0, 1.0)
+    @test JutulDarcy.reservoir_plot_aspect((20.0, 40.0), 1/3;
+        use_scaling = false) == (1.0, 2.0, 1.0)
+end
+
+@testset "Fancy reservoir horizontal proportions" begin
+    for (x, y) in ((1000.0, 500.0), (500.0, 1000.0), (1000.0, 1000.0),
+                  (1000.0, 0.1), (0.1, 1000.0))
+        for ranges in ((x, y), (x, y, 100.0))
+            scale = JutulDarcy.reservoir_plot_aspect(ranges, 1/3; use_scaling = true)
+            # Coordinate scaling must preserve the mesh's horizontal shape.
+            @test (y*scale[2])/(x*scale[1]) ≈ y/x
+        end
+    end
+end

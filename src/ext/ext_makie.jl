@@ -121,6 +121,9 @@ Displayed units are determined by the `unit_system` keyword, which defaults to
 `"metric"`. The source units are assumed to be `"si"` by default. Unit
 conversion can be disabled altogether by setting `convert_units=false`.
 
+For 3D fixed-axis views (`gui=false` or `fancy=false`), `zaspect` sets the
+z-to-x axis length ratio (default `1/3`), unless `aspect` is provided.
+
 For `gui=false`, select a cell field with `key`, a report step with `step`
 (default `1`), and a matrix-valued field component with `row` (default `1`).
 Both the original field name and its displayed name with units are accepted.
@@ -215,9 +218,7 @@ function plot_reservoir(model, states = missing;
             end
             return max(hi - lo, eps(Float64))
         end
-        xrng, yrng = ranges[1:2]
-        zscale = length(ranges) == 3 ? zaspect*xrng/ranges[3] : 1.0
-        aspect = (1.0, max(yrng/xrng, 0.001), zscale)
+        aspect = reservoir_plot_aspect(ranges, zaspect; use_scaling = gui && fancy)
     end
     if haskey(data_domain, :boundary_centroids)
         bc = data_domain[:boundary_centroids]
@@ -334,6 +335,20 @@ function plot_reservoir(model, states = missing;
         plot_faults!(ax, g; domain = data_domain, toggle = ftoggle, alpha = fault_alpha)
     end
     return retval
+end
+
+# The fancy viewer scales coordinates; Axis3 takes the final axis proportions.
+# Keep the coordinate-scale conversion out of the fixed-axis views.
+function reservoir_plot_aspect(ranges, zaspect; use_scaling)
+    xrng, yrng = ranges[1:2]
+    if length(ranges) != 3
+        zaspect = 1.0
+    elseif use_scaling
+        zaspect = zaspect*xrng/ranges[3]
+    end
+    # Coordinate scaling must preserve the mesh's horizontal proportions.
+    yaspect = use_scaling ? 1.0 : max(yrng/xrng, 0.001)
+    return (1.0, yaspect, zaspect)
 end
 
 # Use the same converted fields as the interactive plotter, but select one
