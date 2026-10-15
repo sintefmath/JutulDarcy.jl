@@ -670,7 +670,7 @@ Base.pairs(wr::WellResults) = pairs(wr.wells)
 struct ReservoirSimResult
     "Well results as a Dict (output from [`full_well_outputs`](@ref))"
     wells::WellResults
-    "Reservoir states for each time-step"
+    "Reservoir states for each time-step (`missing` for steps excluded by `reservoir_report_steps`)"
     states::AbstractVector
     "Summary result (sparse data)"
     summary::AbstractDict
@@ -706,7 +706,7 @@ function ReservoirSimResult(model, result::Jutul.SimResult, forces, extra = Dict
     end
     states, dt, report_ix = Jutul.expand_to_ministeps(result)
     report_time = cumsum(dt)
-    res_states = map(x -> x[:Reservoir], states)
+    res_states = map(x -> get(x, :Reservoir, missing), states)
     if forces isa Vector
         forces = forces[report_ix]
     end

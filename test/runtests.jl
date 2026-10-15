@@ -174,6 +174,10 @@ end
     include("merge_wells.jl")
 end
 
+@testitem "Reservoir report steps" begin
+    include("reservoir_report_steps.jl")
+end
+
 @testitem "HistoryMatching" begin
     include("historymatch.jl")
 end
