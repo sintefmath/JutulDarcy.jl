@@ -362,7 +362,6 @@ function optimize_reservoir(dopt::DictParameters, objective, setup_fn = dopt.set
         info_level = 0,
         simulator_arg = DEFAULT_OPTIMIZER_SIMULATOR_ARG,
         mode = :default,
-        optimizer = :lbfgsb_qp,
         simulator = missing,
         config = missing,
         deps = :parameters_and_state0,
