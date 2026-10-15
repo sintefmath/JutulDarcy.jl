@@ -373,7 +373,6 @@ function optimize_reservoir(dopt::DictParameters, objective, setup_fn = dopt.set
         simulator = sim,
         config = cfg,
         deps = deps,
-        optimizer = optimizer,
         info_level = info_level,
         kwarg...
     )
