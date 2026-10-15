@@ -180,6 +180,7 @@ By default, the specific internal energy of the fluid is ``U_\alpha = C T`` wher
 
 ```@docs
 JutulDarcy.PressureTemperatureDependentEnthalpy
+JutulDarcy.tabulated_enthalpy
 JutulDarcy.FluidInternalEnergyFromFluidEnthalpy
 ```
 
