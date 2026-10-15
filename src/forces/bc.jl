@@ -186,7 +186,7 @@ function Jutul.apply_forces_to_equation!(acc, storage, model::SimulationModel{D,
     return acc
 end
 
-function Jutul.apply_forces_to_equation!(acc, storage, model::SimulationModel{D, S}, eq::ConservationLaw{:TotalThermalEnergy}, eq_s, force::V, time) where {V <: AbstractVector{<:FlowBoundaryCondition}, D, S<:MultiPhaseSystem}
+function Jutul.apply_forces_to_equation!(acc, storage, model::SimulationModel{D, S}, eq::Union{ConservationLaw{:TotalThermalEnergy}, ConservationLaw{:TotalEnergy}}, eq_s, force::V, time) where {V <: AbstractVector{<:FlowBoundaryCondition}, D, S<:MultiPhaseSystem}
     state = Jutul.evaluation_state(storage)
     system = reservoir_model(model).system
     gmap = global_map(model)

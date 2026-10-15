@@ -42,6 +42,24 @@ end
 struct RockInternalEnergy <: ScalarVariable end
 struct TotalThermalEnergy <: ScalarVariable end
 
+"""
+    PotentialEnergy()
+
+Gravitational potential energy of the fluid in each cell, i.e. the total fluid
+mass times [`UnitPotentialEnergy`](@ref). Only used with the `:total` energy
+formulation.
+"""
+struct PotentialEnergy <: ScalarVariable end
+
+"""
+    TotalEnergy()
+
+Total energy in each cell, defined as the sum of `TotalThermalEnergy`
+and [`PotentialEnergy`](@ref). This is the conserved quantity when the `:total`
+energy formulation is used.
+"""
+struct TotalEnergy <: ScalarVariable end
+
 struct ComponentHeatCapacity <: ComponentVariables end
 Jutul.default_value(model, ::ComponentHeatCapacity) = 4184.0
 
@@ -150,12 +168,17 @@ end
 Tabulated specific enthalpy as a function of pressure and temperature. Tables
 provide phase enthalpies for immiscible systems and pure component enthalpies
 for compositional systems, where phase mass fractions define a linear mixing rule.
+
+Constant (padded) first/last temperature columns in the tables are replaced by
+linear extrapolation, and the enthalpy is extrapolated linearly in temperature
+outside the table range, so that the heat capacity ``\\partial h/\\partial T``
+stays positive. See [`tabulated_enthalpy`](@ref).
 """
 struct PressureTemperatureDependentEnthalpy{T, R, N} <: PhaseVariables
     tab::T
     regions::R
     function PressureTemperatureDependentEnthalpy(tab; regions = nothing)
-        tab = region_wrap(tab, regions)
+        tab = region_wrap(remove_constant_temperature_caps(tab), regions)
         ex = first(tab)
         N = length(ex(1e8, 273.15 + 30.0))
         new{typeof(tab), typeof(regions), N}(tab, regions)
@@ -179,11 +202,108 @@ function Jutul.subvariable(var::PressureTemperatureDependentEnthalpy{T, R, N}, m
     return PressureTemperatureDependentEnthalpy(var.tab, regions, Val(N))
 end
 
+"""
+    tabulated_enthalpy(var::PressureTemperatureDependentEnthalpy, p, T, cell)
+
+Evaluate the table of `var` at pressure `p` and temperature `T` for the region
+of `cell`. Returns per-phase values (immiscible) or per-component values
+(compositional). The enthalpy is extrapolated linearly in temperature outside
+the table range.
+"""
+function tabulated_enthalpy(var::PressureTemperatureDependentEnthalpy, p, T, cell)
+    interpolator = table_by_region(var.tab, region(var.regions, cell))
+    return value_with_temperature_extrapolation(interpolator, p, T)
+end
+
+"""
+    remove_constant_temperature_caps(tab)
+
+Tables are often padded with a duplicate first/last temperature column to get
+constant extrapolation. For enthalpy, this gives zero heat capacity (dh/dT = 0)
+in the padded interval and a singular energy equation if the temperature enters
+it. Replace such columns with linear extrapolation from the neighbouring
+interval.
+"""
+remove_constant_temperature_caps(tab) = tab
+remove_constant_temperature_caps(tab::Union{Tuple, AbstractVector}) = map(remove_constant_temperature_caps, tab)
+
+function remove_constant_temperature_caps(tab::Jutul.BilinearInterpolant)
+    Y = tab.Y
+    n = length(Y)
+    n >= 3 || return tab
+    F = copy(tab.F)
+    if all(F[:, 1] .== F[:, 2])
+        F[:, 1] = F[:, 2] .- (F[:, 3] .- F[:, 2]).*((Y[2] - Y[1])/(Y[3] - Y[2]))
+    end
+    if all(F[:, n] .== F[:, n-1])
+        F[:, n] = F[:, n-1] .+ (F[:, n-1] .- F[:, n-2]).*((Y[n] - Y[n-1])/(Y[n-1] - Y[n-2]))
+    end
+    return Jutul.BilinearInterpolant(tab.X, Y, F)
+end
+
+function value_with_temperature_extrapolation(tab, p, T)
+    return tab(p, T)
+end
+
+function value_with_temperature_extrapolation(tab::Jutul.BilinearInterpolant, p, T)
+    # Tables are constant outside their range, which gives zero heat capacity
+    # (dh/dT = 0) and a singular energy equation if the temperature leaves the
+    # table during the nonlinear iterations. Extrapolate linearly in temperature
+    # using the slope of the first/last table interval instead.
+    Y = tab.Y
+    T_lo, T_hi = first(Y), last(Y)
+    if T < T_lo
+        v_lo = tab(p, T_lo)
+        dvdT = (tab(p, Y[2]) - v_lo)/(Y[2] - T_lo)
+        v = v_lo + dvdT*(T - T_lo)
+    elseif T > T_hi
+        v_hi = tab(p, T_hi)
+        dvdT = (v_hi - tab(p, Y[end-1]))/(T_hi - Y[end-1])
+        v = v_hi + dvdT*(T - T_hi)
+    else
+        v = tab(p, T)
+    end
+    return v
+end
+
+"""
+    lower_temperature_limit!(model, temperature_min = 200.0)
+
+Lower the hard lower limit of the `Temperature` primary variable to
+`temperature_min` (if it is higher) for the reservoir and all wells. With a
+realistic (tabulated) enthalpy, the temperature can drop below 0 °C during the
+nonlinear iterations, for instance from cooling when liquid is compressed at
+constant enthalpy (Joule-Thomson effect) during large transient pressure
+changes. A limit at 0 °C then makes the energy equation impossible to satisfy.
+The tabulated enthalpy is extrapolated linearly outside the table range so that
+such iterates are well-defined.
+"""
+function lower_temperature_limit!(model::MultiModel, temperature_min = 200.0)
+    for (k, m) in pairs(model.models)
+        if k == :Reservoir || model_or_domain_is_well(m)
+            lower_temperature_limit!(m, temperature_min)
+        end
+    end
+    return model
+end
+
+function lower_temperature_limit!(model::SimulationModel, temperature_min = 200.0)
+    T_var = get(Jutul.get_primary_variables(model), :Temperature, nothing)
+    if T_var isa Temperature && T_var.min > temperature_min
+        T_new = Temperature(
+            min = temperature_min,
+            max = T_var.max,
+            max_rel = T_var.max_rel,
+            max_abs = T_var.max_abs
+        )
+        set_primary_variables!(model, Temperature = T_new)
+    end
+    return model
+end
+
 @jutul_secondary function update_temperature_dependent_enthalpy!(H_phases, var::PressureTemperatureDependentEnthalpy{T, R, N}, model, Pressure, Temperature, ix) where {T, R, N}
     for c in ix
-        reg = region(var.regions, c)
-        interpolator = table_by_region(var.tab, reg)
-        phase_H = interpolator(Pressure[c], Temperature[c])
+        phase_H = tabulated_enthalpy(var, Pressure[c], Temperature[c], c)
         for ph in 1:N
             H_phases[ph, c] = phase_H[ph]
         end
@@ -199,9 +319,7 @@ end
 
     X, Y = LiquidMassFractions, VaporMassFractions
     for c in ix
-        reg = region(var.regions, c)
-        interpolator = table_by_region(var.tab, reg)
-        component_H = interpolator(Pressure[c], Temperature[c])
+        component_H = tabulated_enthalpy(var, Pressure[c], Temperature[c], c)
         T = eltype(component_H)
         H_l = zero(T)
         H_v = zero(T)
@@ -306,6 +424,32 @@ function reservoir_conductivity(reservoir::DataDomain)
         end
     end
     return T
+end
+
+"""
+    UnitPotentialEnergy()
+
+Parameter for the gravitational potential energy per unit mass in each cell
+(J/kg). The default is `-g*z` where `z` is the depth of the cell centroid
+(positive downwards). The datum is `z = 0` for all models (reservoir and
+wells), which is required for consistent energy exchange between them. Zero for
+models that are not three-dimensional, consistent with how gravity is treated
+in the flow equations.
+"""
+struct UnitPotentialEnergy <: ScalarVariable end
+
+function Jutul.default_parameter_values(data_domain, model, param::UnitPotentialEnergy, symb)
+    # Note: The datum z = 0 is shared by all models (reservoir and wells), as
+    # the cell centroids are given in the same global coordinates. This is
+    # required for consistent exchange of energy between the models.
+    cc = data_domain[:cell_centroids, Cells()]
+    if size(cc, 1) == 3
+        Φ = -gravity_constant.*vec(cc[3, :])
+    else
+        # Consistent with TwoPointGravityDifference: No gravity in 1D/2D
+        Φ = zeros(size(cc, 2))
+    end
+    return Φ
 end
 
 """
@@ -433,17 +577,29 @@ end
 struct MaterialInternalEnergy <: ScalarVariable end
 
 """
-    add_thermal_to_model!(model::MultiModel)
+    add_thermal_to_model!(model::MultiModel; energy_formulation = :thermal)
+    add_thermal_to_model!(model; energy_formulation = :thermal)
 
 Add energy conservation equation and thermal primary variable together with
 standard set of parameters to existing flow model. Note that more complex models
 require additional customization after this function call to get correct
 results.
+
+The `energy_formulation` keyword determines the conserved energy:
+- `:thermal`: Conservation of thermal energy (internal energy of fluid and
+  rock/well material), with advection of enthalpy and heat conduction.
+- `:total`: Conservation of total energy, which in addition includes the
+  gravitational potential energy of the fluid (see [`TotalEnergy`](@ref) and
+  [`UnitPotentialEnergy`](@ref)). This accounts for the work done by gravity on
+  the fluid, which can be significant in e.g. deep wells.
+
+For a `MultiModel`, the same formulation is used for the reservoir and all
+wells, which is required for consistent energy exchange between them.
 """
-function add_thermal_to_model!(model::MultiModel)
+function add_thermal_to_model!(model::MultiModel; energy_formulation = :thermal)
     for (k, m) in pairs(model.models)
         if m.system isa MultiPhaseSystem
-            add_thermal_to_model!(m)
+            add_thermal_to_model!(m, energy_formulation = energy_formulation)
         elseif m.system isa FacilitySystem
             add_thermal_to_facility!(m)
         end
@@ -451,7 +607,8 @@ function add_thermal_to_model!(model::MultiModel)
     return m
 end
 
-function add_thermal_to_model!(model)
+function add_thermal_to_model!(model; energy_formulation = :thermal)
+    energy_formulation in (:thermal, :total) || throw(ArgumentError("energy_formulation must be :thermal or :total, was :$energy_formulation"))
     set_primary_variables!(model, Temperature = Temperature())
     set_parameters!(model,
         RockHeatCapacity = RockHeatCapacity(),
@@ -499,9 +656,18 @@ function add_thermal_to_model!(model)
         end
     end
     disc = model.domain.discretizations.heat_flow
-    model.equations[:energy_conservation] = ConservationLaw(disc, :TotalThermalEnergy, 1)
-
     out = model.output_variables
+    if energy_formulation == :total
+        set_parameters!(model, UnitPotentialEnergy = UnitPotentialEnergy())
+        set_secondary_variables!(model,
+            PotentialEnergy = PotentialEnergy(),
+            TotalEnergy = TotalEnergy()
+        )
+        model.equations[:energy_conservation] = ConservationLaw(disc, :TotalEnergy, 1)
+        push!(out, :TotalEnergy)
+    else
+        model.equations[:energy_conservation] = ConservationLaw(disc, :TotalThermalEnergy, 1)
+    end
     push!(out, :TotalThermalEnergy)
     push!(out, :FluidEnthalpy)
     push!(out, :Temperature)
@@ -522,6 +688,27 @@ function add_thermal_to_facility!(facility)
     push!(out, :SurfaceEnthalpy)
     unique!(out)
     return facility
+end
+
+"""
+    model_energy_formulation(model)
+
+Get the energy formulation (`:thermal` or `:total`) of a thermal model, or
+`nothing` if the model has no energy equation.
+"""
+function model_energy_formulation(model::SimulationModel)
+    eq = get(model.equations, :energy_conservation, nothing)
+    if isnothing(eq)
+        return nothing
+    elseif eq isa ConservationLaw{:TotalEnergy}
+        return :total
+    else
+        return :thermal
+    end
+end
+
+function model_energy_formulation(model::MultiModel)
+    return model_energy_formulation(reservoir_model(model))
 end
 
 """

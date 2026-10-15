@@ -556,9 +556,12 @@ end
         )
 
         # This compares temperature more closely than the default nonlinear
-        # convergence tolerances guarantee.
+        # convergence tolerances guarantee. Also limit the time-step so that
+        # differences in adaptive time-stepping between the two models do not
+        # dominate the temperature comparison.
         sim_args = (info_level = -1, initial_dt = 5.0,
-            tol_cnv = 1e-5, tol_cnve = 1e-6)
+            tol_cnv = 1e-5, tol_cnve = 1e-6,
+            max_timestep = setup.case_fd.dt[1]/4)
         _, cfg = setup_reservoir_simulator(setup.case_dfm; sim_args...)
         @test cfg[:tolerances][:Reservoir][:energy_conservation].CNV == sim_args.tol_cnve
         res_fd  = simulate_reservoir(setup.case_fd;  sim_args...)

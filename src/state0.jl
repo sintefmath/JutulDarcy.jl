@@ -313,6 +313,20 @@ function setup_reservoir_state(model::MultiModel, equil::Union{Missing, Vector, 
         end
     end
 
+    res_eval = res_state
+    if is_thermal && !haskey(res_state, :Enthalpy)
+        # The surface enthalpy is initialized from the fluid enthalpy, which is
+        # a secondary variable that is not evaluated by setup_state. This is
+        # only the initial guess for a primary variable determined by an
+        # algebraic equation, so the evaluation is done on plain values. Other
+        # number types (e.g. sparsity tracers when differentiating through the
+        # setup) are skipped.
+        res_values = values_for_secondary_evaluation(res_state)
+        prm_values = values_for_secondary_evaluation(setup_parameters(rmodel))
+        if !isnothing(res_values) && !isnothing(prm_values)
+            res_eval = Jutul.evaluate_all_secondary_variables(rmodel, res_values, prm_values)
+        end
+    end
     for (k, W) in pairs(model.models)
         if W.domain isa WellGroup
             # Facility or well group
@@ -339,10 +353,10 @@ function setup_reservoir_state(model::MultiModel, equil::Union{Missing, Vector, 
                     end
                     if haskey(res_state, :Enthalpy)
                         enth[i] = res_state[:Enthalpy][wc]
-                    elseif haskey(res_state, :FluidEnthalpy)
-                        H = res_state[:FluidEnthalpy]
-                        if haskey(res_state, :Saturations)
-                            S = res_state[:Saturations]
+                    elseif haskey(res_eval, :FluidEnthalpy)
+                        H = res_eval[:FluidEnthalpy]
+                        if haskey(res_eval, :Saturations)
+                            S = res_eval[:Saturations]
                             enth_i = zero(H[1, wc])
                             for ph in axes(H, 1)
                                 enth_i += H[ph, wc]*S[ph, wc]
@@ -369,6 +383,27 @@ function setup_reservoir_state(model::MultiModel, equil::Union{Missing, Vector, 
 
     state = setup_state(model, init)
     return state
+end
+
+function values_for_secondary_evaluation(state)
+    out = Dict{Symbol, Any}()
+    for (k, v) in pairs(state)
+        if v isa AbstractArray
+            T = eltype(v)
+            if T <: AbstractFloat
+                out[k] = v
+            elseif T <: ForwardDiff.Dual
+                # ForwardDiff.value also strips duals with foreign tags (e.g.
+                # when differentiating through the case setup)
+                out[k] = ForwardDiff.value.(v)
+            else
+                return nothing
+            end
+        else
+            out[k] = v
+        end
+    end
+    return out
 end
 
 function setup_reservoir_state(model, init::AbstractDict; kwarg...)
