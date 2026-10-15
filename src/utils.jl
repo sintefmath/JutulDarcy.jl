@@ -1106,6 +1106,18 @@ end
 - `presolve_wells=false`: Solve wells before each linearization. Can improve
   convergence for models with multisegment wells.
 
+## Output options
+
+- `reservoir_report_steps=:all`: Report steps for which the reservoir state is
+  stored (in memory and/or on disk if `output_path` is set). Can be `:all` or a
+  collection of integers (e.g. `[1, 10, 20]` or `5:5:100`). Well and facility
+  states are always stored for all steps, so well results remain complete. For
+  steps that are not included, the entry in `states` of the
+  [`ReservoirSimResult`](@ref) will be `missing`. Note that restarting from a
+  step requires that the reservoir state of the previous step was stored. This
+  option is implemented by wrapping the `output_function` simulator option and
+  composes with any user-provided `output_function`.
+
 ## Linear solver options
 
 - `linear_solver=:bicgstab`: iterative solver to use (provided model supports
@@ -1291,6 +1303,7 @@ function setup_reservoir_simulator(case::JutulCase;
         linear_float_type = float_type,
         linear_index_type = index_type,
         reduce_memory = true,
+        reservoir_report_steps = :all,
         kwarg...
     )
     ka_mode = mode isa Symbol && (mode == :ka || startswith(String(mode), "ka_"))
@@ -1484,6 +1497,7 @@ function setup_reservoir_simulator(case::JutulCase;
         inc_tol_dT = inc_tol_dT,
         tolerances...,
     )
+    set_reservoir_report_steps!(cfg, reservoir_report_steps)
     return (sim, cfg)
 end
 
@@ -1558,7 +1572,11 @@ function simulate_reservoir(case::JutulCase;
         if length(kwarg) > 0
             config = copy(config)
             for (k, v) in kwarg
-                config[k] = v
+                if k == :reservoir_report_steps
+                    set_reservoir_report_steps!(config, v)
+                else
+                    config[k] = v
+                end
             end
         end
         extra_arg = (state0 = case.state0, parameters = case.parameters)
@@ -1567,6 +1585,7 @@ function simulate_reservoir(case::JutulCase;
     if validate
         CaseValidation.validate(case, info_level = config[:info_level]-1)
     end
+    check_reservoir_restart(config[:output_path], restart, length(dt))
     result = simulate!(sim, dt;
         forces = forces,
         config = config,
@@ -1577,6 +1596,80 @@ function simulate_reservoir(case::JutulCase;
         extra_arg...,
     )
     return ReservoirSimResult(model, result, forces; simulator = sim, config = config, start_date = case.start_date)
+end
+
+struct ReservoirReportStepsOutput{F}
+    steps::Union{Symbol, Set{Int}}
+    output_function::F
+end
+
+function (o::ReservoirReportStepsOutput)(state, report, step)
+    if !(o.steps == :all || step in o.steps)
+        state = remove_reservoir_state(state)
+    end
+    F = o.output_function
+    if !ismissing(F)
+        state = Jutul.apply_output_function(F, state, report, step)
+    end
+    return state
+end
+
+function remove_reservoir_state(state)
+    state = copy(state)
+    delete!(state, :Reservoir)
+    if haskey(state, :substates)
+        state[:substates] = map(remove_reservoir_state, state[:substates])
+    end
+    return state
+end
+
+function set_reservoir_report_steps!(cfg, steps)
+    F = cfg[:output_function]
+    if F isa ReservoirReportStepsOutput
+        # Replace previous selection
+        F = F.output_function
+    end
+    if steps == :all
+        cfg[:output_function] = F
+    else
+        steps isa Symbol && throw(ArgumentError("reservoir_report_steps must be :all or a collection of integers, was :$steps"))
+        cfg[:output_function] = ReservoirReportStepsOutput(Set{Int}(steps), F)
+    end
+    return cfg
+end
+
+function check_reservoir_restart(pth, restart, nsteps)
+    if isnothing(pth) || isnothing(restart) || restart === false || restart === 0 || restart === 1
+        return nothing
+    end
+    stored = Jutul.valid_restart_indices(pth)
+    if restart === true
+        if length(stored) == 0
+            return nothing
+        end
+        step = min(maximum(stored) + 1, nsteps + 1)
+    else
+        step = restart
+    end
+    if step == nsteps + 1 || step < 2 || !((step - 1) in stored)
+        # Simulation is already done, or Jutul will handle the error.
+        return nothing
+    end
+    has_reservoir_state(i) = haskey(first(Jutul.read_restart(pth, i, read_report = false)), :Reservoir)
+    if !has_reservoir_state(step - 1)
+        msg = "Cannot restart from step $step: reservoir state for step $(step - 1) was not stored in $pth (see `reservoir_report_steps`)."
+        if restart === true
+            latest = findlast(i -> i < step && has_reservoir_state(i), stored)
+            if isnothing(latest)
+                msg *= " No stored step contains a reservoir state. Use `restart = false` to start from the beginning."
+            else
+                latest_step = stored[latest]
+                msg *= " The latest step with a stored reservoir state is $latest_step. Use `restart = $(latest_step + 1)` to restart from that step."
+            end
+        end
+        error(msg)
+    end
+    return nothing
 end
 
 system_uses_cnv_mb(system::JutulSystem) = false
@@ -1934,7 +2027,7 @@ function full_well_outputs(model, states, forces; targets = missing)
         targets = available_well_targets(rmodel)
     end
     cnames = component_names(rmodel.system)
-    has_temperature = length(states) > 0 && haskey(first(states)[:Reservoir], :Temperature)
+    has_temperature = any(s -> haskey(s, :Reservoir) && haskey(s[:Reservoir], :Temperature), states)
     well_t = Dict{Symbol, AbstractVector}
     out = Dict{Symbol, well_t}()
     for w in well_symbols(model)
@@ -2266,9 +2359,16 @@ function Base.show(io::IO, ::MIME"text/plain", sr::ReservoirSimResult)
             print(io, "    Results per well:\n")
             print_keys("       ", wells[first(wk)])
         end
-        el = first(states)
-        print(io, "\n  states (Vector with $n entries, reservoir variables for each state)\n")
-        print_keys("    ", el)
+        el_ix = findfirst(!ismissing, states)
+        n_stored = count(!ismissing, states)
+        if n_stored == n
+            print(io, "\n  states (Vector with $n entries, reservoir variables for each state)\n")
+        else
+            print(io, "\n  states (Vector with $n entries, reservoir variables stored for $n_stored states)\n")
+        end
+        if !isnothing(el_ix)
+            print_keys("    ", states[el_ix])
+        end
     end
     print(io, "\n  time (report time for each state)\n     $(typeof(sr.time)) of length $n\n")
     print(io, "\n  result (extended states, reports)\n     $(sr.result)\n")
@@ -3107,10 +3207,20 @@ function reservoir_measurables(model, wellresult, states = missing;
         fpr = add_entry(:pr)
         pres = add_entry(:prp)
 
-        if length(states) > 0 && haskey(states[1], :Reservoir)
-            states = map(x -> x[:Reservoir], states)
+        if any(x -> !ismissing(x) && haskey(x, :Reservoir), states)
+            states = map(x -> get(x, :Reservoir, missing), states)
         end
         for (i, state) in enumerate(states)
+            if ismissing(state)
+                # Reservoir state was not stored for this step
+                for v in (fwipr, foipr, fgipr, fprh, fpr, pres)
+                    v[i] = NaN
+                end
+                if is_blackoil
+                    fwip[i] = foip[i] = fgip[i] = NaN
+                end
+                continue
+            end
             p = state[:Pressure]
             if haskey(state, :Saturations)
                 s = state[:Saturations]
