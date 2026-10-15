@@ -431,8 +431,10 @@ function plot_reservoir(case::JutulCase, states = missing; state0 = true, kwarg.
         else
             s = states[findfirst(!ismissing, states)]
             s0_new = typeof(s)()
-            for (k, v) in pairs(s)
-                s0_new[k] = v
+            for k in keys(s)
+                if haskey(s0, k)
+                    s0_new[k] = s0[k]
+                end
             end
             states = [s0_new; states]
         end
