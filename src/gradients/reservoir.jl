@@ -349,6 +349,7 @@ setup and optimization process:
 - `simulator`: Custom simulator instance (default: `missing`).
 - `config`: Configuration for the simulator (default: `missing`).
 - `deps`: Dependencies for the optimization (default: `:parameters_and_state0`).
+- `mode`: Mode for the simulator setup (default: `:default`).
 
 # Notes
 If you are optimizing forces (i.e. well constraints or boundary conditions), you
@@ -360,11 +361,13 @@ where only parameters and initial state are changed.
 function optimize_reservoir(dopt::DictParameters, objective, setup_fn = dopt.setup_function;
         info_level = 0,
         simulator_arg = DEFAULT_OPTIMIZER_SIMULATOR_ARG,
+        mode = :default,
         simulator = missing,
         config = missing,
         deps = :parameters_and_state0,
         kwarg...
     )
+    simulator_arg = merge(simulator_arg, (mode = mode, ))
     sim, cfg = setup_simulator_for_reservoir_optimization(dopt, setup_fn, simulator, config, simulator_arg, info_level = info_level)
     return Jutul.optimize(dopt, objective, setup_fn;
         simulator = sim,
@@ -384,10 +387,12 @@ Compute gradients of `objective` function with respect to parametrized problem
 function parameters_gradient_reservoir(dopt::DictParameters, objective, setup_fn = dopt.setup_function;
         simulator_arg = DEFAULT_OPTIMIZER_SIMULATOR_ARG,
         simulator = missing,
+        mode = :default,
         config = missing,
         deps = :parameters_and_state0,
         kwarg...
     )
+    simulator_arg = merge(simulator_arg, (mode = mode, ))
     sim, cfg = setup_simulator_for_reservoir_optimization(dopt, setup_fn, simulator, config, simulator_arg)
     return Jutul.parameters_gradient(dopt, objective, setup_fn;
         deps = deps,
@@ -401,10 +406,12 @@ function reservoir_optimization_problem(dopt::DictParameters, objective, setup_f
         simulator_arg = DEFAULT_OPTIMIZER_SIMULATOR_ARG,
         simulator = missing,
         config = missing,
+        mode = :default,
         deps = :parameters_and_state0,
         info_level = 0,
         kwarg...
     )
+    simulator_arg = merge(simulator_arg, (mode = mode, ))
     sim, cfg = setup_simulator_for_reservoir_optimization(dopt, setup_fn, simulator, config, simulator_arg, info_level = info_level)
     Jutul.optimization_problem(dopt, objective, setup_fn;
         deps = deps,
