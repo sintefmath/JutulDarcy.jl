@@ -586,7 +586,7 @@ end
 function perforation_phase_mass_flux(λ_t, conn, state_res, state_well, ph)
     # ψ is pressure difference from reservoir to well. If it is negative, we are injecting into the reservoir.
     ψ = perforation_phase_potential_difference(conn, state_res, state_well, ph)
-    if ψ < 0
+    if value(ψ) < 0
         wc = conn.well
         # Injection
         ρ_w = state_well.PhaseMassDensities[ph, wc]
@@ -621,7 +621,7 @@ Base.@propagate_inbounds function simple_well_perforation_flux!(out, sys::Union{
     for ph in 1:nph
         # ψ is pressure difference from reservoir to well. If it is negative, we are injecting into the reservoir.
         ψ = perforation_phase_potential_difference(conn, state_res, state_well, ph)
-        if ψ < 0
+        if value(ψ) < 0
             # Injection
             out[ph] = X[ph]*ψ*ρλ_t
         else
