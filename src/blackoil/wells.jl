@@ -9,7 +9,7 @@ Base.@propagate_inbounds function multisegment_well_perforation_flux!(out, sys::
         a, l, v, rhoGS, rhoOS = well_pvt_bo(sys)
         b, b_w, ρ, ρ_w, s_w = well_volumes_bo(state_res, state_well)
         # Water component flux
-        if dp_a < 0.0
+        if value(dp_a) < 0.0
             # Injection
             Q_a = s_w[a, wc]*ρ_w[a, wc]*λ_t*dp_a
         else
@@ -28,7 +28,7 @@ Base.@propagate_inbounds function multisegment_well_perforation_flux!(out, sys::
 
     q_l = q_v = zero(dp_l)
     # Oil component flux
-    if dp_l < 0.0
+    if value(dp_l) < 0.0
         # Injection
         bO = b_w[l, wc]
         sO = s_w[l, wc]
@@ -47,7 +47,7 @@ Base.@propagate_inbounds function multisegment_well_perforation_flux!(out, sys::
         end
     end
     # Gas component flux
-    if dp_v < 0.0
+    if value(dp_v) < 0.0
         # Injection
         bG = b_w[v, wc]
         sG = s_w[v, wc]
@@ -85,7 +85,7 @@ Base.@propagate_inbounds function simple_well_perforation_flux!(out, sys::Standa
 
         a, l, v, rhoGS, rhoOS = well_pvt_bo(sys)
         # Water component flux
-        if dp_a < 0.0
+        if value(dp_a) < 0.0
             # Injection
             Q_in += λ_a*ρ[a, rc]*dp_a
         else
@@ -103,7 +103,7 @@ Base.@propagate_inbounds function simple_well_perforation_flux!(out, sys::Standa
     b = state_res.ShrinkageFactors
 
     # Oil component flux
-    if dp_l < 0.0
+    if value(dp_l) < 0.0
         # Injection
         Q_in += λ_l*ρ[l, rc]*dp_l
     else
@@ -116,7 +116,7 @@ Base.@propagate_inbounds function simple_well_perforation_flux!(out, sys::Standa
         end
     end
     # Gas component flux
-    if dp_v < 0.0
+    if value(dp_v) < 0.0
         # Injection
         Q_in += λ_v*ρ[v, rc]*dp_v
     else
@@ -129,7 +129,7 @@ Base.@propagate_inbounds function simple_well_perforation_flux!(out, sys::Standa
         end
     end
 
-    if Q_in < 0.0
+    if value(Q_in) < 0.0
         X = @view state_well.MassFractions[:, conn.well]
         if has_other_phase(sys)
             Q_a += X[a]*Q_in
