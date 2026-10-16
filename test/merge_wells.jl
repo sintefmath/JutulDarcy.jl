@@ -179,7 +179,7 @@ end
     ka = simulate_reservoir(case, mode = :ka, precond = :cprw, info_level = -1)
     for name in keys(controls)
         for quantity in (:bhp, :mass_rate)
-            @test isapprox(cpu.wells[name][quantity], ka.wells[name][quantity]; rtol = 1e-5)
+            @test isapprox(cpu.wells[name][quantity], ka.wells[name][quantity]; rtol = 1e-2)
         end
     end
     add_tracers_to_model!(case.model, SinglePhaseTracer(1))

@@ -37,7 +37,7 @@ function setup_spe1_ka_case(; block_backend = false)
         block_backend = block_backend)[1:1]
 end
 
-function setup_spe1_optimization_test(backend)
+function setup_spe1_optimization_test(mode)
     case = setup_spe1_ka_case(block_backend = true)
     transmissibilities = copy(
         case.parameters[:Reservoir][:Transmissibilities])
@@ -61,9 +61,8 @@ function setup_spe1_optimization_test(backend)
     free_optimization_parameter!(dopt, "multiplier";
         abs_min = 0.5, abs_max = 2.0)
     problem = JutulDarcy.reservoir_optimization_problem(dopt, objective;
+        mode = mode,
         simulator_arg = (
-            mode = :ka,
-            ka_backend = backend,
             linear_solver = nothing,
             timesteps = :none,
         ))
@@ -664,21 +663,25 @@ end
     @test all(isfinite, Array(nonzeros(system.jac)))
 end
 
-@testset "SPE1 adjoint solve on a KA backend" begin
-    problem = setup_spe1_optimization_test(JLBackend())
+@testset "SPE1 adjoint solve in KA mode" begin
+    problem = setup_spe1_optimization_test(:ka)
     objective, gradient = problem()
     simulator = problem.cache[:simulator]
     storage = problem.cache[:storage]
 
     @test isfinite(objective)
     @test all(isfinite, gradient)
-    @test simulator.storage.host_evaluation.keys ==
-        (:PROD, :INJ, :Facility)
-    @test length(simulator.model.group_execution) ==
-        length(simulator.model.models)
-    @test storage.forward.storage.LinearizedSystem.r_buffer isa JLArray
-    @test storage.backward.storage.LinearizedSystem.r_buffer isa JLArray
+    for sim in (simulator, storage.forward, storage.backward)
+        @test sim.model.context isa KernelAbstractionsContext
+        @test sim.model.context.backend isa
+            Jutul.KernelExecution.KernelAbstractions.CPU
+        @test length(sim.model.group_execution) == length(sim.model.models)
+        @test all(==(SolveFullyOnDevice), sim.model.group_execution)
+        @test !haskey(sim.storage, :host_evaluation)
+        @test sim.storage.LinearizedSystem.r_buffer isa Vector
+    end
+    @test !(storage.parameter.model.context isa KernelAbstractionsContext)
     @test storage.parameter.storage.LinearizedSystem.r_buffer isa Vector
-    @test storage.state0_buf isa JLArray
+    @test storage.state0_buf isa Vector
     @test storage.dstate0 isa Vector
 end

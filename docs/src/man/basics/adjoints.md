@@ -37,7 +37,7 @@ Jutul.LBFGS.unit_box_bfgs
 
 The history matching module makes it easy to define objective functions from
 typical reservoir observations (rates, pressures and fractions per well as time
-series).
+series). This amounts to first setting up an observation that computes (typically) sum of squares mismatch with weighting for the wells you want to match, and then parametrizing the model using either a custom setup function or `setup_reservoir_dict_optimization`.
 
 ```@docs
 JutulDarcy.HistoryMatching.history_match_objective
@@ -45,6 +45,19 @@ JutulDarcy.HistoryMatching.match_well!
 JutulDarcy.HistoryMatching.match_injectors!
 JutulDarcy.HistoryMatching.match_producers!
 ```
+
+### Advise for history matching
+
+If you are setting up a model for matching, we make the following recommendations for best practice. The tips here are general and can be adapted if you have a geological concept in mind.
+
+- Group layers in the model for permeability and porosity by a coarse lateral position and layers in the model. This is either done by writing a custom setup function, or by using the `lumping` keyword argument to `free_optimization_parameter`. Scale permeability by log (`scaler = :log` in the same call).
+- Set reasonable bounds for the permeability and porosity.
+- Set vertical/horizontal permeability ratio to vary.
+- Set `optimizer = :lbfgs_qp` when running `optimize_reservoir`.
+- Let the producers operate under a total liquid rate, and then match the oil and gas rates.
+- Balance the weights so that the contributions between the rates and the bhp are approximately proportional to the initial error (can be plotted using `JutulDarcy.plot_mismatch`).
+- Let the optimizer run for many iterations if you can afford the runtime (e.g. 50 or so iterations).
+- Use accelerated modes (pass e.g. `mode = :ka` to the `optimize_reservoir` call) if you have many cells and threads enabled. See also [GPU support](@ref).
 
 ## Utilities
 

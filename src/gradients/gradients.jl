@@ -15,9 +15,10 @@ The objective is summed up for all steps.
 function reservoir_sensitivities(case::JutulCase, objective;
         sim_arg = DEFAULT_OPTIMIZER_SIMULATOR_ARG,
         info_level = 0,
+        mode = :default,
         kwarg...
     )
-    result = simulate_reservoir(case; sim_arg..., info_level = info_level)
+    result = simulate_reservoir(case; mode = mode, sim_arg..., info_level = info_level)
     (result, reservoir_sensitivities(case, result, objective; kwarg...))
 end
 

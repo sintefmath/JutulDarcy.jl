@@ -1213,6 +1213,10 @@ values for pressure models.
   CPU, and substantial speedup on GPU.
 - `ka_workgroupsize=256`: Workgroup size used for KA execution. This controls the
   number of threads per workgroup on the selected backend.
+- `single_precision_linear_solver = false`: Use single precision for the linear
+  solver if set to `true`, otherwise use the explicit options passed in
+  `linear_float_type` and `linear_index_type`. Enabling this option forces a
+  switch to FGMRES.
 
 ## Inherited keyword arguments
 
@@ -1303,6 +1307,7 @@ function setup_reservoir_simulator(case::JutulCase;
         index_type = Int,
         linear_float_type = float_type,
         linear_index_type = index_type,
+        single_precision_linear_solver = false,
         reduce_memory = true,
         kwarg...
     )
@@ -1322,6 +1327,12 @@ function setup_reservoir_simulator(case::JutulCase;
     # Setup simulator
     sim_kwarg = Dict{Symbol, Any}()
     sim_kwarg[:extra_timing] = extra_timing_setup
+    if single_precision_linear_solver
+        ka_mode || error("Single precision linear solver is only supported in KernelAbstractions (:ka) modes")
+        linear_float_type = Float32
+        linear_index_type = Int32
+        linear_solver = :fgmres
+    end
     if presolve_wells
         sim_kwarg[:prepare_step_handler] = PrepareStepWellSolver()
     end
