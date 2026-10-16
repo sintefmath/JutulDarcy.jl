@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Gravity circulation with CPR preconditioner · JutulDarcy.jl</title><meta name="title" content="Gravity circulation with CPR preconditioner · JutulDarcy.jl"/><meta property="og:title" content="Gravity circulation with CPR preconditioner · JutulDarcy.jl"/><meta property="twitter:title" content="Gravity circulation with CPR preconditioner · JutulDarcy.jl"/><meta name="description" content="Documentation for JutulDarcy.jl."/><meta property="og:description" content="Documentation for JutulDarcy.jl."/><meta property="twitter:description" content="Documentation for JutulDarcy.jl."/><meta property="og:url" content="https://sintefmath.github.io/JutulDarcy.jl/examples/two_phase_unstable_gravity/"/><meta property="twitter:url" content="https://sintefmath.github.io/JutulDarcy.jl/examples/two_phase_unstable_gravity/"/><link rel="canonical" href="https://sintefmath.github.io/JutulDarcy.jl/examples/two_phase_unstable_gravity/"/><script data-outdated-warner src="../../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../search_index.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script><link href="../../assets/citations.css" rel="stylesheet" type="text/css"/></head><body><div id="documenter"><nav class="docs-sidebar"><a class="docs-logo" href="../../"><img src="../../assets/logo.png" alt="JutulDarcy.jl logo"/></a><div class="docs-package-name"><span class="docs-autofit"><a href="../../">JutulDarcy.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><span class="tocitem">Introduction</span><ul><li><a class="tocitem" href="../../">JutulDarcy.jl</a></li><li><a class="tocitem" href="../../man/intro/">Getting started</a></li></ul></li><li><span class="tocitem">Examples</span><ul><li><a class="tocitem" href="../two_phase_gravity_segregation/">Gravity segregation</a></li><li><a class="tocitem" href="../two_phase_buckley_leverett/">Two-phase Buckley-Leverett</a></li><li class="is-active"><a class="tocitem" href>Gravity circulation with CPR preconditioner</a><ul class="internal"><li><a class="tocitem" href="#Define-the-domain"><span>Define the domain</span></a></li><li><a class="tocitem" href="#Set-up-model-and-properties"><span>Set up model and properties</span></a></li><li><a class="tocitem" href="#Plot-results"><span>Plot results</span></a></li><li><a class="tocitem" href="#Example-on-GitHub"><span>Example on GitHub</span></a></li></ul></li><li><a class="tocitem" href="../wells_intro/">Intro to wells</a></li><li><a class="tocitem" href="../intro_sensitivities/">Intro to sensitivities in JutulDarcy</a></li><li><a class="tocitem" href="../co2_sloped/">CO2 injection in saline aquifer</a></li><li><a class="tocitem" href="../data_input_file/">Simulating Eclipse/DATA input files</a></li><li><a class="tocitem" href="../five_spot_ensemble/">Quarter-five-spot with variation</a></li><li><a class="tocitem" href="../co2_brine_2d_vertical/">Intro to compositional flow</a></li><li><a class="tocitem" href="../compositional_5components/">Compositional with five components</a></li><li><a class="tocitem" href="../optimize_simple_bl/">Parameter optimization of Buckley-Leverett</a></li><li><a class="tocitem" href="../validation_spe1/">Validation: SPE1</a></li><li><a class="tocitem" href="../validation_spe9/">Validation: SPE9</a></li><li><a class="tocitem" href="../validation_compositional/">Validation: Compositional</a></li><li><a class="tocitem" href="../validation_egg/">Validation: Egg</a></li><li><a class="tocitem" href="../validation_olympus_1/">Validation: OLYMPUS 1</a></li><li><a class="tocitem" href="../validation_norne_nohyst/">Validation: Norne</a></li><li><a class="tocitem" href="../validation_mrst/">Validation: MRST input files</a></li></ul></li><li><span class="tocitem">Manual</span><ul><li><a class="tocitem" href="../../man/highlevel/">High-level API</a></li><li><a class="tocitem" href="../../man/basics/input_files/">Input formats</a></li><li><a class="tocitem" href="../../man/basics/forces/">Driving forces</a></li><li><a class="tocitem" href="../../man/basics/systems/">Supported physical systems</a></li><li><a class="tocitem" href="../../man/basics/wells/">Wells and controls</a></li><li><a class="tocitem" href="../../man/basics/solution/">Solving the equations</a></li><li><a class="tocitem" href="../../man/basics/primary/">Primary variables</a></li><li><a class="tocitem" href="../../man/basics/secondary/">Secondary variables (properties)</a></li><li><a class="tocitem" href="../../man/basics/parameters/">Parameters</a></li><li><a class="tocitem" href="../../man/basics/plotting/">Plotting and visualization</a></li></ul></li><li><span class="tocitem">Advanced usage</span><ul><li><a class="tocitem" href="../../man/advanced/mpi/">Multi-threading and MPI support</a></li><li><a class="tocitem" href="../../man/advanced/compiled/">Standalone reservoir simulator</a></li></ul></li><li><span class="tocitem">Reference</span><ul><li><a class="tocitem" href="../../ref/jutul/">Jutul functions</a></li></ul></li><li><span class="tocitem">Additional information </span><ul><li><a class="tocitem" href="../../extras/refs/">References</a></li><li><a class="tocitem" href="../../extras/faq/">FAQ</a></li></ul></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Examples</a></li><li class="is-active"><a href>Gravity circulation with CPR preconditioner</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Gravity circulation with CPR preconditioner</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/sintefmath/JutulDarcy.jl/blob/main/examples/two_phase_unstable_gravity.jl#" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="Gravity-circulation-with-CPR-preconditioner"><a class="docs-heading-anchor" href="#Gravity-circulation-with-CPR-preconditioner">Gravity circulation with CPR preconditioner</a><a id="Gravity-circulation-with-CPR-preconditioner-1"></a><a class="docs-heading-anchor-permalink" href="#Gravity-circulation-with-CPR-preconditioner" title="Permalink"></a></h1><p>This example demonstrates a more complex gravity driven instability. The problem is a bit larger than the <a href="../two_phase_gravity_segregation/#Gravity-segregation-example">Gravity segregation example</a>, and is therefore set up using the high level API that automatically sets up an iterative linear solver with a constrained pressure residual (CPR) preconditioner and automatic timestepping.</p><p>The high level API uses the more low level <code>Jutul</code> API seen in the other examples under the hood and makes more complex problems easy to set up. The same data structures and functions are used, allowing for deep customization if the defaults are not appropriate.</p><pre><code class="language-julia hljs">using JutulDarcy
+using Jutul
+using GLMakie
+cmap = :seismic
+nx = nz = 100;</code></pre><h2 id="Define-the-domain"><a class="docs-heading-anchor" href="#Define-the-domain">Define the domain</a><a id="Define-the-domain-1"></a><a class="docs-heading-anchor-permalink" href="#Define-the-domain" title="Permalink"></a></h2><pre><code class="language-julia hljs">D = 10.0
+g = CartesianMesh((nx, 1, nz), (D, 1.0, D))
+domain = reservoir_domain(g)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">DataDomain wrapping CartesianMesh (3D) with 100x1x100=10000 cells with 17 data fields added:
+  10000 Cells
+    :permeability =&gt; 10000 Vector{Float64}
+    :porosity =&gt; 10000 Vector{Float64}
+    :rock_thermal_conductivity =&gt; 10000 Vector{Float64}
+    :fluid_thermal_conductivity =&gt; 10000 Vector{Float64}
+    :rock_density =&gt; 10000 Vector{Float64}
+    :cell_centroids =&gt; 3×10000 Matrix{Float64}
+    :volumes =&gt; 10000 Vector{Float64}
+  19800 Faces
+    :neighbors =&gt; 2×19800 Matrix{Int64}
+    :areas =&gt; 19800 Vector{Float64}
+    :normals =&gt; 3×19800 Matrix{Float64}
+    :face_centroids =&gt; 3×19800 Matrix{Float64}
+  39600 HalfFaces
+    :half_face_cells =&gt; 39600 Vector{Int64}
+    :half_face_faces =&gt; 39600 Vector{Int64}
+  20400 BoundaryFaces
+    :boundary_areas =&gt; 20400 Vector{Float64}
+    :boundary_centroids =&gt; 3×20400 Matrix{Float64}
+    :boundary_normals =&gt; 3×20400 Matrix{Float64}
+    :boundary_neighbors =&gt; 20400 Vector{Int64}
+</code></pre><h2 id="Set-up-model-and-properties"><a class="docs-heading-anchor" href="#Set-up-model-and-properties">Set up model and properties</a><a id="Set-up-model-and-properties-1"></a><a class="docs-heading-anchor-permalink" href="#Set-up-model-and-properties" title="Permalink"></a></h2><pre><code class="language-julia hljs">Darcy, bar, kg, meter, day = si_units(:darcy, :bar, :kilogram, :meter, :day)
+p0 = 100*bar
+rhoLS = 1000.0*kg/meter^3 # Definition of fluid phases
+rhoVS = 500.0*kg/meter^3
+cl, cv = 1e-5/bar, 1e-4/bar
+L, V = LiquidPhase(), VaporPhase()
+sys = ImmiscibleSystem([L, V])
+model, parameters = setup_reservoir_model(domain, sys)
+density = ConstantCompressibilityDensities(sys, p0, [rhoLS, rhoVS], [cl, cv]) # Replace density with a lighter pair
+replace_variables!(model, PhaseMassDensities = density);
+kr = BrooksCoreyRelativePermeabilities(sys, [2.0, 3.0])
+replace_variables!(model, RelativePermeabilities = kr)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">MultiModel with 1 models and 0 cross-terms. 20000 equations, 20000 degrees of freedom and 69600 parameters.
+
+  models:
+    1) Reservoir (20000x20000)
+       ImmiscibleSystem with LiquidPhase, VaporPhase
+       ∈ MinimalTPFATopology (10000 cells, 19800 faces)
+
+Model storage will be optimized for runtime performance.
+</code></pre><h3 id="Define-initial-saturation"><a class="docs-heading-anchor" href="#Define-initial-saturation">Define initial saturation</a><a id="Define-initial-saturation-1"></a><a class="docs-heading-anchor-permalink" href="#Define-initial-saturation" title="Permalink"></a></h3><p>Set the left part of the domain to be filled by the vapor phase and the heavy liquid phase in the remainder. To do this, we grab the cell centroids in the x direction from the domain, reshape them to the structured mesh we are working on and define the liquid saturation from there.</p><pre><code class="language-julia hljs">c = domain[:cell_centroids]
+x = reshape(c[1, :], nx, nz)
+
+sL = zeros(nx, nz)
+plane = D/2.0
+for i in 1:nx
+    for j = 1:nz
+        X = x[i, j]
+        sL[i, j] = clamp(Float64(X &gt; plane), 0, 1)
+    end
+end
+heatmap(sL, colormap = cmap, axis = (title = &quot;Initial saturation&quot;,))</code></pre><img src="f8d3b91b.png" alt="Example block output"/><h3 id="Set-up-initial-state"><a class="docs-heading-anchor" href="#Set-up-initial-state">Set up initial state</a><a id="Set-up-initial-state-1"></a><a class="docs-heading-anchor-permalink" href="#Set-up-initial-state" title="Permalink"></a></h3><pre><code class="language-julia hljs">sL = vec(sL)&#39;
+sV = 1 .- sL
+s0 = vcat(sV, sL)
+state0 = setup_reservoir_state(model, Pressure = p0, Saturations = s0)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">Dict{Any, Any} with 1 entry:
+  :Reservoir =&gt; Dict{Symbol, Any}(:PhaseMassMobilities=&gt;[0.0 0.0 … 0.0 0.0; 0.0…</code></pre><h3 id="Set-the-viscosity-of-the-phases"><a class="docs-heading-anchor" href="#Set-the-viscosity-of-the-phases">Set the viscosity of the phases</a><a id="Set-the-viscosity-of-the-phases-1"></a><a class="docs-heading-anchor-permalink" href="#Set-the-viscosity-of-the-phases" title="Permalink"></a></h3><p>By default, viscosity is a parameter and can be set per-phase and per cell.</p><pre><code class="language-julia hljs">μ = parameters[:Reservoir][:PhaseViscosities]
+@. μ[1, :] = 1e-3
+@. μ[2, :] = 5e-3</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">10000-element view(::Matrix{Float64}, 2, :) with eltype Float64:
+ 0.005
+ 0.005
+ 0.005
+ 0.005
+ 0.005
+ 0.005
+ 0.005
+ 0.005
+ 0.005
+ 0.005
+ ⋮
+ 0.005
+ 0.005
+ 0.005
+ 0.005
+ 0.005
+ 0.005
+ 0.005
+ 0.005
+ 0.005</code></pre><p>Convert time-steps from days to seconds</p><pre><code class="language-julia hljs">timesteps = repeat([10.0*3600*24], 20)
+_, states, = simulate_reservoir(state0, model, timesteps, parameters = parameters, info_level = 1);</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi"><span class="sgr92"><span class="sgr1">Jutul:</span></span> Simulating 28 weeks, 4 days as 20 report steps
+<span class="sgr34"><span class="sgr1">Step  1/20:</span></span> Solving start to 1 week, 3 days, Δt = 1 week, 3 days
+<span class="sgr33"><span class="sgr1">┌ Warning: </span></span>Exception occured in solve: ErrorException(&quot;Bad linear solve: Linear solver: maximum number of iterations exceeded, final residual: 0.6779569363968585, rel. value 699.6097521990633. rtol = 0.005, atol = 1.0e-12, max_it = 50&quot;). Attempting to cut time-step since failure_cuts_timestep = true.
+<span class="sgr33"><span class="sgr1">└ </span></span><span class="sgr90">@ Jutul ~/.julia/packages/Jutul/awbiL/src/simulator/simulator.jl:457</span>
+<span class="sgr33"><span class="sgr1">┌ Warning: </span></span>Exception occurred in perform_step!
+<span class="sgr33"><span class="sgr1">│ </span></span>  inner_exception = Bad linear solve: Linear solver: maximum number of iterations exceeded, final residual: 0.6779569363968585, rel. value 699.6097521990633. rtol = 0.005, atol = 1.0e-12, max_it = 50
+<span class="sgr33"><span class="sgr1">└ </span></span><span class="sgr90">@ Jutul ~/.julia/packages/Jutul/awbiL/src/simulator/simulator.jl:529</span>
+<span class="sgr33"><span class="sgr1">Convergence:</span></span> Report step 1, mini-step #1 (1 day) failed to converge. Reducing mini-step.
+<span class="sgr33"><span class="sgr1">┌ Warning: </span></span>Exception occured in solve: ErrorException(&quot;Bad linear solve: Linear solver: maximum number of iterations exceeded, final residual: 0.4073443575463845, rel. value 420.35425812929736. rtol = 0.005, atol = 1.0e-12, max_it = 50&quot;). Attempting to cut time-step since failure_cuts_timestep = true.
+<span class="sgr33"><span class="sgr1">└ </span></span><span class="sgr90">@ Jutul ~/.julia/packages/Jutul/awbiL/src/simulator/simulator.jl:457</span>
+<span class="sgr33"><span class="sgr1">┌ Warning: </span></span>Exception occurred in perform_step!
+<span class="sgr33"><span class="sgr1">│ </span></span>  inner_exception = Bad linear solve: Linear solver: maximum number of iterations exceeded, final residual: 0.4073443575463845, rel. value 420.35425812929736. rtol = 0.005, atol = 1.0e-12, max_it = 50
+<span class="sgr33"><span class="sgr1">└ </span></span><span class="sgr90">@ Jutul ~/.julia/packages/Jutul/awbiL/src/simulator/simulator.jl:529</span>
+<span class="sgr33"><span class="sgr1">Convergence:</span></span> Report step 1, mini-step #2 (12 hours) failed to converge. Reducing mini-step.
+<span class="sgr34"><span class="sgr1">Step  2/20:</span></span> Solving 1 week, 3 days to 2 weeks, 6 days, Δt = 1 week, 3 days
+<span class="sgr34"><span class="sgr1">Step  3/20:</span></span> Solving 2 weeks, 6 days to 4 weeks, 2 days, Δt = 1 week, 3 days
+<span class="sgr34"><span class="sgr1">Step  4/20:</span></span> Solving 4 weeks, 2 days to 5 weeks, 5 days, Δt = 1 week, 3 days
+<span class="sgr34"><span class="sgr1">Step  5/20:</span></span> Solving 5 weeks, 5 days to 7 weeks, 1 day, Δt = 1 week, 3 days
+<span class="sgr34"><span class="sgr1">Step  6/20:</span></span> Solving 7 weeks, 1 day to 8 weeks, 4 days, Δt = 1 week, 3 days
+<span class="sgr34"><span class="sgr1">Step  7/20:</span></span> Solving 8 weeks, 4 days to 10 weeks, Δt = 1 week, 3 days
+<span class="sgr34"><span class="sgr1">Step  8/20:</span></span> Solving 10 weeks to 11 weeks, 3 days, Δt = 1 week, 3 days
+<span class="sgr34"><span class="sgr1">Step  9/20:</span></span> Solving 11 weeks, 3 days to 12 weeks, 6 days, Δt = 1 week, 3 days
+<span class="sgr34"><span class="sgr1">Step 10/20:</span></span> Solving 12 weeks, 6 days to 14 weeks, 2 days, Δt = 1 week, 3 days
+<span class="sgr34"><span class="sgr1">Step 11/20:</span></span> Solving 14 weeks, 2 days to 15 weeks, 5 days, Δt = 1 week, 3 days
+<span class="sgr34"><span class="sgr1">Step 12/20:</span></span> Solving 15 weeks, 5 days to 17 weeks, 1 day, Δt = 1 week, 3 days
+<span class="sgr34"><span class="sgr1">Step 13/20:</span></span> Solving 17 weeks, 1 day to 18 weeks, 4 days, Δt = 1 week, 3 days
+<span class="sgr34"><span class="sgr1">Step 14/20:</span></span> Solving 18 weeks, 4 days to 20 weeks, Δt = 1 week, 3 days
+<span class="sgr34"><span class="sgr1">Step 15/20:</span></span> Solving 20 weeks to 21 weeks, 3 days, Δt = 1 week, 3 days
+<span class="sgr34"><span class="sgr1">Step 16/20:</span></span> Solving 21 weeks, 3 days to 22 weeks, 6 days, Δt = 1 week, 3 days
+<span class="sgr34"><span class="sgr1">Step 17/20:</span></span> Solving 22 weeks, 6 days to 24 weeks, 2 days, Δt = 1 week, 3 days
+<span class="sgr34"><span class="sgr1">Step 18/20:</span></span> Solving 24 weeks, 2 days to 25 weeks, 5 days, Δt = 1 week, 3 days
+<span class="sgr34"><span class="sgr1">Step 19/20:</span></span> Solving 25 weeks, 5 days to 27 weeks, 1 day, Δt = 1 week, 3 days
+<span class="sgr34"><span class="sgr1">Step 20/20:</span></span> Solving 27 weeks, 1 day to 28 weeks, 4 days, Δt = 1 week, 3 days
+<span class="sgr92"><span class="sgr4"><span class="sgr1">Simulation complete:</span></span></span> Completed 20 report steps in 8 seconds, 481 milliseconds, 313.6 microseconds and 409 iterations.
+╭────────────────┬──────────┬──────────────┬──────────╮
+│<span class="sgr1"> Iteration type </span>│<span class="sgr1"> Avg/step </span>│<span class="sgr1"> Avg/ministep </span>│<span class="sgr1">    Total </span>│
+│<span class="sgr1">                </span>│<span class="sgr90"> 20 steps </span>│<span class="sgr90"> 65 ministeps </span>│<span class="sgr90"> (wasted) </span>│
+├────────────────┼──────────┼──────────────┼──────────┤
+│<span class="sgr1"> Newton         </span>│    20.45 │      6.29231 │  409 (2) │
+│<span class="sgr1"> Linearization  </span>│     23.6 │      7.26154 │  472 (2) │
+│<span class="sgr1"> Linear solver  </span>│    46.95 │      14.4462 │  939 (0) │
+│<span class="sgr1"> Precond apply  </span>│     93.9 │      28.8923 │ 1878 (0) │
+╰────────────────┴──────────┴──────────────┴──────────╯
+╭───────────────┬─────────┬────────────┬────────╮
+│<span class="sgr1"> Timing type   </span>│<span class="sgr1">    Each </span>│<span class="sgr1">   Relative </span>│<span class="sgr1">  Total </span>│
+│<span class="sgr1">               </span>│<span class="sgr90">      ms </span>│<span class="sgr90"> Percentage </span>│<span class="sgr90">      s </span>│
+├───────────────┼─────────┼────────────┼────────┤
+│<span class="sgr1"> Properties    </span>│  0.6629 │     3.20 % │ 0.2711 │
+│<span class="sgr1"> Equations     </span>│  0.7276 │     4.05 % │ 0.3434 │
+│<span class="sgr1"> Assembly      </span>│  1.1339 │     6.31 % │ 0.5352 │
+│<span class="sgr1"> Linear solve  </span>│  1.6981 │     8.19 % │ 0.6945 │
+│<span class="sgr1"> Linear setup  </span>│  7.5810 │    36.56 % │ 3.1006 │
+│<span class="sgr1"> Precond apply </span>│  0.8192 │    18.14 % │ 1.5384 │
+│<span class="sgr1"> Update        </span>│  0.1893 │     0.91 % │ 0.0774 │
+│<span class="sgr1"> Convergence   </span>│  0.1744 │     0.97 % │ 0.0823 │
+│<span class="sgr1"> Input/Output  </span>│  0.2055 │     0.16 % │ 0.0134 │
+│<span class="sgr1"> Other         </span>│  4.4618 │    21.52 % │ 1.8249 │
+├───────────────┼─────────┼────────────┼────────┤
+│<span class="sgr1"> Total         </span>│ 20.7367 │   100.00 % │ 8.4813 │
+╰───────────────┴─────────┴────────────┴────────╯</code></pre><h2 id="Plot-results"><a class="docs-heading-anchor" href="#Plot-results">Plot results</a><a id="Plot-results-1"></a><a class="docs-heading-anchor-permalink" href="#Plot-results" title="Permalink"></a></h2><p>Plot initial saturation</p><pre><code class="language-julia hljs">tmp = reshape(state0[:Reservoir][:Saturations][1, :], nx, nz)
+f = Figure()
+ax = Axis(f[1, 1], title = &quot;Before&quot;)
+heatmap!(ax, tmp, colormap = cmap)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">MakieCore.Heatmap{Tuple{MakieCore.EndPoints{Float32}, MakieCore.EndPoints{Float32}, Matrix{Float32}}}</code></pre><p>Plot intermediate saturation</p><pre><code class="language-julia hljs">tmp = reshape(states[length(states) ÷ 2][:Saturations][1, :], nx, nz)
+ax = Axis(f[1, 2], title = &quot;Half way&quot;)
+hm = heatmap!(ax, tmp, colormap = cmap)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">MakieCore.Heatmap{Tuple{MakieCore.EndPoints{Float32}, MakieCore.EndPoints{Float32}, Matrix{Float32}}}</code></pre><p>Plot final saturation</p><pre><code class="language-julia hljs">tmp = reshape(states[end][:Saturations][1, :], nx, nz)
+ax = Axis(f[1, 3], title = &quot;After&quot;)
+hm = heatmap!(ax, tmp, colormap = cmap)
+Colorbar(f[1, 4], hm)
+f</code></pre><img src="57fddf24.png" alt="Example block output"/><h2 id="Example-on-GitHub"><a class="docs-heading-anchor" href="#Example-on-GitHub">Example on GitHub</a><a id="Example-on-GitHub-1"></a><a class="docs-heading-anchor-permalink" href="#Example-on-GitHub" title="Permalink"></a></h2><p>If you would like to run this example yourself, it can be downloaded from the JutulDarcy.jl GitHub repository <a href="https://github.com/sintefmath/JutulDarcy.jl/blob/main/examples/two_phase_unstable_gravity.jl">as a script</a>, or as a <a href="https://github.com/sintefmath/JutulDarcy.jl/blob/gh-pages/dev/examples/two_phase_unstable_gravity.ipynb">Notebook</a></p><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../two_phase_buckley_leverett/">« Two-phase Buckley-Leverett</a><a class="docs-footer-nextpage" href="../wells_intro/">Intro to wells »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.7.0 on <span class="colophon-date" title="Sunday 8 September 2024 10:02">Sunday 8 September 2024</span>. Using Julia version 1.10.5.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
