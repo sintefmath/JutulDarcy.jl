@@ -41,7 +41,8 @@ end
 function reservoir_sensitivities(case::JutulCase, result::Jutul.SimResult, obj;
         include_parameters = false,
         include_state0 = false,
-        adjoint_arg = (include_state0 = include_state0, ),
+        mode = :default,
+        adjoint_arg = (include_state0 = include_state0, mode = mode),
         kwarg...
     )
     sens = solve_adjoint_sensitivities(case, result, obj; adjoint_arg...)
