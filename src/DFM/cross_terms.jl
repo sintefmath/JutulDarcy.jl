@@ -156,6 +156,11 @@ function update_cross_term_in_entity!(out, i,
     sys = model_t.system
     nph = number_of_phases(sys)
     qh = matrix_fracture_thermal_flux(conn, state_t, state_s, nph)
+    if eq isa ConservationLaw{:TotalEnergy}
+        # Account for the upwinded potential energy of the mass crossing the
+        # matrix-fracture connection.
+        qh += matrix_fracture_potential_energy_flux(conn, state_t, state_s, nph)
+    end
     out[] = qh
     return out
 end
@@ -189,6 +194,24 @@ function matrix_fracture_thermal_flux(conn, state_m, state_f, nph)
 
     return qh
     
+end
+
+function matrix_fracture_potential_energy_flux(conn, state_m, state_f, nph)
+    cf = conn.fracture
+    cm = conn.matrix
+    q = 0
+    @inbounds for ph in 1:nph
+        qm = matrix_fracture_phase_mass_flux(conn, state_m, state_f, ph)
+        if qm < 0
+            # Fracture -> Matrix
+            Φ = state_f.UnitPotentialEnergy[cf]
+        else
+            # Matrix -> Fracture
+            Φ = state_m.UnitPotentialEnergy[cm]
+        end
+        q += qm*Φ
+    end
+    return q
 end
 
 function Jutul.subcrossterm(ct::MatrixFromFractureThermalCT, ctp, m_t, m_s, map_res::Jutul.FiniteVolumeGlobalMap, map_frac::Jutul.FiniteVolumeGlobalMap, partition)
@@ -294,6 +317,11 @@ function update_cross_term_in_entity!(out, i,
 
     λ_t = sum(perforation_reservoir_mobilities(state_res, state_well, sys, fracture_cell, well_cell))
     qh = perforation_phase_thermal_flux(λ_t, conn, state_res, state_well, nph)
+    if eq isa ConservationLaw{:TotalEnergy}
+        # Account for the upwinded potential energy of the mass crossing the
+        # perforation.
+        qh += perforation_potential_energy_flux(λ_t, conn, state_res, state_well, nph)
+    end
     out[] = qh
 
 end
