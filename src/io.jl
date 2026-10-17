@@ -141,6 +141,9 @@ function summary_result(model::MultiModel, wellresult, states = missing, usys = 
         for w in keys(wellresult.wells)
             wi = get_values(:well, wells = w)
             w_smry["$w"] = to_summary(wi)
+            if haskey(wellresult.wells[w], :factor)
+                w_smry["$w"]["WEFAC"] = wellresult.wells[w][:factor]
+            end
             if ismissing(t)
                 t = wi[:time]
             end
@@ -395,7 +398,7 @@ function expand_summary!(summary; recompute = false)
         startswith(k, "W") || error("Expected well rate key starting with W, got $k")
         fkey = "F$(k[2:end])"
         if update_field(values, fkey)
-            values["FIELD"][fkey] = sum(x -> values["WELLS"][x][k], wells)
+            values["FIELD"][fkey] = sum(x -> values["WELLS"][x][k] .* get(values["WELLS"][x], "WEFAC", 1.0), wells)
         end
     end
 
@@ -420,14 +423,15 @@ function expand_summary!(summary; recompute = false)
         dest_key = "$(base)T"
         for k in dest_keys
             if update_field(d[k], dest_key)
-                d[k][dest_key] = cumsum(d[k][src_key].*dt)
+                factor = src_key[1] == 'W' ? get(d[k], "WEFAC", 1.0) : 1.0
+                d[k][dest_key] = cumsum(d[k][src_key].*dt.*factor)
             end
         end
     end
 
     function add_missing_well_rates!(data)
         for k in ["WOIR", "WGIR", "WWIR", "WOPR", "WGPR", "WWPR"]
-            if update_field(data, k)
+            if !haskey(data, k)
                 data[k] = zeros(nstep)
             end
         end
