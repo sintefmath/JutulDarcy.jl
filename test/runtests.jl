@@ -2,6 +2,7 @@ using JutulDarcy, TestItems, Test, TestItemRunner
 
 @testitem "Mesh and reservoir" begin
     include("mesh_and_reservoir.jl")
+    include("schedule_completions.jl")
 end
 
 @testitem "Utilities" begin
