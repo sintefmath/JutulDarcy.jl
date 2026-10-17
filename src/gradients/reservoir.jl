@@ -429,6 +429,7 @@ function setup_simulator_for_reservoir_optimization(dopt, setup_fn, simulator, c
     has_cfg = !ismissing(config)
     if !has_sim && !has_cfg
         case0 = setup_fn(dopt.parameters, missing)
+        simulator_arg = merge(DEFAULT_OPTIMIZER_SIMULATOR_ARG, simulator_arg)
         simulator, config = setup_reservoir_simulator(case0; info_level = -1, simulator_arg..., kwarg...)
     else
         has_sim == has_cfg || error("Simulator and config must be provided together")
