@@ -10,6 +10,7 @@ end
 
 @testitem "Rel. Perm." begin
     include("relperm.jl")
+    include("initialization_scaling.jl")
 end
 
 @testitem "Capillary pressure" begin
