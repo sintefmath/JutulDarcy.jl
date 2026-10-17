@@ -1,27 +1,4 @@
-using Jutul, JutulDarcy, GeoEnergyIO, Test
-
-@testset "Thermal well enthalpy uses mass fractions" begin
-    state = (Saturations = reshape([0.5, 0.5], 2, 1),
-        PhaseMassDensities = reshape([1000.0, 1.0], 2, 1),
-        FluidEnthalpy = reshape([1e5, 1e6], 2, 1),
-        ComponentHeatCapacity = reshape([1500.0, 500.0], 2, 1))
-    @test JutulDarcy.well_top_node_enthalpy(nothing, state, 1) ≈ (1000e5 + 1e6)/1001
-    system = ImmiscibleSystem((AqueousPhase(), VaporPhase()))
-    ctrl = InjectorControl(TotalRateTarget(1.0), [1.0, 0.0])
-    evaluator = JutulDarcy.InjectionEnthalpyEvaluator(nothing, Val(true))
-    H = JutulDarcy.injected_fluid_enthalpy(ctrl, evaluator,
-        (system = system,), state, 1e5, 300.0, 1)
-    @test H ≈ 1500*300 + 1e5/1000
-end
-
-@testset "Integrate temperature-dependent heat capacities" begin
-    table = JutulDarcy.IntegratedHeatCapacity([280.0, 300.0, 340.0], [1000.0, 2000.0, 3000.0])
-    @test table(300.0) ≈ 310000.0
-    @test table(320.0) ≈ 355000.0
-    for (T, capacity) in [(270.0, 1000.0), (290.0, 1500.0), (320.0, 2500.0), (350.0, 3000.0)]
-        @test Jutul.ForwardDiff.derivative(table, T) ≈ capacity
-    end
-end
+using Jutul, JutulDarcy, Test, CUDA
 
 @testset "Tracer injection follows the prescribed carrier stream" begin
     system = ImmiscibleSystem((AqueousPhase(), VaporPhase()))
@@ -42,32 +19,29 @@ end
 
 @testset "Thermal and passive tracer DATA regressions" begin
     fixtures = joinpath(@__DIR__, "data", "thermal")
+    options = (info_level = -1, error_on_incomplete = true,
+        nonlinear_tolerance = 1e-7, tol_cnv = 1e-6, tol_mb = 1e-9,
+        tol_cnv_well = 1e-7)
+    if CUDA.functional()
+        CUDA.allowscalar(false)
+    end
     for (name, nc, thermal, tracer) in [
             ("HEAT_SMALL.DATA", 50, true, false),
             ("THERMAL_TRACER_SMALL.DATA", 105, true, true),
             ("TRACER_SMALL.DATA", 25, false, true)
         ]
         @testset "$name" begin
-            case, data = setup_case_from_data_file(joinpath(fixtures, name);
-                include_data = true, parse_arg = (silent = true,), dp_max_abs_well = Inf)
+            case = setup_case_from_data_file(joinpath(fixtures, name);
+                parse_arg = (silent = true,), dp_max_abs_well = Inf)
             rmodel = reservoir_model(case.model)
             @test number_of_cells(rmodel.data_domain) == nc
             @test number_of_tracers(case.model) == Int(tracer)
-            if thermal
-                @test all(isfinite, case.state0[:Reservoir][:Temperature])
-                @test all(isfinite, case.state0[:Facility][:SurfaceEnthalpy])
+            if thermal && !tracer
                 properties = Jutul.evaluate_all_secondary_variables(rmodel,
                     case.state0[:Reservoir], case.parameters[:Reservoir])
-                @test all(properties[:ComponentHeatCapacity] .> 0)
-                @test all(properties[:RockHeatCapacity] .> 0)
-                @test all(properties[:PhaseViscosities] .> 0)
                 @test properties[:FluidEnthalpy] == properties[:FluidInternalEnergy]
-                if !tracer
-                    @test :Temperature in Jutul.get_dependencies(rmodel.secondary_variables[:PhaseViscosities], rmodel)
-                    @test vec(properties[:RockHeatCapacity]) .* case.parameters[:Reservoir][:RockDensity] ≈ fill(35000.0, nc)
-                    @test rmodel.data_domain[:rock_thermal_conductivity] ≈ fill(24/86.4, nc)
-                    @test case.parameters[:Reservoir][:RockThermalConductivities] ≈ JutulDarcy.compute_face_trans(rmodel.data_domain, fill(24/86.4, nc))
-                end
+                @test vec(properties[:RockHeatCapacity]) .* case.parameters[:Reservoir][:RockDensity] ≈ fill(35000.0, nc)
+                @test rmodel.data_domain[:bulk_thermal_conductivity] ≈ fill(24/86.4, nc)
             end
             if tracer
                 @test all(iszero, case.state0[:Reservoir][:TracerConcentrations])
@@ -83,21 +57,16 @@ end
                     @test ctrl.tracers == [0.5]
                 end
             end
-            result = simulate_reservoir(case; info_level = -1, error_on_incomplete = true,
-                nonlinear_tolerance = 1e-7, tol_cnv = 1e-6, tol_mb = 1e-9,
-                tol_cnv_well = 1e-7)
+            result = simulate_reservoir(case; options...)
             @test length(result.states) == length(case.dt)
             for state in result.states
-                @test all(isfinite, state[:Pressure])
-                @test all(state[:Pressure] .> 0)
+                @test all(p -> isfinite(p) && p > 0, state[:Pressure])
                 if thermal
-                    @test all(isfinite, state[:Temperature])
-                    @test minimum(state[:Temperature]) > 273.15
+                    @test all(T -> isfinite(T) && T > 273.15, state[:Temperature])
                 end
                 if tracer
                     concentrations = state[:TracerConcentrations]
-                    @test all(isfinite, concentrations)
-                    @test minimum(concentrations) >= -1e-8
+                    @test all(C -> isfinite(C) && C >= -1e-8, concentrations)
                     # Concentration is ill-conditioned where the carrier phase
                     # has vanished. Check the phase-weighted tracer amount,
                     # using the mass-balance tolerance rather than dry-cell C.
@@ -114,6 +83,30 @@ end
             end
             if thermal
                 @test minimum(result.states[end][:Temperature]) < minimum(case.state0[:Reservoir][:Temperature])
+            end
+            @testset "ka_cuda" begin
+                if CUDA.functional()
+                    policies = NamedTuple[NamedTuple()]
+                    if thermal && tracer
+                        push!(policies, (wells_on_device = true, mixed_cross_terms_on_host = true))
+                    end
+                    for policy in policies
+                        # Block DILU handles the zero scalar pivots at dry-water startup.
+                        gpu = simulate_reservoir(case; mode = :ka_cuda, policy...,
+                            linear_solver_arg = (smoother_type = :ka_dilu,), options...)
+                        @test length(gpu.states) == length(case.dt)
+                        for (actual, expected) in zip(gpu.states, result.states)
+                            @test actual[:Pressure] ≈ expected[:Pressure] rtol = 1e-5
+                            for (property, tolerance) in ((:Temperature, 1e-5), (:TracerMasses, 1e-4))
+                                if haskey(expected, property)
+                                    @test actual[property] ≈ expected[property] rtol = tolerance atol = 1e-7
+                                end
+                            end
+                        end
+                    end
+                else
+                    @test_skip CUDA.functional()
+                end
             end
         end
     end

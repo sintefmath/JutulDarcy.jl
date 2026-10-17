@@ -445,12 +445,12 @@ end
 
 function well_top_node_enthalpy(model, state_well, cell)
     if haskey(state_well, :Enthalpy)
-        return state_well.Enthalpy[cell]
+        return state_well[:Enthalpy][cell]
     end
-    H = state_well.FluidEnthalpy
+    H = state_well[:FluidEnthalpy]
     if haskey(state_well, :Saturations)
-        S = state_well.Saturations
-        rho = state_well.PhaseMassDensities
+        S = state_well[:Saturations]
+        rho = state_well[:PhaseMassDensities]
         H_w = zero(H[1, cell])
         total_mass = zero(H_w)
         for ph in axes(H, 1)
@@ -467,8 +467,6 @@ end
 
 function well_top_node_enthalpy(ctrl::InjectorControl, model, state_well, T, cell, evaluator)
     p = state_well.Pressure[cell]
-    # density = ctrl.mixture_density
-    # T = ctrl.temperature
     H_w = ctrl.enthalpy
     if ismissing(H_w)
         H = injected_fluid_enthalpy(ctrl, evaluator, model, state_well, p, T, cell)
@@ -484,7 +482,7 @@ end
 
 function injected_fluid_enthalpy(ctrl, evaluator::InjectionEnthalpyEvaluator, model, state_well, p, T, cell)
     H = zero(p*T)
-    energy = injection_internal_energy(evaluator.energy, state_well, p, T, cell)
+    energy = injection_internal_energy(evaluator.energy, p, T, cell)
     for c in eachindex(ctrl.injection_mixture)
         H += ctrl.injection_mixture[c]*energy[c]
     end
@@ -500,11 +498,11 @@ function injected_fluid_enthalpy(ctrl, evaluator::InjectionEnthalpyEvaluator{Not
     return H + injection_pressure_work(evaluator.pressure_work, ctrl, model, state, p, cell)
 end
 
-@inline function injection_internal_energy(energy::TemperatureDependentVariable, state, p, T, cell)
+@inline function injection_internal_energy(energy::TemperatureDependentVariable, p, T, cell)
     return evaluate_table_by_region(energy.tab, region(energy.regions, cell), T)
 end
 
-@inline function injection_internal_energy(energy::PressureTemperatureDependentEnthalpy, state, p, T, cell)
+@inline function injection_internal_energy(energy::PressureTemperatureDependentEnthalpy, p, T, cell)
     return tabulated_enthalpy(energy, p, T, cell)
 end
 
@@ -514,22 +512,19 @@ end
     work = zero(p)
     if model.system isa CompositionalSystem
         total_mass = zero(p)
+        total_volume = zero(p)
         for ph in axes(state.Saturations, 1)
-            total_mass += state.Saturations[ph, cell]*state.PhaseMassDensities[ph, cell]
+            saturation = state.Saturations[ph, cell]
+            total_mass += saturation*state.PhaseMassDensities[ph, cell]
+            total_volume += saturation
         end
-        for ph in axes(state.Saturations, 1)
-            work += state.Saturations[ph, cell]*p/total_mass
-        end
+        work = p*total_volume/total_mass
     else
         for ph in eachindex(ctrl.injection_mixture)
             work += ctrl.injection_mixture[ph]*p/state.PhaseMassDensities[ph, cell]
         end
     end
     return work
-end
-
-function well_top_node_enthalpy(ctrl, model, state_well, T, cell)
-    return well_top_node_enthalpy(model, state_well, cell)
 end
 
 struct FacilityFromWellTemperatureCT <: Jutul.AdditiveCrossTerm

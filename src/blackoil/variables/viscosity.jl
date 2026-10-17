@@ -1,70 +1,20 @@
-function update_blackoil_viscosities!(μ, ρ::DeckPhaseViscosities, model::StandardBlackOilModel, Pressure, Rs, Rv, ix)
-    pvt, reg = ρ.pvt, ρ.regions
-    has_wat = has_other_phase(model.system)
-    if has_wat
-        w, o, g = phase_indices(model.system)
-        muW = pvt[w]
-    else
-        o, g = phase_indices(model.system)
-    end
-    muO = pvt[o]
-    muG = pvt[g]
-
-    @inbounds for i in ix
-        p = Pressure[i]
-        rs = Rs[i]
-        rv = Rv[i]
-        if has_wat
-            μ[w, i] = viscosity(muW, reg, p, i)
+function update_blackoil_viscosities!(μ, variable, model, Pressure, Rs, Rv, ix)
+    reg = variable.regions
+    foreach_phase_pvt(variable.pvt) do phase_id, pvt
+        ph = phase_index(phase_id)
+        phase = phase_tuple_entry(get_phases(model.system), phase_id)
+        @inbounds for i in ix
+            p = Pressure[i]
+            if phase == LiquidPhase() && !isnothing(Rs)
+                μ[ph, i] = viscosity(pvt, reg, p, Rs[i], i)
+            elseif phase == VaporPhase() && !isnothing(Rv)
+                μ[ph, i] = viscosity(pvt, reg, p, Rv[i], i)
+            else
+                μ[ph, i] = viscosity(pvt, reg, p, i)
+            end
         end
-        μ[o, i] = viscosity(muO, reg, p, rs, i)
-        μ[g, i] = viscosity(muG, reg, p, rv, i)
     end
-end
-
-function update_blackoil_viscosities!(μ, ρ::DeckPhaseViscosities, model::VapoilBlackOilModel, Pressure, Rv, ix)
-    pvt, reg = ρ.pvt, ρ.regions
-    has_wat = has_other_phase(model.system)
-    if has_wat
-        w, o, g = phase_indices(model.system)
-        muW = pvt[w]
-    else
-        o, g = phase_indices(model.system)
-    end
-    muO = pvt[o]
-    muG = pvt[g]
-
-    @inbounds for i in ix
-        p = Pressure[i]
-        rv = Rv[i]
-        if has_wat
-            μ[w, i] = viscosity(muW, reg, p, i)
-        end
-        μ[o, i] = viscosity(muO, reg, p, i)
-        μ[g, i] = viscosity(muG, reg, p, rv, i)
-    end
-end
-
-function update_blackoil_viscosities!(μ, ρ::DeckPhaseViscosities, model::DisgasBlackOilModel, Pressure, Rs, ix)
-    pvt, reg = ρ.pvt, ρ.regions
-    has_wat = has_other_phase(model.system)
-    if has_wat
-        w, o, g = phase_indices(model.system)
-        muW = pvt[w]
-    else
-        o, g = phase_indices(model.system)
-    end
-    muO = pvt[o]
-    muG = pvt[g]
-    @inbounds for i in ix
-        p = Pressure[i]
-        rs = Rs[i]
-        if has_wat
-            μ[w, i] = viscosity(muW, reg, p, i)
-        end
-        μ[o, i] = viscosity(muO, reg, p, rs, i)
-        μ[g, i] = viscosity(muG, reg, p, i)
-    end
+    return μ
 end
 
 @jutul_secondary function update_deck_viscosity!(μ, ρ::DeckPhaseViscosities, model::StandardBlackOilModel, Pressure, Rs, Rv, ix)
@@ -72,22 +22,22 @@ end
 end
 
 @jutul_secondary function update_deck_viscosity!(μ, ρ::DeckPhaseViscosities, model::VapoilBlackOilModel, Pressure, Rv, ix)
-    update_blackoil_viscosities!(μ, ρ, model, Pressure, Rv, ix)
+    update_blackoil_viscosities!(μ, ρ, model, Pressure, nothing, Rv, ix)
 end
 
 @jutul_secondary function update_deck_viscosity!(μ, ρ::DeckPhaseViscosities, model::DisgasBlackOilModel, Pressure, Rs, ix)
-    update_blackoil_viscosities!(μ, ρ, model, Pressure, Rs, ix)
+    update_blackoil_viscosities!(μ, ρ, model, Pressure, Rs, nothing, ix)
 end
 
 # Resolve both the thermal-table and black-oil specializations explicitly so
 # that dependencies include temperature as well as the solution ratios.
 @jutul_secondary function update_deck_viscosity!(μ, ρ::DeckPhaseViscosities{<:Any, <:DeckThermalViscosityTable}, model::DisgasBlackOilModel, Pressure, Temperature, Rs, ix)
-    update_blackoil_viscosities!(μ, ρ, model, Pressure, Rs, ix)
+    update_blackoil_viscosities!(μ, ρ, model, Pressure, Rs, nothing, ix)
     apply_blackoil_thermal_viscosity!(μ, ρ, model, Temperature, Rs, nothing, ix)
 end
 
 @jutul_secondary function update_deck_viscosity!(μ, ρ::DeckPhaseViscosities{<:Any, <:DeckThermalViscosityTable}, model::VapoilBlackOilModel, Pressure, Temperature, Rv, ix)
-    update_blackoil_viscosities!(μ, ρ, model, Pressure, Rv, ix)
+    update_blackoil_viscosities!(μ, ρ, model, Pressure, nothing, Rv, ix)
     apply_blackoil_thermal_viscosity!(μ, ρ, model, Temperature, nothing, Rv, ix)
 end
 

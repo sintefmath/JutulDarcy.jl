@@ -1702,22 +1702,19 @@ end
 
 function data_file_active_tracers(datafile_or_runspec)
     if haskey(datafile_or_runspec, "RUNSPEC")
-        rs = datafile_or_runspec["RUNSPEC"]
-    else
-        rs = datafile_or_runspec
+        return data_file_active_tracers(datafile_or_runspec["RUNSPEC"], datafile_or_runspec["PROPS"])
     end
+    return data_file_active_tracers(datafile_or_runspec, Dict())
+end
+
+function data_file_active_tracers(runspec, props)
     out = String[]
-    possible_tracers = ("POLYMER",)
-    for t in possible_tracers
-        if haskey(rs, t)
-            push!(out, t)
-        end
+    if haskey(runspec, "POLYMER")
+        push!(out, "POLYMER")
     end
-    if haskey(datafile_or_runspec, "PROPS")
-        for rec in get(datafile_or_runspec["PROPS"], "TRACER", [])
-            @assert !(rec[1] in out) "Duplicate tracer name $(rec[1])."
-            push!(out, rec[1])
-        end
+    for rec in get(props, "TRACER", [])
+        @assert !(rec[1] in out) "Duplicate tracer name $(rec[1])."
+        push!(out, rec[1])
     end
     return out
 end
@@ -1734,7 +1731,7 @@ function parse_control_steps(runspec, props, schedule, sys)
 
     wells = schedule["WELSPECS"]
     steps = schedule["STEPS"]
-    active_tracers = data_file_active_tracers(Dict("RUNSPEC" => runspec, "PROPS" => props))
+    active_tracers = data_file_active_tracers(runspec, props)
     if length(keys(steps[end])) == 0
         # Prune empty final record
         steps = steps[1:end-1]
@@ -1966,15 +1963,7 @@ function parse_control_steps(runspec, props, schedule, sys)
         # Temperature/tracer-only updates must also change existing injectors.
         for (name, ctrl) in controls
             if ctrl isa InjectorControl
-                tracer_values = map(active_tracers) do tracer
-                    if tracer == "POLYMER"
-                        return polymer[name]
-                    end
-                    return get(tracer_concentrations[name], tracer, 0.0)
-                end
-                if isempty(tracer_values)
-                    tracer_values = missing
-                end
+                tracer_values = data_file_tracer_values(active_tracers, polymer[name], tracer_concentrations[name])
                 controls[name] = InjectorControl(ctrl.target, ctrl.injection_mixture;
                     density = ctrl.mixture_density, phases = ctrl.phases,
                     temperature = well_temp[name], enthalpy = ctrl.enthalpy,
@@ -2194,6 +2183,18 @@ function injector_limits(; bhp = Inf, surface_rate = Inf, reservoir_rate = Inf)
     return NamedTuple(pairs(lims))
 end
 
+function data_file_tracer_values(tracers, polymer, concentrations)
+    if isempty(tracers)
+        return missing
+    end
+    return map(tracers) do tracer
+        if tracer == "POLYMER"
+            return polymer
+        end
+        return get(concentrations, tracer, 0.0)
+    end
+end
+
 function injector_control(sys, streams, name, flag, type, ctype, surf_rate, res_rate, bhp; is_hist = false, tracers = String[], polymer = 0.0, tracer_concentrations = Dict{String, Float64}(), kwarg...)
     if occursin('*', flag)
         # This is a bit of a hack.
@@ -2237,19 +2238,7 @@ function injector_control(sys, streams, name, flag, type, ctype, surf_rate, res_
         ctrl = DisabledControl()
         lims = nothing
     else
-        ntracers = length(tracers)
-        if ntracers > 0
-            tracer_vals = zeros(ntracers)
-            for (i, t) in enumerate(tracers)
-                if t == "POLYMER"
-                    tracer_vals[i] = polymer
-                else
-                    tracer_vals[i] = get(tracer_concentrations, t, 0.0)
-                end
-            end
-        else
-            tracer_vals = missing
-        end
+        tracer_vals = data_file_tracer_values(tracers, polymer, tracer_concentrations)
         ctrl = InjectorControl(t, mix; density = rho, phases = phases_mix, tracers = tracer_vals, kwarg...)
         if is_hist
             # TODO: This magic number comes from MRST.

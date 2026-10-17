@@ -313,7 +313,7 @@ function setup_reservoir_state(model::MultiModel, equil::Union{Missing, Vector, 
         end
     end
 
-    res_eval = res_state
+    res_eval = nothing
     if is_thermal && !haskey(res_state, :Enthalpy)
         # The surface enthalpy is initialized from the fluid enthalpy, which is
         # a secondary variable that is not evaluated by setup_state. This is
@@ -353,26 +353,12 @@ function setup_reservoir_state(model::MultiModel, equil::Union{Missing, Vector, 
                     end
                     if haskey(res_state, :Enthalpy)
                         enth[i] = res_state[:Enthalpy][wc]
+                    elseif isnothing(res_eval)
+                        # Secondary evaluation was skipped: retain a zero
+                        # initial guess for the facility's algebraic variable.
+                        enth[i] = zero(T)
                     elseif haskey(res_eval, :FluidEnthalpy)
-                        H = res_eval[:FluidEnthalpy]
-                        if haskey(res_eval, :Saturations)
-                            S = res_eval[:Saturations]
-                            rho = res_eval[:PhaseMassDensities]
-                            enth_i = zero(H[1, wc])
-                            total_mass = zero(enth_i)
-                            for ph in axes(H, 1)
-                                mass = S[ph, wc]*rho[ph, wc]
-                                enth_i += H[ph, wc]*mass
-                                total_mass += mass
-                            end
-                            if total_mass > 0
-                                enth[i] = enth_i/total_mass
-                            else
-                                enth[i] = zero(enth_i)
-                            end
-                        else
-                            enth[i] = H[1, wc]
-                        end
+                        enth[i] = well_top_node_enthalpy(rmodel, res_eval, wc)
                     else
                         @error "Enthalpy/FluidEnthalpy variable not found in \
                         reservoir state, but model is thermal. Cannot \
