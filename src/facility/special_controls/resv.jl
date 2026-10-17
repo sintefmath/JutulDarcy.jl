@@ -29,9 +29,16 @@ function setup_average_resv_state(model::StandardBlackOilModel, rstate; qw = 0.0
     vapoil = has_vapoil(sys)
     Tv = eltype(rstate.FluidVolume)
     TP = eltype(rstate.Pressure)
-    Ts = has_water ? eltype(rstate.ImmiscibleSaturation) : TP
-    TRs = disgas ? eltype(rstate.Rs) : TP
-    TPv = vapoil ? eltype(rstate.Rv) : TP
+    Ts = TRs = TPv = TP
+    if has_water
+        Ts = eltype(rstate.ImmiscibleSaturation)
+    end
+    if disgas
+        TRs = eltype(rstate.Rs)
+    end
+    if vapoil
+        TPv = eltype(rstate.Rv)
+    end
 
     T = promote_type(Tv, TP, Ts, TRs, TPv)
     if T <: Jutul.AdjointsDI.SparseConnectivityTracer.Dual
