@@ -3095,25 +3095,14 @@ function reservoir_measurables(model, wellresult, states = missing;
             if !ismissing(wells) && wk ∉ wells
                 continue
             end
-            factors = nothing
+            factor = 1.0
             if prefix != 'w'
-                factors = get(wval, :factor, nothing)
-            end
-            function factor(i)
-                if isnothing(factors)
-                    return 1.0
-                else
-                    return factors[i]
-                end
+                factor = get(wval, :factor, 1.0)
             end
             if is_prod
-                for (i, v) in enumerate(wval[k])
-                    vals[i] -= factor(i)*min(0.0, v)
-                end
+                vals .-= factor .* min.(0.0, wval[k])
             else
-                for (i, v) in enumerate(wval[k])
-                    vals[i] += factor(i)*max(0.0, v)
-                end
+                vals .+= factor .* max.(0.0, wval[k])
             end
         end
         return vals
