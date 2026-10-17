@@ -423,7 +423,10 @@ function expand_summary!(summary; recompute = false)
         dest_key = "$(base)T"
         for k in dest_keys
             if update_field(d[k], dest_key)
-                factor = src_key[1] == 'W' ? get(d[k], "WEFAC", 1.0) : 1.0
+                factor = 1.0
+                if src_key[1] == 'W'
+                    factor = get(d[k], "WEFAC", 1.0)
+                end
                 d[k][dest_key] = cumsum(d[k][src_key].*dt.*factor)
             end
         end

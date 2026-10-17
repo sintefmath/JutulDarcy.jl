@@ -3095,8 +3095,17 @@ function reservoir_measurables(model, wellresult, states = missing;
             if !ismissing(wells) && wk ∉ wells
                 continue
             end
-            factors = prefix == 'w' ? nothing : get(wval, :factor, nothing)
-            factor(i) = isnothing(factors) ? 1.0 : factors[i]
+            factors = nothing
+            if prefix != 'w'
+                factors = get(wval, :factor, nothing)
+            end
+            function factor(i)
+                if isnothing(factors)
+                    return 1.0
+                else
+                    return factors[i]
+                end
+            end
             if is_prod
                 for (i, v) in enumerate(wval[k])
                     vals[i] -= factor(i)*min(0.0, v)
@@ -3216,23 +3225,26 @@ function reservoir_measurables(model, wellresult, states = missing;
     @. fglr = abs(fgpr)/max.(abs(flpr), 1e-12)
 
     flpt = add_entry(:lpt)
-    cumulative_dt = prefix == 'w' ? dt .* get(ws[only(wells)], :factor, 1.0) : dt
-    flpt .= cumsum(flpr.*cumulative_dt)
+    dt_for_cumsum = dt
+    if prefix == 'w'
+        dt_for_cumsum = dt .* get(ws[only(wells)], :factor, 1.0)
+    end
+    flpt .= cumsum(flpr.*dt_for_cumsum)
     fwit = add_entry(:wit)
-    fwit .= cumsum(fwir.*cumulative_dt)
+    fwit .= cumsum(fwir.*dt_for_cumsum)
     foit = add_entry(:oit)
-    foit .= cumsum(foir.*cumulative_dt)
+    foit .= cumsum(foir.*dt_for_cumsum)
     fgit = add_entry(:git)
-    fgit .= cumsum(fgir.*cumulative_dt)
+    fgit .= cumsum(fgir.*dt_for_cumsum)
 
     flit = add_entry(:lit)
-    flit .= cumsum(flir.*cumulative_dt)
+    flit .= cumsum(flir.*dt_for_cumsum)
     fwit = add_entry(:wpt)
-    fwit .= cumsum(fwpr.*cumulative_dt)
+    fwit .= cumsum(fwpr.*dt_for_cumsum)
     foit = add_entry(:opt)
-    foit .= cumsum(fopr.*cumulative_dt)
+    foit .= cumsum(fopr.*dt_for_cumsum)
     fgit = add_entry(:gpt)
-    fgit .= cumsum(fgpr.*cumulative_dt)
+    fgit .= cumsum(fgpr.*dt_for_cumsum)
 
     return out
 end
