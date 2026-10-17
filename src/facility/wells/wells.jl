@@ -305,18 +305,10 @@ values (one per perforation/cell, depending on the type).
 - `roughness = 1e-4`: Roughness of the well wall (used to compute frictional
   pressure losses in multisegment wells).
 """
-function setup_well(D::DataDomain, reservoir_cells;
+function setup_well(D::DataDomain, reservoir_cells::AbstractVector;
         cell_centers = D[:cell_centroids],
-        cell_dimensions = nothing,
+        cell_dimensions = map(c -> peaceman_cell_dims(D, c), reservoir_cells),
         kwarg...)
-    if isnothing(cell_dimensions)
-        if reservoir_cells isa AbstractVector
-            cells = reservoir_cells
-        else
-            cells = [reservoir_cells]
-        end
-        cell_dimensions = map(c -> peaceman_cell_dims(D, c), cells)
-    end
     # Get permeability
     K = D[:permeability]
     # Compute effective thermal conductivity
@@ -347,6 +339,10 @@ function setup_well(D::DataDomain, reservoir_cells;
         net_to_gross = ntg,
         kwarg...
     )
+end
+
+function setup_well(D::DataDomain, reservoir_cell::Union{Int, Tuple, NamedTuple}; kwarg...)
+    return setup_well(D, [reservoir_cell]; kwarg...)
 end
 
 function setup_well(g, K, reservoir_cell::Union{Int, Tuple, NamedTuple}; kwarg...)
