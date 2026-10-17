@@ -21,6 +21,8 @@ function set_cpgrid_geometry!(domain, grid_section = missing)
         domain[:face_centroids] .= geometry.face_centroids
         domain[:areas] .= geometry.face_areas
         domain[:normals] .= geometry.face_normals
+        domain[:volumes] .= map(GeoEnergyIO.CornerPointGrid.cell_volume, domain[:cpgrid_corners])
+        domain[:half_face_centroids, Jutul.NoEntity()] = geometry.half_face_centroids
     end
     return geometry
 end

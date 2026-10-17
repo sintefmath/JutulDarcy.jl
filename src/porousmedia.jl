@@ -66,6 +66,22 @@ function peaceman_cell_dims(g, pos)
     return Δ
 end
 
+function peaceman_cell_dims(d::DataDomain, pos)
+    g = physical_representation(d)
+    haskey(d, :cpgrid_corners) || return peaceman_cell_dims(g, pos)
+    p = d[:cpgrid_corners][cell_index(g, pos)]
+    face(dir, side) = sum(p[CornerPointGeometry.cpgrid_face_corner_indices(dir, side)])/4
+    dx = face(1, 1) - face(1, 0)
+    dy = face(2, 1) - face(2, 0)
+    dz = face(3, 1) - face(3, 0)
+    return (hypot(dx[1], dx[2]), hypot(dy[1], dy[2]), abs(dz[3]))
+end
+
+function compute_peaceman_index(d::DataDomain, K, r, pos, dir = :z; kwarg...)
+    dims = peaceman_cell_dims(d, pos)
+    return compute_peaceman_index(dims, Jutul.expand_perm(K, Jutul.dim(physical_representation(d))), r, dir; kwarg...)
+end
+
 """
     compute_peaceman_index(Δ, K, radius, dir; kwargs...)
 

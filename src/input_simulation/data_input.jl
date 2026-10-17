@@ -475,7 +475,7 @@ function compdat_to_connection_factors(domain, wspec, v, step; sort = true, orde
             else
                 k_i = K[:, c]
             end
-            WI[i] = compute_peaceman_index(G, k_i, radius[i], c, dir[i];
+            WI[i] = compute_peaceman_index(domain, k_i, radius[i], c, dir[i];
                 skin = skin[i],
                 Kh = Kh[i],
                 net_to_gross = net_to_gross[i],
@@ -1377,7 +1377,7 @@ function get_zcorn_cell_depths(g, cartdims, zcorn)
     for c in 1:nc
         i, j, k = cell_ijk(g, c)
         linear_ix = GeoEnergyIO.CornerPointGrid.ijk_to_linear(i, j, k, cartdims)
-        get_zcorn(I1, I2, I3) = zcorn[GeoEnergyIO.CornerPointGrid.corner_index(linear_ix, (I1, I2, I3), cartdims)]
+        get_zcorn(I1, I2, I3) = zcorn[GeoEnergyIO.CornerPointGrid.get_corner_index(linear_ix, (I1, I2, I3), cartdims)]
         get_pair(I, J) = (get_zcorn(I, J, 0), get_zcorn(I, J, 1))
         l_11, t_11 = get_pair(0, 0)
         l_12, t_12 = get_pair(0, 1)
