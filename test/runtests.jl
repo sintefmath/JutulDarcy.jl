@@ -6,6 +6,7 @@ end
 
 @testitem "Utilities" begin
     include("utils.jl")
+    include("input_timestep_defaults.jl")
 end
 
 @testitem "Rel. Perm." begin
