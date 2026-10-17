@@ -3,6 +3,7 @@ function setup_forces(model::SimulationModel{G, S}; sources = nothing, bc = noth
     if sources isa SourceTerm
         sources = [sources]
     end
+    validate_source_terms(sources)
     if bc isa FlowBoundaryCondition
         bc = [bc]
     end
