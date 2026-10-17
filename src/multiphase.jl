@@ -486,7 +486,8 @@ end
 
 domain_fluid_volume(g) = missing
 
-function Jutul.apply_forces_to_equation!(acc, storage, model::SimulationModel{D, S}, eq::ConservationLaw, eq_s, force::V, time) where {V <: AbstractVector{SourceTerm{I, F, T}}, D, S<:MultiPhaseSystem} where {I, F, T}
+function Jutul.apply_forces_to_equation!(acc, storage, model::SimulationModel{D, S}, eq::ConservationLaw, eq_s, force::V, time) where {V <: AbstractVector{<:SourceTerm}, D, S<:MultiPhaseSystem}
+    validate_source_terms(force)
     state = Jutul.evaluation_state(storage)
     if haskey(state, :RelativePermeabilities)
         kr = state.RelativePermeabilities
@@ -495,7 +496,7 @@ function Jutul.apply_forces_to_equation!(acc, storage, model::SimulationModel{D,
     end
     mu = state.PhaseViscosities
     rhoS = reference_densities(model.system)
-    insert_phase_sources!(acc, model, kr, mu, rhoS, force)
+    insert_phase_sources!(acc, model, kr, mu, rhoS, force, state.PhaseMassDensities)
 end
 
 function local_mobility(kr::Real, mu, ph, c)
@@ -506,7 +507,7 @@ function local_mobility(kr, mu, ph, c)
     return kr[ph, c]./mu[ph, c]
 end
 
-function phase_source(c, src, rhoS, kr, mu, ph)
+function phase_source(c, src, rhoS, kr, mu, ph, rho = rhoS)
     v = src.value
     # c = src.cell
     if v > 0
@@ -514,7 +515,8 @@ function phase_source(c, src, rhoS, kr, mu, ph)
     else
         q = out_phase_source(src, v, c, kr, mu, ph)
     end
-    return rhoS*q
+    density = src.type == MassSource ? one(rhoS) : (src.type == VolumeSource ? rho : rhoS)
+    return density*q
 end
 
 
@@ -537,14 +539,14 @@ function out_phase_source(src, v, c, kr, mu, ph)
     return v*f
 end
 
-function insert_phase_sources!(acc, model, kr, mu, rhoS, sources)
+function insert_phase_sources!(acc, model, kr, mu, rhoS, sources, rho)
     nph = size(acc, 1)
     M = global_map(model.domain)
     Jutul.threaded_loop(length(sources), model.context) do index
         @inbounds src = sources[index]
         c = Jutul.full_cell(src.cell, M)
         for ph = 1:nph
-            q_ph = phase_source(c, src, rhoS[ph], kr, mu, ph)
+            q_ph = phase_source(c, src, rhoS[ph], kr, mu, ph, rho[ph, c])
             @inbounds acc[ph, src.cell] -= q_ph
         end
     end

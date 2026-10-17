@@ -30,6 +30,7 @@ end
 
 @testitem "Multi-phase" begin
     include("multiphase.jl")
+    include("source_terms.jl")
 end
 
 @testitem "Multi-model (wells + reservoir)" begin
