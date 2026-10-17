@@ -30,6 +30,12 @@ import JutulDarcy as JD
     reset["COMPDAT"] = deepcopy(base["COMPDAT"])
     data["SCHEDULE"]["STEPS"] = [base,deepcopy(later),again,deepcopy(later),reset]
     case = setup_case_from_data_file(data)
-    multiplier(f) = isnothing(f[:PROD].mask) ? 1.0 : only(f[:PROD].mask.values)
+    function multiplier(f)
+        if isnothing(f[:PROD].mask)
+            return 1.0
+        else
+            return only(f[:PROD].mask.values)
+        end
+    end
     @test multiplier.(case.forces) ≈ [3.,3.,6.,6.,1.]
 end

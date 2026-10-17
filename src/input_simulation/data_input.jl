@@ -443,7 +443,11 @@ function compdat_to_connection_factors(domain, wspec, v, step; sort = true, orde
 
     drainage_radius = map(ij_ix) do ijk
         r0 = get(v[ijk], :r0, -1.0)
-        return r0 > 0.0 ? r0 : NaN
+        if r0 > 0.0
+            return r0
+        else
+            return NaN
+        end
     end
 
     T = promote_type(Jutul.float_type(G), eltype(K), eltype(d), eltype(Kh), eltype(WI), eltype(skin))
@@ -1788,7 +1792,10 @@ function parse_control_steps(runspec, props, schedule, sys)
             elseif key == "COMPDAT"
                 for cd in kword
                     wname, I, J, K1, K2, flag, satnum, WI, diam, Kh, skin, Dfac, dir = cd
-                    r0 = length(cd) >= 14 ? cd[14] : -1.0
+                    r0 = -1.0
+                    if length(cd) >= 14
+                        r0 = cd[14]
+                    end
                     if isnan(diam)
                         diam = 0.3048
                     end
