@@ -307,7 +307,8 @@ values (one per perforation/cell, depending on the type).
 """
 function setup_well(D::DataDomain, reservoir_cells;
         cell_centers = D[:cell_centroids],
-        cell_dimensions = map(c -> peaceman_cell_dims(D, c), reservoir_cells),
+        cell_dimensions = map(c -> peaceman_cell_dims(D, c),
+            reservoir_cells isa AbstractVector ? reservoir_cells : [reservoir_cells]),
         kwarg...)
     # Get permeability
     K = D[:permeability]

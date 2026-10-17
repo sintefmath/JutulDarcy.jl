@@ -21,6 +21,10 @@ import JutulDarcy.CornerPointGeometry as CPGD
             JutulDarcy.compute_peaceman_index((100.0,100.0,10.0),1e-13,0.1)
         well = setup_well(dom,[1]; simple_well=true)
         @test all(isapprox.(well[:cell_dims][1], (100,100,10)))
+        for cell in (1,(1,1,1))
+            well = setup_well(dom,cell;simple_well=true)
+            @test all(isapprox.(well[:cell_dims][1], (100,100,10)))
+        end
         # Isotropic permeability makes the fault result invariant to rotation.
         N = dom[:neighbors]
         f = only(findall(f -> Set(N[:,f]) == Set((1,2)), axes(N,2)))
