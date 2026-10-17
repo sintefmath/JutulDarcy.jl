@@ -91,6 +91,27 @@ function Jutul.update_before_step_multimodel_backend!(
         end
         rmodel = model_g[:Reservoir]
         rstate = storage_g.Reservoir.state
+        ctrl = op_ctrls[wname]
+        requested = req_ctrls[wname]
+        if ctrl isa ProducerControl && requested isa ProducerControl && requested.target isa SurfaceWaterRateTarget && !(rmodel.system isa CompositionalSystem)
+            aqueous = findfirst(isequal(AqueousPhase()), get_phases(rmodel.system))
+            limits = cfg.limits[wname]
+            if !isnothing(aqueous) && !isnothing(limits) && haskey(limits, :bhp) && isfinite(limits.bhp)
+                well = physical_representation(wmodel)
+                pr = WellMerging.well_perforations(well, wname)
+                cells = well.perforations.reservoir[pr]
+                if all(c -> value(rstate.PhaseMobilities[aqueous, c]) == 0, cells)
+                    # A water-rate target cannot be met before mobile water is
+                    # present. Start at the BHP limit; the usual rate-limit
+                    # checks restore rate control after water breakthrough.
+                    op_ctrls[wname] = replace_target(ctrl, BottomHolePressureTarget(limits.bhp))
+                    # Surface rates are algebraic unknowns and can overshoot
+                    # during Newton. Do not let such an intermediate value
+                    # switch back to an infeasible water-rate target.
+                    cfg.limits[wname] = merge(limits, (wrat = Inf,))
+                end
+            end
+        end
         update_before_step_well!(wstate, wmodel, rstate, rmodel,
             op_ctrls[wname], mask;
             well_symbol = wname,

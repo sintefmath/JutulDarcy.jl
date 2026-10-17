@@ -417,10 +417,15 @@ function well_top_node_enthalpy(model, state_well, cell)
     H = state_well.FluidEnthalpy
     if haskey(state_well, :Saturations)
         S = state_well.Saturations
+        rho = state_well.PhaseMassDensities
         H_w = zero(H[1, cell])
+        total_mass = zero(H_w)
         for ph in axes(H, 1)
-            H_w += H[ph, cell]*S[ph, cell]
+            mass = S[ph, cell]*rho[ph, cell]
+            H_w += H[ph, cell]*mass
+            total_mass += mass
         end
+        H_w /= total_mass
     else
         H_w = H[1, cell]
     end
@@ -448,7 +453,14 @@ end
 function injected_fluid_enthalpy(ctrl, enthalpy, model, state_well, p, T, cell)
     H = zero(p*T)
     for ph in axes(state_well.Saturations, 1)
-        S = state_well.Saturations[ph, cell]
+        # Injection is prescribed by the control, rather than the current well
+        # contents (which may still contain produced fluid during Newton).
+        if model.system isa CompositionalSystem
+            S = state_well.Saturations[ph, cell]*state_well.PhaseMassDensities[ph, cell]
+            S /= sum(state_well.Saturations[:, cell].*state_well.PhaseMassDensities[:, cell])
+        else
+            S = ctrl.injection_mixture[ph]
+        end
         dens = state_well.PhaseMassDensities[ph, cell]
         C = state_well.ComponentHeatCapacity[ph, cell]
         H += S*(C*T + p/dens)
@@ -463,6 +475,21 @@ function injected_fluid_enthalpy(ctrl, enthalpy::PressureTemperatureDependentEnt
     H = zero(component_H[1]*ctrl.injection_mixture[1])
     for c in 1:N
         H += ctrl.injection_mixture[c]*component_H[c]
+    end
+    return H
+end
+
+function injected_fluid_enthalpy(ctrl, ::FluidEnthalpyFromInternalEnergy, model, state_well, p, T, cell)
+    internal_energy = model.secondary_variables[:FluidInternalEnergy]
+    if internal_energy isa TemperatureDependentVariable
+        reg = region(internal_energy.regions, cell)
+        U = table_by_region(internal_energy.tab, reg)(T)
+    else
+        U = state_well.ComponentHeatCapacity[:, cell].*T
+    end
+    H = zero(p*T)
+    for ph in eachindex(U)
+        H += ctrl.injection_mixture[ph]*U[ph]
     end
     return H
 end

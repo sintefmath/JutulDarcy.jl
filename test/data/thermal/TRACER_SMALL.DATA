@@ -1,0 +1,70 @@
+-- Self-contained water-only quarter-five-spot tracer transport regression.
+RUNSPEC
+TITLE
+Small water-only tracer transport
+DIMENS
+ 5 5 1 /
+WELLDIMS
+ 2 1 1 2 /
+WATER
+METRIC
+TRACERS
+ 0 1 0 0 DIFF /
+START
+ 1 JAN 1983 /
+GRID
+DX
+ 25*10 /
+DY
+ 25*10 /
+DZ
+ 25*10 /
+TOPS
+ 25*4000 /
+PORO
+ 25*1 /
+PERMX
+ 25*100 /
+PERMY
+ 25*100 /
+PROPS
+PVTW
+ 0 1 3.03e-6 0.5 0 /
+ROCK
+ 4000 3e-6 /
+DENSITY
+ 52 64 0.044 /
+TRACER
+ INJ WAT /
+/
+REGIONS
+FIPNUM
+ 10*1 15*2 /
+SOLUTION
+PRESSURE
+ 25*4000 /
+TBLKFINJ
+ 25*0 /
+SUMMARY
+ALL
+SCHEDULE
+WELSPECS
+ I G 5 5 4000 WAT /
+ P G 1 1 4000 WAT /
+/
+COMPDAT
+ I 5 5 1 1 OPEN 0 0 1 /
+ P 1 1 1 1 OPEN 0 0 1 /
+/
+WCONPROD
+ P OPEN WRAT 1* 100 /
+/
+WCONINJE
+ 'I ' WAT OPEN RATE 100 /
+/
+WTRACER
+ I INJ 1 /
+/
+TSTEP
+ 0.1 1 5 /
+END

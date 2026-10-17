@@ -357,11 +357,19 @@ function setup_reservoir_state(model::MultiModel, equil::Union{Missing, Vector, 
                         H = res_eval[:FluidEnthalpy]
                         if haskey(res_eval, :Saturations)
                             S = res_eval[:Saturations]
+                            rho = res_eval[:PhaseMassDensities]
                             enth_i = zero(H[1, wc])
+                            total_mass = zero(enth_i)
                             for ph in axes(H, 1)
-                                enth_i += H[ph, wc]*S[ph, wc]
+                                mass = S[ph, wc]*rho[ph, wc]
+                                enth_i += H[ph, wc]*mass
+                                total_mass += mass
                             end
-                            enth[i] = enth_i
+                            if total_mass > 0
+                                enth[i] = enth_i/total_mass
+                            else
+                                enth[i] = zero(enth_i)
+                            end
                         else
                             enth[i] = H[1, wc]
                         end
@@ -392,6 +400,14 @@ function values_for_secondary_evaluation(state)
             T = eltype(v)
             if T <: AbstractFloat
                 out[k] = v
+            elseif T <: Integer || T <: Enum
+                out[k] = v
+            elseif T <: BlackOilX
+                if all(x -> value(x.val) isa AbstractFloat, v)
+                    out[k] = map(x -> BlackOilX(value(x.val), x.phases_present, x.sat_close), v)
+                else
+                    return nothing
+                end
             elseif T <: ForwardDiff.Dual
                 # ForwardDiff.value also strips duals with foreign tags (e.g.
                 # when differentiating through the case setup)

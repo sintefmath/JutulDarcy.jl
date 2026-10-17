@@ -39,17 +39,25 @@ function Jutul.update_cross_term_in_entity!(out, i,
             end
 
             for i in 1:N
-                mass = zero(T)
-                for phase in tracer_phase_indices(tracers[i])
-                    mass += S[phase, wc]*rho[phase, wc]
-                end
-                if mass > TRACER_TOL
-                    F = mass/mass_tot
-                    v = -qT*F*ctrl.tracers[i]
+                if well.system isa JutulDarcy.CompositionalSystem
+                    mass = zero(T)
+                    for phase in tracer_phase_indices(tracers[i])
+                        mass += S[phase, wc]*rho[phase, wc]
+                    end
+                    if mass > TRACER_TOL
+                        F = mass/mass_tot
+                    else
+                        F = zero(T)
+                    end
                 else
-                    v = zero(T)
+                    # The prescribed stream may differ from the fluids still
+                    # residing in the well during startup or flow reversal.
+                    F = zero(T)
+                    for phase in tracer_phase_indices(tracers[i])
+                        F += ctrl.injection_mixture[phase]
+                    end
                 end
-                out[i] = v
+                out[i] = -qT*F*ctrl.tracers[i]
             end
         end
     else
@@ -149,6 +157,6 @@ end
 
 function Jutul.apply_force_to_cross_term!(ct_s, cross_term::ReservoirFromWellTracerCT, target, source, model, storage, dt, force::PerforationMask; time = time)
     mask = force.values
-    apply_perforation_mask!(ct_s.target, mask, model.context)
-    apply_perforation_mask!(ct_s.source, mask, model.context)
+    JutulDarcy.apply_perforation_mask!(ct_s.target, mask, model.context)
+    JutulDarcy.apply_perforation_mask!(ct_s.source, mask, model.context)
 end

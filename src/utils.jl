@@ -533,7 +533,7 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
     if !(wells isa AbstractArray)
         wells = [wells]
     end
-    if !(tracers isa AbstractArray)
+    if !(tracers isa AbstractArray) && !(tracers isa Tracers.TracerFluxType)
         tracers = [tracers]
     end
     mswells = []
@@ -690,7 +690,7 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         immutable_model = immutable_model,
         groups = groups,
     )
-    if length(tracers) > 0
+    if tracers isa Tracers.TracerFluxType || length(tracers) > 0
         add_tracers_to_model!(model, tracers)
     end
     if extra_out

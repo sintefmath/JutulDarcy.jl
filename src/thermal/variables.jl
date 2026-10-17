@@ -69,6 +69,12 @@ end
     end
 end
 
+@jutul_secondary function update_fluid_enthalpy!(H, fe::FluidEnthalpyFromInternalEnergy, model, FluidInternalEnergy, ix)
+    for cell in ix, phase in axes(H, 1)
+        H[phase, cell] = FluidInternalEnergy[phase, cell]
+    end
+end
+
 @jutul_secondary function update_rock_internal_energy!(U_r, e::RockInternalEnergy, model, RockHeatCapacity, Temperature, ix)
     for i in ix
         U_r[i] = RockHeatCapacity[i]*Temperature[i]

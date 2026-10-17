@@ -88,6 +88,9 @@ Compute phase-specific internal energy from specific enthalpy as `u = h - p/ρ`.
 struct FluidInternalEnergyFromFluidEnthalpy <: PhaseVariables end
 struct FluidEnthalpy <: PhaseVariables end
 
+"Internal-energy transport for TEMP decks, with pressure work omitted."
+struct FluidEnthalpyFromInternalEnergy <: PhaseVariables end
+
 struct TemperatureDependentVariable{T, R, N} <: VectorVariables
     tab::T
     regions::R
@@ -411,8 +414,12 @@ end
 
 function reservoir_conductivity(reservoir::DataDomain)
     phi = reservoir[:porosity]
-    C = reservoir[:rock_thermal_conductivity]
-    T = compute_face_trans(reservoir, (1.0 .- phi).*C)
+    if haskey(reservoir, :bulk_thermal_conductivity)
+        C = reservoir[:bulk_thermal_conductivity]
+    else
+        C = (1.0 .- phi).*reservoir[:rock_thermal_conductivity]
+    end
+    T = compute_face_trans(reservoir, C)
     if haskey(reservoir, :nnc)
         nnc = reservoir[:nnc]
         nnc::NonNeighboringConnections
