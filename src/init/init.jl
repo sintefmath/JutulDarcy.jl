@@ -222,7 +222,10 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
                     continue
                 end
                 s0 = s[:, i]
-                sw_i = ismissing(s_min) ? sw[i] : max(sw[i], s_min[1][i])
+                sw_i = sw[i]
+                if !ismissing(s_min)
+                    sw_i = max(sw_i, s_min[1][i])
+                end
                 s[1, i] = sw_i
                 s_rem = 0.0
                 for ph in 2:nph
