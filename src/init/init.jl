@@ -222,7 +222,7 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
                     continue
                 end
                 s0 = s[:, i]
-                sw_i = sw[i]
+                sw_i = ismissing(s_min) ? sw[i] : max(sw[i], s_min[1][i])
                 s[1, i] = sw_i
                 s_rem = 0.0
                 for ph in 2:nph
@@ -230,6 +230,8 @@ function equilibriate_state!(init, depths, model, sys, contacts, depth, datum_pr
                 end
                 if s_rem ≈ 0
                     s[2:end, i] .= 0.0
+                    ph = max(2, current_phase_index(depths[i], contacts))
+                    s[ph, i] = 1 - sw_i
                 else
                     scale = (1 - sw_i)/max(s_rem, 1e-20)
                     for ph in 2:nph
