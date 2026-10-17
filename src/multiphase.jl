@@ -515,7 +515,13 @@ function phase_source(c, src, rhoS, kr, mu, ph, rho = rhoS)
     else
         q = out_phase_source(src, v, c, kr, mu, ph)
     end
-    density = src.type == MassSource ? one(rhoS) : (src.type == VolumeSource ? rho : rhoS)
+    if src.type == MassSource
+        density = one(rhoS)
+    elseif src.type == VolumeSource
+        density = rho
+    else
+        density = rhoS
+    end
     return density*q
 end
 
