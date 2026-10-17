@@ -41,7 +41,7 @@ import JutulDarcy.CornerPointGeometry as CPGD
         l,r = dom[:neighbors][:,f]
         @test dom[:face_centroids][:,f] ≈ (dom[:cell_centroids][:,l]+dom[:cell_centroids][:,r])/2
     end
-    coarse = coarsen_reservoir(dom, [1,1,2,2])
+    coarse = JutulDarcy.coarsen_reservoir(dom, [1,1,2,2])
     @test !haskey(coarse, :cpgrid_corners)
     @test !haskey(coarse, :half_face_centroids)
     @test coarse[:volumes] ≈ [200000,200000]
