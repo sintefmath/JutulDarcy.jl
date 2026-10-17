@@ -10,7 +10,7 @@ import JutulDarcy.CornerPointGeometry as CPGD
             xr, yr = cosd(rotation)*x-sind(rotation)*y, sind(rotation)*x+cosd(rotation)*y
             append!(coord, (xr,yr,0.0,xr,yr,3000.0))
         end
-        zcorn = [1000.0+(k-1+dk)*10+(i==2 ? throw : 0.0)
+        zcorn = [1000.0+(k-1+dk)*10+(i-1)*throw
             for di in 0:1, i in 1:nx, dj in 0:1, j in 1:ny, dk in 0:1, k in 1:nz]
         grid = Dict{String,Any}("cartDims"=>(nx,ny,nz), "COORD"=>coord, "ZCORN"=>vec(zcorn), "ACTNUM"=>trues(nx,ny,nz))
         dom = reservoir_domain(mesh_from_grid_section(grid); permeability=1e-13,porosity=0.2)

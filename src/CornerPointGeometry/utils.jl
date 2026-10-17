@@ -106,7 +106,7 @@ function cpgrid_geometry(domain, grid_section = missing)
         right_ijk = Jutul.cell_ijk(mesh, right)
         logical_sign = sign(right_ijk[direction] - left_ijk[direction])
         logical_sign != 0 || throw(ArgumentError("Face $face has no I/J/K change between cells $left and $right."))
-        side = logical_sign > 0 ? 1 : 0
+        side = Int(logical_sign > 0)
         points = corners[left][cpgrid_face_corner_indices(direction, side)]
         # Use half face distances from the cell-side CPGRID centers
         fnodes = mesh.faces.faces_to_nodes[face]
@@ -132,9 +132,13 @@ function cpgrid_geometry(domain, grid_section = missing)
         for fp in facepos[cell]:(facepos[cell+1]-1)
             face = faces[fp]
             left, right = neighbors[:, face]
-            other = cell == left ? right : left
+            if cell == left
+                other = right
+            else
+                other = left
+            end
             direction = face_dir[face]
-            side = Jutul.cell_ijk(mesh, other)[direction] > Jutul.cell_ijk(mesh, cell)[direction] ? 1 : 0
+            side = Int(Jutul.cell_ijk(mesh, other)[direction] > Jutul.cell_ijk(mesh, cell)[direction])
             own_face = sum(corners[cell][cpgrid_face_corner_indices(direction, side)])/4
             # Jutul's half_face_centroids replaces the cell center, rather than
             # the face center, in the center-to-face displacement.

@@ -307,9 +307,16 @@ values (one per perforation/cell, depending on the type).
 """
 function setup_well(D::DataDomain, reservoir_cells;
         cell_centers = D[:cell_centroids],
-        cell_dimensions = map(c -> peaceman_cell_dims(D, c),
-            reservoir_cells isa AbstractVector ? reservoir_cells : [reservoir_cells]),
+        cell_dimensions = nothing,
         kwarg...)
+    if isnothing(cell_dimensions)
+        if reservoir_cells isa AbstractVector
+            cells = reservoir_cells
+        else
+            cells = [reservoir_cells]
+        end
+        cell_dimensions = map(c -> peaceman_cell_dims(D, c), cells)
+    end
     # Get permeability
     K = D[:permeability]
     # Compute effective thermal conductivity
