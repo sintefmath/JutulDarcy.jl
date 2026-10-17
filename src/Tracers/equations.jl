@@ -37,7 +37,7 @@ function Jutul.convergence_criterion(model, storage, eq::ConservationLaw{:Tracer
     tracers = eq.flux_type.tracers
     errors = map(eachindex(tracers)) do t
         scale = tracer_scale(model, tracers[t])
-        residual = view(r, t, :)
+        residual = Jutul.matrix_row_view(r, t)
         function normalized_residual(residual, volume)
             return dt*abs(value(residual))/(value(volume)*scale)
         end

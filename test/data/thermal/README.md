@@ -46,6 +46,10 @@ override the model evaluator.
 `test/thermal_data_backends.jl` runs the complete reduced schedules on `ka_cuda`
 with scalar indexing disabled and compares them with CPU results. It also
 evaluates injection enthalpy directly in CPU/CUDA kernels in Float32 and Float64.
+`test/thermal_well_backend.jl` additionally runs the full thermal-tracer schedule
+with the well models resident on the GPU and checks pressure, temperature and
+tracer mass against CPU results. Convergence reductions use layout-aware row
+views, including the `EquationMajorLayout` used by device-resident wells.
 The CUDA runs use `linear_solver_arg = (smoother_type = :ka_dilu,)`. The dry-water
 startup has zero scalar pivots within nonsingular cell blocks. The default
 cuSPARSE ILU returns nonfinite updates for this case; its
