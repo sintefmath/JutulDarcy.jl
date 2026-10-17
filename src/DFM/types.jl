@@ -94,18 +94,21 @@ function matrix_fracture_connection_conductivity(fractures::DataDomain, field::S
 
     # Get matrix-fracture connection source cells
     fracture_cells = fractures[:connection_cells, FractureMatrixConnection()]
-    matrix_conductivity = fractures[Symbol(:matrix_, field)]
-    fracture_conductivity = fractures[field]
+    # Scale copies of the conductivities: the domain arrays must not be
+    # modified, as they are used for other parameters as well.
+    matrix_conductivity = vec(fractures[Symbol(:matrix_, field)])
+    fracture_conductivity = vec(fractures[field])
     if contains(String(field), "fluid")
-        matrix_conductivity .*= fractures[:matrix_porosity]
-        fracture_conductivity .*= fractures[:porosity]
+        matrix_conductivity = matrix_conductivity .* fractures[:matrix_porosity]
+        fracture_conductivity = fracture_conductivity .* fractures[:porosity]
     elseif contains(String(field), "rock")
-        matrix_conductivity .*= (1.0 .- fractures[:matrix_porosity])
-        fracture_conductivity .*= (1.0 .- fractures[:porosity])
+        matrix_conductivity = matrix_conductivity .* (1.0 .- fractures[:matrix_porosity])
+        fracture_conductivity = fracture_conductivity .* (1.0 .- fractures[:porosity])
     end
     # Compute transmissibilities and gravity potential differences for each
     # matrix-fracture connection
-    transmissibilities = Float64[]
+    T_type = promote_type(eltype(matrix_conductivity), eltype(fracture_conductivity), eltype(fractures[:aperture]))
+    transmissibilities = T_type[]
     for (mcell, fcell) in enumerate(fracture_cells)
         # Compute fracture-matrix transmissibility
         a = fractures[:aperture][fcell]
