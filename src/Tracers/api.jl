@@ -100,7 +100,7 @@ function add_tracers_to_model!(model::MultiModel, tracers; names = missing, kwar
             end
             if ct isa JutulDarcy.WellFromFacilityFlowCT
                 add_next!(ctp, WellFromFacilityTracerCT(
-                    ct.wells, ct.facility_cells, ct.well_cells))
+                    ct.wells, ct.facility_cells, ct.well_cells, tracers.tracers))
             end
         end
         for ctp in new_ctp

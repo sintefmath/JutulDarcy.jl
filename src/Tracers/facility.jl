@@ -1,7 +1,8 @@
-struct WellFromFacilityTracerCT <: Jutul.AdditiveCrossTerm
+struct WellFromFacilityTracerCT{T} <: Jutul.AdditiveCrossTerm
     wells::Vector{Symbol}
     facility_cells::Vector{Int}
     well_cells::Vector{Int}
+    tracers::T
 end
 
 Jutul.cross_term_entities(ct::WellFromFacilityTracerCT, eq::ConservationLaw{:TracerMasses}, model) =
@@ -21,7 +22,7 @@ function Jutul.update_cross_term_in_entity!(out, i,
     ctrl = JutulDarcy.operating_control(cfg, well_symbol)
     qT = state_facility.TotalSurfaceMassRate[pos]
 
-    tracers = well.equations[:tracers].flux_type.tracers
+    tracers = ct.tracers
     T = eltype(out)
     N = length(tracers)
     S = state_well.Saturations

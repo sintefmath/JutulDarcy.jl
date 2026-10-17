@@ -8,7 +8,8 @@ using Jutul, JutulDarcy, GeoEnergyIO, Test
     @test JutulDarcy.well_top_node_enthalpy(nothing, state, 1) ≈ (1000e5 + 1e6)/1001
     system = ImmiscibleSystem((AqueousPhase(), VaporPhase()))
     ctrl = InjectorControl(TotalRateTarget(1.0), [1.0, 0.0])
-    H = JutulDarcy.injected_fluid_enthalpy(ctrl, JutulDarcy.FluidEnthalpy(),
+    evaluator = JutulDarcy.InjectionEnthalpyEvaluator(nothing, Val(true))
+    H = JutulDarcy.injected_fluid_enthalpy(ctrl, evaluator,
         (system = system,), state, 1e5, 300.0, 1)
     @test H ≈ 1500*300 + 1e5/1000
 end
@@ -25,14 +26,14 @@ end
 @testset "Tracer injection follows the prescribed carrier stream" begin
     system = ImmiscibleSystem((AqueousPhase(), VaporPhase()))
     flux = JutulDarcy.Tracers.TracerFluxType(SinglePhaseTracer(system, AqueousPhase()))
-    well = (system = system, equations = Dict(:tracers => (flux_type = flux,)))
+    well = (system = system,)
     ctrl = InjectorControl(TotalRateTarget(1.0), [1.0, 0.0]; tracers = [0.8])
     cfg = JutulDarcy.WellGroupConfiguration([:I], Dict(:I => ctrl))
     facility_state = (WellGroupConfiguration = cfg, TotalSurfaceMassRate = [2.0])
     # The well initially contains gas, but the injected stream is pure water.
     well_state = (Saturations = reshape([0.0, 1.0], 2, 1),
         PhaseMassDensities = reshape([1000.0, 1.0], 2, 1))
-    ct = JutulDarcy.Tracers.WellFromFacilityTracerCT([:I], [1], [1])
+    ct = JutulDarcy.Tracers.WellFromFacilityTracerCT([:I], [1], [1], flux.tracers)
     out = zeros(1)
     Jutul.update_cross_term_in_entity!(out, 1, well_state, nothing,
         facility_state, nothing, well, nothing, ct, nothing, 1.0, nothing)

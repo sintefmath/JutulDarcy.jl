@@ -89,6 +89,13 @@ function Adapt.adapt_structure(to, flux::TracerFluxType{T, N}) where {T, N}
     return TracerFluxType(Adapt.adapt(to, flux.tracers), nothing, Val(N))
 end
 
+function Adapt.adapt_structure(context::Jutul.KernelAbstractionsContext,
+        flux::TracerFluxType{T, N}) where {T, N}
+    # Reporting runs on the host. Strip labels only when the constitutive
+    # object is subsequently converted to a device kernel argument.
+    return TracerFluxType(Adapt.adapt(context, flux.tracers), flux.names, Val(N))
+end
+
 function TracerFluxType(tracers::AbstractTracer; kwarg...)
     return TracerFluxType((tracers, ); kwarg...)
 end

@@ -7,9 +7,11 @@ examples used to exercise the Eclipse input workflow:
 | `THERMAL_TRACER_SMALL.DATA` | 5 x 7 x 3 | Oil/water five-spot, RTEMPVD initialization, fluid and rock heat capacities, passive water tracer, temperature/tracer updates without a repeated rate control |
 | `TRACER_SMALL.DATA` | 5 x 5 x 1 | Water-only quarter-five-spot, direct pressure initialization without SWAT, omitted vertical permeability, tracer injection and transport |
 
-These cases require the companion GeoEnergyIO.jl parser changes on
-[`thermal-keyword-support`](https://github.com/moyner/GeoEnergyIO.jl/tree/thermal-keyword-support).
-Develop that checkout in the test environment when testing this branch.
+These cases require the companion GeoEnergyIO.jl parser changes and the Jutul.jl
+cross-term preparation interface on `thermal-keyword-support`:
+[GeoEnergyIO.jl](https://github.com/moyner/GeoEnergyIO.jl/tree/thermal-keyword-support),
+[Jutul.jl](https://github.com/moyner/Jutul.jl/tree/thermal-keyword-support).
+Develop both checkouts in the test environment when testing this branch.
 
 Run them with `setup_case_from_data_file` and `simulate_reservoir`. The high
 pressure black-oil case requests a 1500 bar BHP change at startup. Use
@@ -33,6 +35,22 @@ partitioning, recycling and cumulative injection factors are rejected.
 the [OPM temperature formulation](https://opm.github.io/opm-flow-editor-support/keywords/TEMP.html).
 `THERMAL` retains pressure work. These tests check the implemented formulation;
 they do not establish equivalence with either commercial simulator formulation.
+
+Injection energy is evaluated at the prescribed injection temperature. Its
+constitutive evaluator is bound to the well/facility cross term once during
+simulator construction, after property configuration. Entity evaluation reads
+the state and the explicit evaluator; it does not inspect model variable
+definitions. User-supplied constant enthalpies and `(p, T)` callbacks still
+override the model evaluator.
+
+`test/thermal_data_backends.jl` runs the complete reduced schedules on `ka_cuda`
+with scalar indexing disabled and compares them with CPU results. It also
+evaluates injection enthalpy directly in CPU/CUDA kernels in Float32 and Float64.
+The CUDA runs use `linear_solver_arg = (smoother_type = :ka_dilu,)`. The dry-water
+startup has zero scalar pivots within nonsingular cell blocks. The default
+cuSPARSE ILU returns nonfinite updates for this case; its
+[factorization does not pivot](https://docs.nvidia.com/cuda/cusparse/index.html#cusparse-t-bsrilu02).
+The existing portable block DILU smoother handles this startup.
 Temperature-dependent heat capacities are integrated into internal energy,
 so differentiating the energy with respect to temperature recovers the input
 heat capacity.

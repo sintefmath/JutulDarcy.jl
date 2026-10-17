@@ -93,14 +93,17 @@ function Jutul.update_before_step_multimodel_backend!(
         rstate = storage_g.Reservoir.state
         ctrl = op_ctrls[wname]
         requested = req_ctrls[wname]
-        if ctrl isa ProducerControl && requested isa ProducerControl && requested.target isa SurfaceWaterRateTarget && !(rmodel.system isa CompositionalSystem)
+        if ctrl isa ProducerControl && requires_mobile_water(requested, rmodel.system)
             aqueous = findfirst(isequal(AqueousPhase()), get_phases(rmodel.system))
             limits = cfg.limits[wname]
             if !isnothing(aqueous) && !isnothing(limits) && haskey(limits, :bhp) && isfinite(limits.bhp)
                 well = physical_representation(wmodel)
                 pr = WellMerging.well_perforations(well, wname)
                 cells = well.perforations.reservoir[pr]
-                if all(c -> value(rstate.PhaseMobilities[aqueous, c]) == 0, cells)
+                # Gather and reduce on the array's backend. This setup hook can
+                # receive device-resident reservoir state even for host wells.
+                mobilities = rstate.PhaseMobilities[aqueous, cells]
+                if all(mobility -> iszero(value(mobility)), mobilities)
                     # A water-rate target cannot be met before mobile water is
                     # present. Start at the BHP limit; the usual rate-limit
                     # checks restore rate control after water breakthrough.
@@ -124,6 +127,12 @@ function Jutul.update_before_step_multimodel_backend!(
     return nothing
 end
 
+
+requires_mobile_water(control, system) = false
+
+function requires_mobile_water(::ProducerControl{<:SurfaceWaterRateTarget}, system)
+    return !(system isa CompositionalSystem) && number_of_phases(system) > 1
+end
 
 function valid_surface_rate_for_control(q_t, ::InjectorControl, val = MIN_INITIAL_WELL_RATE)
     if q_t < val

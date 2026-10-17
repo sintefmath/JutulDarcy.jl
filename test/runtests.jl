@@ -68,6 +68,10 @@ end
     include("thermal_data.jl")
 end
 
+@testitem "Thermal DATA backends" begin
+    include("thermal_data_backends.jl")
+end
+
 @testitem "Tabulated thermal properties" begin
     include("thermal_properties.jl")
 end
