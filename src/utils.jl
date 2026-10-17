@@ -2469,7 +2469,8 @@ function reservoir_transmissibility(d::DataDomain; version = missing)
         d[:permeability],
         faces, facepos, facesigns,
         version = version,
-        face_dir = face_dir
+        face_dir = face_dir,
+        half_face_centroids = get(d, :half_face_centroids, missing)
     )
     nf = number_of_faces(d)
     fig_negative_trans!(T_hf, faces)
