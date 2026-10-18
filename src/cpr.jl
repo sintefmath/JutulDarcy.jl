@@ -322,8 +322,39 @@ function update_cpr_internals!(cpr::CPRPreconditioner, lsys, model, storage, rec
     w_p = cpr_s.w_p
     rw_map = cpr_s.well_reservoir_map
     @tic "pressure system" update_pressure_system!(A_p, cpr.pressure_precond, A, w_p, ctx, executor, rw_map)
+    if !isnothing(rw_map)
+        cprw_fix_bhp_controlled_wells!(A_p, rw_map, model, storage)
+    end
     return do_p_update, do_p_update_partial
 end
+
+# A BHP-controlled well's pressure is fixed by its control equation, which is not part of the
+# CPRW pressure system. Its mass-balance row would make it a free, nearly volume-less node, so
+# keep only the diagonal (the row's rhs is already zero): the pressure stage then keeps BHP fixed.
+function cprw_fix_bhp_controlled_wells!(A_p::Jutul.StaticSparsityMatrixCSR, rw_map, model, storage)
+    model isa MultiModel || return A_p
+    fkey = :Facility
+    haskey(storage, fkey) || return A_p
+    cfg = storage[fkey].state.WellGroupConfiguration
+    nz = nonzeros(A_p)
+    cols = Jutul.colvals(A_p)
+    offset = rw_map.np - sum(length, rw_map.well_ranges; init = 0)  # wells come last
+    for (well, range) in zip(rw_map.wells, rw_map.well_ranges)
+        haskey(cfg.operating_controls, well) || continue
+        operating_control(cfg, well).target isa BottomHolePressureTarget || continue
+        for local_row in range
+            row = offset + local_row
+            for pos in nzrange(A_p, row)
+                if cols[pos] != row
+                    nz[pos] = 0.0
+                end
+            end
+        end
+    end
+    return A_p
+end
+
+cprw_fix_bhp_controlled_wells!(A_p, rw_map, model, storage) = A_p
 
 # CSC (default) version
 function update_pressure_system!(A_p, p_prec, A, w_p, ctx, executor, ::Nothing)
