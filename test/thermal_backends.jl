@@ -54,6 +54,8 @@ end
 @testset "Tabulated geothermal wells on a KA backend" begin
     case = JutulDarcy.setup_mini_wellcase(Val(:geothermal);
         simple_well = false, nstep = 1, total_time = 0.01*si_unit(:day))
+    case = JutulCase(convert_to_immutable_storage(case.model), case.dt, case.forces;
+        state0 = case.state0, parameters = case.parameters)
     for (backend, float_type) in (
             (JLBackend(), Float64),
             (Jutul.KernelExecution.KernelAbstractions.CPU(), Float32))

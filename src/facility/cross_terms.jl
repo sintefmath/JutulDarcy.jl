@@ -347,9 +347,29 @@ end
 WellFromFacilityThermalCT(wells, facility_cells, well_cells) =
     WellFromFacilityThermalCT(wells, facility_cells, well_cells, nothing)
 
-function Jutul.prepare_cross_term(ct::WellFromFacilityThermalCT{Nothing}, well, facility)
-    return WellFromFacilityThermalCT(ct.wells, ct.facility_cells, ct.well_cells,
-        injection_enthalpy_evaluator(well))
+WellFromFacilityThermalCT(ct::WellFromFacilityThermalCT, evaluator) =
+    WellFromFacilityThermalCT(ct.wells, ct.facility_cells, ct.well_cells, evaluator)
+
+function Jutul.setup_cross_term_storage(ct::WellFromFacilityThermalCT{Nothing},
+        eq_t, eq_s, well, facility, storage_t, storage_s; kwarg...)
+    evaluator = injection_enthalpy_evaluator(well)
+    storage = Jutul.setup_cross_term_storage(WellFromFacilityThermalCT(ct, evaluator),
+        eq_t, eq_s, well, facility, storage_t, storage_s; kwarg...)
+    storage[:injection_enthalpy_evaluator] = evaluator
+    return storage
+end
+
+function Jutul.update_cross_term!(storage::Union{Jutul.JutulStorage, Jutul.ImmutableJutulStorage},
+        ct::WellFromFacilityThermalCT{Nothing}, eq, storage_t, storage_s, well, facility, dt)
+    cross_term = WellFromFacilityThermalCT(ct, storage.injection_enthalpy_evaluator)
+    return Jutul.update_cross_term!(storage, cross_term, eq, storage_t, storage_s, well, facility, dt)
+end
+
+function Jutul.KernelExecution.setup_cross_term_evaluation(storage,
+        ct::WellFromFacilityThermalCT{Nothing}, eq, storage_t, storage_s, well, facility)
+    cross_term = WellFromFacilityThermalCT(ct, storage.injection_enthalpy_evaluator)
+    return Jutul.KernelExecution.setup_cross_term_evaluation(storage, cross_term,
+        eq, storage_t, storage_s, well, facility)
 end
 
 Jutul.cross_term_entities(ct::WellFromFacilityThermalCT, eq::ConservationLaw, model) =

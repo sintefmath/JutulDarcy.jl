@@ -7,8 +7,8 @@ examples used to exercise the Eclipse input workflow:
 | `THERMAL_TRACER_SMALL.DATA` | 5 x 7 x 3 | Oil/water five-spot, RTEMPVD initialization, fluid and rock heat capacities, passive water tracer, temperature/tracer updates without a repeated rate control |
 | `TRACER_SMALL.DATA` | 5 x 5 x 1 | Water-only quarter-five-spot, direct pressure initialization without SWAT, omitted vertical permeability, tracer injection and transport |
 
-These cases require the companion GeoEnergyIO.jl parser changes and the Jutul.jl
-cross-term preparation interface on `thermal-keyword-support`:
+These cases require the companion GeoEnergyIO.jl parser changes and Jutul.jl
+backend row views on `thermal-keyword-support`:
 [GeoEnergyIO.jl](https://github.com/moyner/GeoEnergyIO.jl/tree/thermal-keyword-support),
 [Jutul.jl](https://github.com/moyner/Jutul.jl/tree/thermal-keyword-support).
 Develop both checkouts in the test environment when testing this branch.
@@ -37,8 +37,8 @@ the [OPM temperature formulation](https://opm.github.io/opm-flow-editor-support/
 they do not establish equivalence with either commercial simulator formulation.
 
 Injection energy is evaluated at the prescribed injection temperature. Its
-constitutive evaluator is bound to the well/facility cross term once during
-simulator construction, after property configuration. Entity evaluation reads
+constitutive evaluator is bound through the existing cross-term storage setup
+in JutulDarcy, after property configuration. Entity evaluation reads
 the state and the explicit evaluator; it does not inspect model variable
 definitions. User-supplied constant enthalpies and `(p, T)` callbacks still
 override the model evaluator.
