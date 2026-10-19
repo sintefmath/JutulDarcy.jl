@@ -1908,6 +1908,7 @@ function setup_reservoir_forces(model::MultiModel;
     if !isnothing(sources) && !(sources isa AbstractVector)
         sources = [sources]
     end
+    validate_source_terms(sources)
     reservoir_forces = (bc = bc, sources = sources)
     (no_well_controls || has_facility) || error("Model must have facility when well controls are provided.")
     if haskey(submodels, :Facility)
