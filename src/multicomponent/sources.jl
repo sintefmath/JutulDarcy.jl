@@ -1,4 +1,5 @@
-function Jutul.apply_forces_to_equation!(acc, storage, model::SimulationModel{D, S}, eq::ConservationLaw, eq_s, force::V, time) where {V <: AbstractVector{SourceTerm{I, F, T}}, D, S<:CompositionalSystem} where {I, F, T}
+function Jutul.apply_forces_to_equation!(acc, storage, model::SimulationModel{D, S}, eq::ConservationLaw, eq_s, force::V, time) where {V <: AbstractVector{<:SourceTerm}, D, S<:CompositionalSystem}
+    validate_source_terms(force)
     state = storage.state
     kr = state.RelativePermeabilities
     rho = state.PhaseMassDensities

@@ -441,12 +441,14 @@ function compdat_to_connection_factors(domain, wspec, v, step; sort = true, orde
     WI = getf(:WI)
     skin = getf(:skin)
 
-    if wspec.drainage_radius <= 0.0
-        dval = NaN
-    else
-        dval = wspec.drainage_radius
+    drainage_radius = map(ij_ix) do ijk
+        r0 = get(v[ijk], :r0, -1.0)
+        if r0 > 0.0
+            return r0
+        else
+            return NaN
+        end
     end
-    drainage_radius = fill(dval, length(wc))
 
     T = promote_type(Jutul.float_type(G), eltype(K), eltype(d), eltype(Kh), eltype(WI), eltype(skin))
     if haskey(domain, :net_to_gross)
@@ -505,6 +507,7 @@ function parse_schedule(domain, runspec, props, schedule, sys; simple_well = tru
     G = physical_representation(domain)
     ijk_lookup = ijk_lookup_dict(G)
     dt, cstep, controls, status, completions, msdata, limits = parse_control_steps(runspec, props, schedule, sys)
+    isempty(dt) && throw(ArgumentError("SCHEDULE contains no report steps (TSTEP, DATES or TIME); nothing to simulate."))
     completions, bad_wells = filter_inactive_completions!(completions, G, ijk_lookup)
     @assert length(controls) == length(completions)
     handle_wells_without_active_perforations!(bad_wells, completions, controls, limits)
@@ -529,7 +532,6 @@ function parse_schedule(domain, runspec, props, schedule, sys; simple_well = tru
         W, wc_base, WI_base, open = parse_well_from_compdat(domain, k, v, wspec, msdata_k, compord, length(completions); simple_well = k_is_simple_well)
         n_wi = length(WI_base)
         T = eltype(WI_base)
-        wpi_mul = ones(T, n_wi)
         for (i, c) in enumerate(completions)
             compdat = c[k]
             well_control = controls[i][k]
@@ -537,24 +539,14 @@ function parse_schedule(domain, runspec, props, schedule, sys; simple_well = tru
             well_is_shut = well_control isa DisabledControl
             wi_mul = zeros(T, n_wi)
             if !well_is_shut
-                wc, WI, open, multipliers, fresh, = compdat_to_connection_factors(domain, wspec, compdat, i, ijk_lookup = ijk_lookup, sort = false)
-                for (c, wi, is_open, is_fresh, mul) in zip(wc, WI, open, fresh, multipliers)
+                wc, WI, open, multipliers, = compdat_to_connection_factors(domain, wspec, compdat, i, ijk_lookup = ijk_lookup, sort = false)
+                for (c, wi, is_open, mul) in zip(wc, WI, open, multipliers)
                     compl_idx = findfirst(isequal(c), wc_base)
                     if isnothing(compl_idx)
                         # This perforation is missing, leave at zero.
                         continue
                     end
-                    if !is_fresh
-                        # Perforation is not fresh and could have previously
-                        # gotten a WPIMULT applied. TODO: Some of the logic
-                        # around WPIMULT is not 100% clear. The current
-                        # implementation should be fine up to the stage where
-                        # many different keywords start to interact for the same
-                        # timestep.
-                        mul *= wpi_mul[compl_idx]
-                    end
-                    wpi_mul[compl_idx] = mul
-                    wi_mul[compl_idx] = wpi_mul[compl_idx]*wi*is_open/WI_base[compl_idx]
+                    wi_mul[compl_idx] = mul*wi*is_open/WI_base[compl_idx]
                 end
             end
             if !well_is_shut
@@ -1672,7 +1664,7 @@ function parse_control_steps(runspec, props, schedule, sys)
     wells = schedule["WELSPECS"]
     steps = schedule["STEPS"]
     active_tracers = data_file_active_tracers(runspec)
-    if length(keys(steps[end])) == 0
+    if !isempty(steps) && length(keys(steps[end])) == 0
         # Prune empty final record
         steps = steps[1:end-1]
     end
@@ -1741,7 +1733,7 @@ function parse_control_steps(runspec, props, schedule, sys)
         push!(cstep, ctrl_ix)
     end
 
-    skip = ("WELLSTRE", "WINJGAS", "GINJGAS", "GRUPINJE", "WELLINJE", "WEFAC", "WTEMP", "WPIMULT", "WPOLYMER", "FBHPDEF", "TUNING")
+    skip = ("WELLSTRE", "WINJGAS", "GINJGAS", "GRUPINJE", "WELLINJE", "WEFAC", "WTEMP", "WPOLYMER", "FBHPDEF")
     bad_kw = Dict{String, Bool}()
     streams = setup_well_streams()
     default_bhp = nothing
@@ -1800,6 +1792,10 @@ function parse_control_steps(runspec, props, schedule, sys)
             elseif key == "COMPDAT"
                 for cd in kword
                     wname, I, J, K1, K2, flag, satnum, WI, diam, Kh, skin, Dfac, dir = cd
+                    r0 = -1.0
+                    if length(cd) >= 14
+                        r0 = cd[14]
+                    end
                     if isnan(diam)
                         diam = 0.3048
                     end
@@ -1816,32 +1812,6 @@ function parse_control_steps(runspec, props, schedule, sys)
                     end
                     entry = compdat[wname]
                     for K in K1:K2
-                        perf_mult = 1.0
-                        current_completion_index = length(keys(entry)) + 1
-                        if haskey(step, "WPIMULT")
-                            for wpimult in step["WPIMULT"]
-                                wname_wpi, mul_i, I_wpi, J_wpi, K_wpi, start_wpi, end_wpi = wpimult
-                                if wname_wpi != wname
-                                    continue
-                                end
-                                if I != I_wpi && I_wpi > 0
-                                    continue
-                                end
-                                if J != J_wpi && J_wpi > 0
-                                    continue
-                                end
-                                if K != K_wpi && K_wpi > 0
-                                    continue
-                                end
-                                if start_wpi > current_completion_index && start_wpi > 0
-                                    continue
-                                end
-                                if end_wpi < current_completion_index && end_wpi > 0
-                                    continue
-                                end
-                                perf_mult *= mul_i
-                            end
-                        end
                         entry[(I, J, K)] = (
                             open = flag == "OPEN",
                             satnum = satnum,
@@ -1850,8 +1820,20 @@ function parse_control_steps(runspec, props, schedule, sys)
                             Kh = Kh,
                             skin = skin,
                             dir = dir,
-                            mul = perf_mult,
+                            r0 = r0,
+                            mul = 1.0,
                             ctrl = ctrl_ix)
+                    end
+                end
+            elseif key == "WPIMULT"
+                for record in kword
+                    name, factor, iw, jw, kw, first_perf, last_perf = record
+                    entry = compdat[name]
+                    for (n, (ijk, perf)) in enumerate(pairs(entry))
+                        i, j, k = ijk
+                        (iw <= 0 || iw == i) && (jw <= 0 || jw == j) && (kw <= 0 || kw == k) || continue
+                        (first_perf <= 0 || first_perf <= n) && (last_perf <= 0 || n <= last_perf) || continue
+                        entry[ijk] = merge(perf, (mul = perf.mul*factor,))
                     end
                 end
             elseif key in ("WCONINJE", "WCONPROD", "WCONHIST", "WCONINJ", "WCONINJH")
@@ -2064,7 +2046,7 @@ function producer_control(sys, flag, ctrl, orat, wrat, grat, lrat, bhp; is_hist 
                 t = ReservoirVoidageTarget(self_val, w)
             end
         else
-            error("$ctype control not supported")
+            error("$ctrl control not supported")
         end
         if is_rate && abs(self_val) < MIN_ACTIVE_WELL_RATE
             @debug "Producer with $ctrl disabled due to zero rate." abs(self_val)

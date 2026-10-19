@@ -359,8 +359,7 @@ function get_three_phase_scaled_relperms(scaling, krw, krow, krog, krg, swcon, s
     L_og, CR_og, U_og, KM_og = get_kr_scalers(scaler_og, c)
     L_g, CR_g, U_g, KM_g = get_kr_scalers(scaler_g, c)
 
-    _, cr_w, u_w, km_w = get_kr_scalers(krw)
-    l_w = swcon
+    l_w, cr_w, u_w, km_w = get_kr_scalers(krw)
 
     l_ow, cr_ow, u_ow, km_ow = get_kr_scalers(krow)
     l_og, cr_og, u_og, km_og = get_kr_scalers(krog)
@@ -376,7 +375,7 @@ function get_three_phase_scaled_relperms(scaling, krw, krow, krog, krg, swcon, s
     R_ow = 1.0 - CR_w - L_g
     r_ow = 1.0 - cr_w - l_g
     R_og = 1.0 - CR_g - L_w
-    r_og = 1.0 - cr_w - l_w
+    r_og = 1.0 - cr_g - l_w
     # Maximum saturation oil (in persence of water)
     U_ow = 1.0 - L_w - L_g
     u_ow = 1.0 - l_w - l_g
