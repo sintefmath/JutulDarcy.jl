@@ -1560,6 +1560,30 @@ function simulate_reservoir(state0, model, dt;
     return simulate_reservoir(case; kwarg...)
 end
 
+"""
+    reservoir_simulation_input_defaults(input_data)
+
+Return simulator keyword defaults supplied by a case's original input data.
+Overload this function for other input formats. Without recognized settings,
+the normal `setup_reservoir_simulator` defaults apply. Eclipse TUNING contributes
+the initial timestep settings; subsequent schedule changes are not supported.
+"""
+reservoir_simulation_input_defaults(input_data) = NamedTuple()
+
+function reservoir_simulation_input_defaults(input_data::AbstractDict)
+    schedule = get(input_data, "SCHEDULE", nothing)
+    isnothing(schedule) && return NamedTuple()
+    steps = get(schedule, "STEPS", [])
+    isempty(steps) && return NamedTuple()
+    if any(step -> haskey(step, "TUNING"), Iterators.drop(steps, 1))
+        jutul_message("TUNING", "Only initial timestep settings are supported; later TUNING changes are ignored.", color = :yellow)
+    end
+    tuning = get(first(steps), "TUNING", nothing)
+    isnothing(tuning) && return NamedTuple()
+    return (initial_dt = tuning[1], max_timestep = tuning[2],
+        min_timestep = tuning[3], timestep_max_increase = tuning[5])
+end
+
 function simulate_reservoir(case::JutulCase;
         config = missing,
         restart = false,
@@ -1571,7 +1595,12 @@ function simulate_reservoir(case::JutulCase;
     )
     (; model, forces, state0, parameters, dt) = case
     if ismissing(simulator)
-        sim, config_new = setup_reservoir_simulator(model, state0, parameters; kwarg...)
+        defaults = reservoir_simulation_input_defaults(case.input_data)
+        if haskey(kwarg, :max_dt)
+            defaults = merge(defaults, (max_timestep = kwarg[:max_dt],))
+        end
+        sim_kwarg = merge(defaults, (; kwarg...))
+        sim, config_new = setup_reservoir_simulator(model, state0, parameters; sim_kwarg...)
         if ismissing(config)
             config = config_new
         end

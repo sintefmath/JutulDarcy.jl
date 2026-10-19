@@ -8,6 +8,7 @@ end
 
 @testitem "Utilities" begin
     include("utils.jl")
+    include("input_timestep_defaults.jl")
     include("efficiency_summary.jl")
 end
 
