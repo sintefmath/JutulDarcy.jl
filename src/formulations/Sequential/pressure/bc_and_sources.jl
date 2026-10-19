@@ -30,7 +30,8 @@ function Jutul.apply_forces_to_equation!(acc, storage, model::SimulationModel{D,
     return acc
 end
 
-function Jutul.apply_forces_to_equation!(acc, storage, model::SimulationModel{D, S}, eq::PressureEquation, eq_s, force::V, time) where {V <: AbstractVector{SourceTerm{I, F, T}}, D, S<:MultiPhaseSystem} where {I, F, T}
+function Jutul.apply_forces_to_equation!(acc, storage, model::SimulationModel{D, S}, eq::PressureEquation, eq_s, force::V, time) where {V <: AbstractVector{<:SourceTerm}, D, S<:MultiPhaseSystem}
+    JutulDarcy.validate_source_terms(force)
     state = storage.state
     acc = Jutul.get_diagonal_entries(eq, eq_s)
     kr = state.RelativePermeabilities
@@ -44,7 +45,7 @@ function Jutul.apply_forces_to_equation!(acc, storage, model::SimulationModel{D,
         c = Jutul.full_cell(src.cell, M)
         val = zero(eltype(acc))
         for ph = 1:nph
-            q_ph = phase_source(c, src, rhoS[ph], kr, mu, ph)
+            q_ph = phase_source(c, src, rhoS[ph], kr, mu, ph, state.PhaseMassDensities[ph, c])
             val -= w[ph, src.cell]*q_ph
         end
         @inbounds acc[src.cell] += val

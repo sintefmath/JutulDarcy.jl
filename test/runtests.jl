@@ -3,14 +3,17 @@ using JutulDarcy, TestItems, Test, TestItemRunner
 @testitem "Mesh and reservoir" begin
     include("mesh_and_reservoir.jl")
     include("corner_geometry.jl")
+    include("schedule_completions.jl")
 end
 
 @testitem "Utilities" begin
     include("utils.jl")
+    include("efficiency_summary.jl")
 end
 
 @testitem "Rel. Perm." begin
     include("relperm.jl")
+    include("initialization_scaling.jl")
 end
 
 @testitem "Capillary pressure" begin
@@ -31,6 +34,7 @@ end
 
 @testitem "Multi-phase" begin
     include("multiphase.jl")
+    include("source_terms.jl")
 end
 
 @testitem "Multi-model (wells + reservoir)" begin

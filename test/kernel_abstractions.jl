@@ -665,6 +665,7 @@ end
 
 @testset "SPE1 adjoint solve in KA mode" begin
     problem = setup_spe1_optimization_test(:ka)
+    @test problem.cache[:config][:output_substates]
     objective, gradient = problem()
     simulator = problem.cache[:simulator]
     storage = problem.cache[:storage]
@@ -684,4 +685,9 @@ end
     @test storage.parameter.storage.LinearizedSystem.r_buffer isa Vector
     @test storage.state0_buf isa Vector
     @test storage.dstate0 isa Vector
+    overridden = JutulDarcy.reservoir_optimization_problem(
+        problem.dict_parameters, problem.objective;
+        mode = :ka,
+        simulator_arg = (output_substates = false, linear_solver = nothing, timesteps = :none))
+    @test !overridden.cache[:config][:output_substates]
 end
