@@ -680,7 +680,7 @@ function transfer_pvar!(buffer, model, state, a, do_delta, pvar::AbstractVector,
             if phases == JutulDarcy.GasOnly
                 rv = x
             elseif phases == JutulDarcy.OilAndGas
-                rvtab = table_by_region(model.system.rs_max, reg_i)
+                rvtab = JutulDarcy.table_by_region(model.system.rv_max, reg_i)
                 rv = rvtab(p)
             else
                 # Gas only
@@ -706,10 +706,10 @@ function transfer_pvar!(buffer, model, state, a, do_delta, pvar::AbstractVector,
             if phases == JutulDarcy.OilOnly && disgas
                 rs0 = extra[1, i]
                 check_val(rs, v, i, :rs)
-                Δ = rs0 - rs
+                Δ = (rs0 - rs)/pb.rs_scale
             elseif phases == JutulDarcy.GasOnly && vapoil
                 rv0 = extra[2, i]
-                Δ = rv0 - rv
+                Δ = (rv0 - rv)/pb.rv_scale
             else # Two-phase
                 sg0 = extra[3, i]
                 check_val(sg, v, i, :sg)

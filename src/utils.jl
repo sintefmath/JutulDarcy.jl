@@ -872,7 +872,12 @@ function set_reservoir_variable_defaults!(model;
     replace_variables!(model, Saturations = Saturations(ds_max = ds_max), throw = false)
     replace_variables!(model, Temperature = Temperature(max_rel = dT_max_rel, max_abs = dT_max_abs, min = T_min), throw = false)
     replace_variables!(model, ImmiscibleSaturation = ImmiscibleSaturation(ds_max = ds_max), throw = false)
-    replace_variables!(model, BlackOilUnknown = BlackOilUnknown(ds_max = ds_max, dr_max = dr_max), throw = false)
+    if haskey(model.primary_variables, :BlackOilUnknown)
+        bo = model.primary_variables[:BlackOilUnknown]
+        replace_variables!(model, BlackOilUnknown = BlackOilUnknown(
+            ds_max = ds_max, dr_max = dr_max,
+            rs_scale = bo.rs_scale, rv_scale = bo.rv_scale))
+    end
 
     rmodel = reservoir_model(model)
     if rmodel isa CompositionalModel
