@@ -50,9 +50,19 @@ function Jutul.update_primary_variable!(state, massrate::TotalSurfaceMassRate, s
         # A significant negative rate is the valid producer control
         limit_rate = -MIN_INITIAL_WELL_RATE
         if v >= limit_rate && v + dx > limit_rate && model.domain.can_shut_producers
-            @debug "$s Approaching zero rate, disabling producer for current step"
-            wcfg.operating_controls[s] = DisabledControl()
-            next = Jutul.update_value(v, -value(v))
+            ctrl = wcfg.operating_controls[s]
+            has_bhp_limit = haskey(wcfg.limits[s], :bhp)
+            is_currently_bhp = ctrl.target isa BottomHolePressureTarget
+            if is_currently_bhp || !has_bhp_limit
+                @debug "$s Approaching zero rate, disabling producer for current step"
+                wcfg.operating_controls[s] = DisabledControl()
+                next = Jutul.update_value(v, -value(v))
+            else
+                # Should switch to BHP before we disable the producer
+                bhp_lim = wcfg.limits[s][:bhp]
+                wcfg.operating_controls[s] = replace_target(ctrl, BottomHolePressureTarget(bhp_lim))
+                next = v
+            end
         else
             next = Jutul.update_value(v, dx, abs_max, rel_max, nothing, limit_rate)
         end
