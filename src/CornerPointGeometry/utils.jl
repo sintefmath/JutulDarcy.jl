@@ -7,19 +7,7 @@ Reconstruct the eight logical corners of deck cell `ijk` from the `COORD` and
 `ZCORN` keywords in a parsed `GRID` section.
 """
 function cpgrid_cell_corners(grid::AbstractDict, ijk, dims = Tuple(grid["cartDims"]), coord = reshape(grid["COORD"], 6, :)')
-    nx, ny, _ = dims
-    zcorn = grid["ZCORN"]
-    T = promote_type(eltype(grid["COORD"]), eltype(zcorn))
-    linear = GeoEnergyIO.CornerPointGrid.ijk_to_linear(ijk..., dims)
-    corners = ntuple(8) do ix
-        i = (ix - 1) % 2
-        j = ((ix - 1) ÷ 2) % 2
-        k = ((ix - 1) ÷ 4) % 2
-        zix = GeoEnergyIO.CornerPointGrid.corner_index(linear, (i, j, k), dims)
-        line = GeoEnergyIO.CornerPointGrid.get_line(coord, ijk[1] + i, ijk[2] + j, nx + 1, ny + 1)
-        return SVector{3, T}(GeoEnergyIO.CornerPointGrid.interp_coord(line[1], line[2], zcorn[zix]))
-    end
-    return SVector{8, SVector{3, T}}(corners)
+    return GeoEnergyIO.CornerPointGrid.cell_corners(grid, ijk, dims, coord)
 end
 
 @inline cpgrid_corner_index(i, j, k) = 1 + i + 2j + 4k
@@ -118,7 +106,7 @@ function cpgrid_geometry(domain, grid_section = missing)
         right_ijk = Jutul.cell_ijk(mesh, right)
         logical_sign = sign(right_ijk[direction] - left_ijk[direction])
         logical_sign != 0 || throw(ArgumentError("Face $face has no I/J/K change between cells $left and $right."))
-        side = logical_sign > 0 ? 1 : 0
+        side = Int(logical_sign > 0)
         points = corners[left][cpgrid_face_corner_indices(direction, side)]
         # Use half face distances from the cell-side CPGRID centers
         fnodes = mesh.faces.faces_to_nodes[face]
@@ -138,11 +126,31 @@ function cpgrid_geometry(domain, grid_section = missing)
         end
     end
 
+    faces, facepos = Jutul.get_facepos(neighbors, nc)
+    half_face_centroids = zeros(T, 3, length(faces))
+    for cell in 1:nc
+        for fp in facepos[cell]:(facepos[cell+1]-1)
+            face = faces[fp]
+            left, right = neighbors[:, face]
+            if cell == left
+                other = right
+            else
+                other = left
+            end
+            direction = face_dir[face]
+            side = Int(Jutul.cell_ijk(mesh, other)[direction] > Jutul.cell_ijk(mesh, cell)[direction])
+            own_face = sum(corners[cell][cpgrid_face_corner_indices(direction, side)])/4
+            # Jutul's half_face_centroids replaces the cell center, rather than
+            # the face center, in the center-to-face displacement.
+            half_face_centroids[:, fp] .= face_centroids[:, face] + cell_centroids[:, cell] - own_face
+        end
+    end
     return (
         cell_centroids = cell_centroids,
         face_centroids = face_centroids,
         face_areas = face_areas,
-        face_normals = face_normals
+        face_normals = face_normals,
+        half_face_centroids = half_face_centroids
     )
 end
 
