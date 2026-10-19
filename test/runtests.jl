@@ -27,6 +27,10 @@ end
     include("kernel_abstractions.jl")
 end
 
+@testitem "CPRW BHP controls" begin
+    include("cprw_bhp.jl")
+end
+
 @testitem "Float32 reservoir models" begin
     include("reservoir_float32.jl")
 end

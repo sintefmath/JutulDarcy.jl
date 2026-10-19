@@ -9,6 +9,28 @@ function synchronize_cpr_kernel(backend, event)
     return nothing
 end
 
+@kernel function cprw_zero_offdiagonals_kernel!(values,
+        @Const(rowptr), @Const(columns), first_row)
+    row = first_row + @index(Global) - 1
+    @inbounds for position in rowptr[row]:(rowptr[row + 1] - 1)
+        if columns[position] != row
+            values[position] = zero(eltype(values))
+        end
+    end
+end
+
+function cprw_zero_offdiagonals!(matrix::Jutul.StaticSparsityMatrixCSR{
+        <:Any, <:Any, <:Any, <:Any, <:Any, <:KernelAbstractions.Backend},
+        first_row, count)
+    iszero(count) && return matrix
+    backend = matrix.backend
+    kernel! = cprw_zero_offdiagonals_kernel!(backend, cpr_kernel_block_size(matrix))
+    event = kernel!(nonzeros(matrix), matrix.rowptr, Jutul.colvals(matrix),
+        first_row; ndrange = count)
+    synchronize_cpr_kernel(backend, event)
+    return matrix
+end
+
 @kernel function update_pressure_system_kernel!(
         pressure_values, @Const(rowptr), @Const(system_values),
         @Const(weights), number_of_components,
