@@ -7,6 +7,7 @@ end
 
 @testitem "Utilities" begin
     include("utils.jl")
+    include("efficiency_summary.jl")
 end
 
 @testitem "Rel. Perm." begin
