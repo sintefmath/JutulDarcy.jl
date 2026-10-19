@@ -834,8 +834,15 @@ mutable struct WellGroupConfiguration{T, O, L}
     const requested_controls::O # The requested control (which may be different if limits are hit)
     const limits::L             # Operating limits for the wells
     step_index::Int             # Internal book-keeping of what step we are at
-    function WellGroupConfiguration(; operating, limits, requested = operating, step = 0)
-        new{typeof(operating), typeof(requested), typeof(limits)}(operating, requested, limits, step)
+    const fallback_attempted::Set{Symbol} # Wells that tried a fallback in the current ministep
+    function WellGroupConfiguration(;
+            operating,
+            limits,
+            requested = operating,
+            step = 0,
+            fallback_attempted = Set{Symbol}()
+        )
+        new{typeof(operating), typeof(requested), typeof(limits)}(operating, requested, limits, step, fallback_attempted)
     end
 end
 
@@ -866,7 +873,8 @@ function Base.copy(c::WellGroupConfiguration)
         operating = copy(c.operating_controls),
         requested = copy(c.requested_controls),
         limits = copy(c.limits),
-        step = c.step_index
+        step = c.step_index,
+        fallback_attempted = copy(c.fallback_attempted)
     )
 end
 
@@ -885,6 +893,10 @@ function Jutul.update_values!(old::WellGroupConfiguration, new::WellGroupConfigu
         old.limits[k] = v
     end
     old.step_index = new.step_index
+    if old.fallback_attempted !== new.fallback_attempted
+        empty!(old.fallback_attempted)
+        union!(old.fallback_attempted, new.fallback_attempted)
+    end
     return old
 end
 

@@ -136,6 +136,10 @@ end
     include("well_constructor.jl")
 end
 
+@testitem "Well shutting" begin
+    include("well_shutting.jl")
+end
+
 @testitem "Merged wells" begin
     include("merge_wells.jl")
 end

@@ -29,6 +29,8 @@ function Jutul.update_before_step_multimodel_backend!(
     # Set control to whatever is on the forces
     storage = storage_g[key]
     cfg = storage.state.WellGroupConfiguration
+    # A well may try its fallback again when a new ministep is attempted.
+    empty!(cfg.fallback_attempted)
     q_t = storage.state.TotalSurfaceMassRate
     op_ctrls = cfg.operating_controls
     req_ctrls = cfg.requested_controls

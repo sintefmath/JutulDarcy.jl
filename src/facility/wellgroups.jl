@@ -37,10 +37,20 @@ function Jutul.update_primary_variable!(state, massrate::TotalSurfaceMassRate, s
     end
     function do_update!(wcfg, s, v, dx, ctrl::InjectorControl)
         limit_rate = MIN_INITIAL_WELL_RATE
-        if v <= limit_rate && v + dx < limit_rate && model.domain.can_shut_injectors
-            @debug "$s Approaching zero rate, disabling injector for current step"
-            wcfg.operating_controls[s] = DisabledControl()
-            next = Jutul.update_value(v, -value(v))
+        if value(v) <= limit_rate && value(v) + dx < limit_rate && model.domain.can_shut_injectors
+            limits = wcfg.limits[s]
+            has_rate_limit = !isnothing(limits) && haskey(limits, :rate)
+            is_currently_rate = ctrl.target isa TotalRateTarget
+            if is_currently_rate || !has_rate_limit || s in wcfg.fallback_attempted
+                @debug "$s Approaching zero rate, disabling injector for current step"
+                wcfg.operating_controls[s] = DisabledControl()
+                next = Jutul.update_value(v, -value(v))
+            else
+                # Try rate control before concluding that the injector is inoperable.
+                wcfg.operating_controls[s] = replace_target(ctrl, TotalRateTarget(limits[:rate]))
+                push!(wcfg.fallback_attempted, s)
+                next = v
+            end
         else
             next = Jutul.update_value(v, dx, abs_max, rel_max, limit_rate, nothing)
         end
@@ -49,18 +59,19 @@ function Jutul.update_primary_variable!(state, massrate::TotalSurfaceMassRate, s
     function do_update!(wcfg, s, v, dx, ctrl::ProducerControl)
         # A significant negative rate is the valid producer control
         limit_rate = -MIN_INITIAL_WELL_RATE
-        if v >= limit_rate && v + dx > limit_rate && model.domain.can_shut_producers
-            ctrl = wcfg.operating_controls[s]
-            has_bhp_limit = haskey(wcfg.limits[s], :bhp)
+        if value(v) >= limit_rate && value(v) + dx > limit_rate && model.domain.can_shut_producers
+            limits = wcfg.limits[s]
+            has_bhp_limit = !isnothing(limits) && haskey(limits, :bhp)
             is_currently_bhp = ctrl.target isa BottomHolePressureTarget
-            if is_currently_bhp || !has_bhp_limit
+            if is_currently_bhp || !has_bhp_limit || s in wcfg.fallback_attempted
                 @debug "$s Approaching zero rate, disabling producer for current step"
                 wcfg.operating_controls[s] = DisabledControl()
                 next = Jutul.update_value(v, -value(v))
             else
                 # Should switch to BHP before we disable the producer
-                bhp_lim = wcfg.limits[s][:bhp]
+                bhp_lim = limits[:bhp]
                 wcfg.operating_controls[s] = replace_target(ctrl, BottomHolePressureTarget(bhp_lim))
+                push!(wcfg.fallback_attempted, s)
                 next = v
             end
         else

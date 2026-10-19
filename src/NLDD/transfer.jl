@@ -171,6 +171,11 @@ function transfer_well_config!(loc::W, glob::W; from_local::Bool) where W<:Jutul
                 # Don't propagate disabled controls over. Let the outer solver decide.
             else
                 loc.operating_controls[k] = glob.operating_controls[k]
+                if k in glob.fallback_attempted
+                    push!(loc.fallback_attempted, k)
+                else
+                    delete!(loc.fallback_attempted, k)
+                end
             end
         end
     end
