@@ -226,9 +226,6 @@ function setup_case_from_parsed_data(datafile;
             end
             if is_thermal
                 set_thermal_deck_specialization!(submodel, props, reservoir_regions(submodel.data_domain, :pvtnum), oil, water, gas)
-                if get(rs, "TEMP", false)
-                    set_secondary_variables!(submodel, FluidEnthalpy = FluidEnthalpyFromInternalEnergy())
-                end
             end
             if k == :Reservoir
                 set_deck_specialization!(submodel, rs, props, domain[:satnum], oil, water, gas)

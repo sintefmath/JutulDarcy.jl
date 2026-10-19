@@ -1,25 +1,26 @@
 using Jutul, JutulDarcy, Test, CUDA
 
 @testset "Tracer injection follows the prescribed carrier stream" begin
-    system = ImmiscibleSystem((AqueousPhase(), VaporPhase()))
-    flux = JutulDarcy.Tracers.TracerFluxType(SinglePhaseTracer(system, AqueousPhase()))
-    well = (system = system,)
-    ctrl = InjectorControl(TotalRateTarget(1.0), [1.0, 0.0]; tracers = [0.8])
+    ctrl = InjectorControl(TotalRateTarget(1.0), [1.0, 0.0, 0.0]; tracers = [0.8])
     cfg = JutulDarcy.WellGroupConfiguration([:I], Dict(:I => ctrl))
     facility_state = (WellGroupConfiguration = cfg, TotalSurfaceMassRate = [2.0])
     # The well initially contains gas, but the injected stream is pure water.
-    well_state = (Saturations = reshape([0.0, 1.0], 2, 1),
-        PhaseMassDensities = reshape([1000.0, 1.0], 2, 1))
-    ct = JutulDarcy.Tracers.WellFromFacilityTracerCT([:I], [1], [1], flux.tracers)
+    well_state = (Saturations = reshape([0.0, 0.0, 1.0], 3, 1),
+        PhaseMassDensities = reshape([1000.0, 800.0, 1.0], 3, 1))
     out = zeros(1)
-    Jutul.update_cross_term_in_entity!(out, 1, well_state, nothing,
-        facility_state, nothing, well, nothing, ct, nothing, 1.0, nothing)
-    @test only(out) ≈ -1.6
+    for system in (ImmiscibleSystem(:wog), StandardBlackOilSystem())
+        flux = JutulDarcy.Tracers.TracerFluxType(SinglePhaseTracer(system, AqueousPhase()))
+        ct = JutulDarcy.Tracers.WellFromFacilityTracerCT([:I], [1], [1], flux.tracers)
+        Jutul.update_cross_term_in_entity!(out, 1, well_state, nothing,
+            facility_state, nothing, (system = system,), nothing, ct, nothing, 1.0, nothing)
+        @test only(out) ≈ -1.6
+    end
 end
 
 @testset "Thermal and passive tracer DATA regressions" begin
     fixtures = joinpath(@__DIR__, "data", "thermal")
-    options = (info_level = -1, error_on_incomplete = true,
+    # Use the same timestep sequence for CPU and backend comparisons.
+    options = (info_level = -1, error_on_incomplete = true, timesteps = :none,
         nonlinear_tolerance = 1e-7, tol_cnv = 1e-6, tol_mb = 1e-9,
         tol_cnv_well = 1e-7)
     if CUDA.functional()
@@ -39,7 +40,8 @@ end
             if thermal && !tracer
                 properties = Jutul.evaluate_all_secondary_variables(rmodel,
                     case.state0[:Reservoir], case.parameters[:Reservoir])
-                @test properties[:FluidEnthalpy] == properties[:FluidInternalEnergy]
+                @test properties[:FluidEnthalpy] ≈ properties[:FluidInternalEnergy] .+
+                    properties[:Pressure]' ./ properties[:PhaseMassDensities]
                 @test vec(properties[:RockHeatCapacity]) .* case.parameters[:Reservoir][:RockDensity] ≈ fill(35000.0, nc)
                 @test rmodel.data_domain[:bulk_thermal_conductivity] ≈ fill(24/86.4, nc)
             end

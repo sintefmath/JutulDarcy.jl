@@ -314,9 +314,8 @@ function Jutul.apply_force_to_cross_term!(ct_s, cross_term::ReservoirFromWellThe
 end
 
 "Constitutive evaluator passed explicitly to the well/facility energy cross term."
-struct InjectionEnthalpyEvaluator{E, P}
+struct InjectionEnthalpyEvaluator{E}
     energy::E
-    pressure_work::P
 end
 
 Adapt.@adapt_structure InjectionEnthalpyEvaluator
@@ -326,7 +325,7 @@ function injection_enthalpy_evaluator(model)
     # intentionally do not carry variable definitions.
     enthalpy = model[:FluidEnthalpy]
     if enthalpy isa PressureTemperatureDependentEnthalpy
-        return InjectionEnthalpyEvaluator(enthalpy, Val(false))
+        return enthalpy
     end
     energy = model[:FluidInternalEnergy]
     if energy isa FluidInternalEnergy
@@ -334,7 +333,7 @@ function injection_enthalpy_evaluator(model)
     elseif !(energy isa TemperatureDependentVariable)
         throw(ArgumentError("Configure an injection enthalpy evaluator for $(typeof(energy))."))
     end
-    return InjectionEnthalpyEvaluator(energy, Val(!(enthalpy isa FluidEnthalpyFromInternalEnergy)))
+    return InjectionEnthalpyEvaluator(energy)
 end
 
 struct WellFromFacilityThermalCT{H} <: Jutul.AdditiveCrossTerm
@@ -502,11 +501,12 @@ end
 
 function injected_fluid_enthalpy(ctrl, evaluator::InjectionEnthalpyEvaluator, model, state_well, p, T, cell)
     H = zero(p*T)
-    energy = injection_internal_energy(evaluator.energy, p, T, cell)
+    law = evaluator.energy
+    energy = evaluate_table_by_region(law.tab, region(law.regions, cell), T)
     for c in eachindex(ctrl.injection_mixture)
         H += ctrl.injection_mixture[c]*energy[c]
     end
-    H += injection_pressure_work(evaluator.pressure_work, ctrl, model, state_well, p, cell)
+    H += injection_pressure_work(ctrl, model, state_well, p, cell)
     return H
 end
 
@@ -515,20 +515,19 @@ function injected_fluid_enthalpy(ctrl, evaluator::InjectionEnthalpyEvaluator{Not
     for c in eachindex(ctrl.injection_mixture)
         H += ctrl.injection_mixture[c]*state.ComponentHeatCapacity[c, cell]*T
     end
-    return H + injection_pressure_work(evaluator.pressure_work, ctrl, model, state, p, cell)
+    return H + injection_pressure_work(ctrl, model, state, p, cell)
 end
 
-@inline function injection_internal_energy(energy::TemperatureDependentVariable, p, T, cell)
-    return evaluate_table_by_region(energy.tab, region(energy.regions, cell), T)
+function injected_fluid_enthalpy(ctrl, enthalpy::PressureTemperatureDependentEnthalpy, model, state, p, T, cell)
+    component_H = tabulated_enthalpy(enthalpy, p, T, cell)
+    H = zero(p*T)
+    for c in eachindex(ctrl.injection_mixture)
+        H += ctrl.injection_mixture[c]*component_H[c]
+    end
+    return H
 end
 
-@inline function injection_internal_energy(energy::PressureTemperatureDependentEnthalpy, p, T, cell)
-    return tabulated_enthalpy(energy, p, T, cell)
-end
-
-@inline injection_pressure_work(::Val{false}, ctrl, model, state, p, cell) = zero(p)
-
-@inline function injection_pressure_work(::Val{true}, ctrl, model, state, p, cell)
+@inline function injection_pressure_work(ctrl, model, state, p, cell)
     work = zero(p)
     if model.system isa CompositionalSystem
         total_mass = zero(p)

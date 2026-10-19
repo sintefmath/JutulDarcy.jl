@@ -8,7 +8,7 @@ using Jutul, JutulDarcy, Test, LinearAlgebra
     @test JutulDarcy.well_top_node_enthalpy(nothing, state, 1) ≈ (1000e5 + 1e6)/1001
     system = ImmiscibleSystem((AqueousPhase(), VaporPhase()))
     ctrl = InjectorControl(TotalRateTarget(1.0), [1.0, 0.0])
-    evaluator = JutulDarcy.InjectionEnthalpyEvaluator(nothing, Val(true))
+    evaluator = JutulDarcy.InjectionEnthalpyEvaluator(nothing)
     H = JutulDarcy.injected_fluid_enthalpy(ctrl, evaluator,
         (system = system,), state, 1e5, 300.0, 1)
     @test H ≈ 1500*300 + 1e5/1000

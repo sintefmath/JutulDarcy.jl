@@ -34,32 +34,7 @@ function Jutul.update_cross_term_in_entity!(out, i,
             out .= zero(T)
         else
             @assert length(ctrl.tracers) == N
-            mass_tot = zero(T)
-            for phase in 1:number_of_phases(well.system)
-                mass_tot += S[phase, wc]*rho[phase, wc]
-            end
-
-            for i in 1:N
-                if well.system isa JutulDarcy.CompositionalSystem
-                    mass = zero(T)
-                    for phase in tracer_phase_indices(tracers[i])
-                        mass += S[phase, wc]*rho[phase, wc]
-                    end
-                    if mass > TRACER_TOL
-                        F = mass/mass_tot
-                    else
-                        F = zero(T)
-                    end
-                else
-                    # The prescribed stream may differ from the fluids still
-                    # residing in the well during startup or flow reversal.
-                    F = zero(T)
-                    for phase in tracer_phase_indices(tracers[i])
-                        F += ctrl.injection_mixture[phase]
-                    end
-                end
-                out[i] = -qT*F*ctrl.tracers[i]
-            end
+            update_tracer_injection!(out, ctrl, qT, tracers, well.system, state_well, wc)
         end
     else
         mass_tot = zero(T)
@@ -79,6 +54,40 @@ function Jutul.update_cross_term_in_entity!(out, i,
     end
     return out
 end
+
+function update_tracer_injection!(out, ctrl, qT, tracers,
+        system::Union{JutulDarcy.BlackOilSystem, ImmiscibleSystem}, state, cell)
+    for i in eachindex(tracers)
+        F = zero(eltype(out))
+        for phase in tracer_phase_indices(tracers[i])
+            F += ctrl.injection_mixture[phase]
+        end
+        out[i] = -qT*F*ctrl.tracers[i]
+    end
+    return out
+end
+
+function update_tracer_injection!(out, ctrl, qT, tracers, system, state, cell)
+    S = state.Saturations
+    rho = state.PhaseMassDensities
+    mass_tot = zero(eltype(out))
+    for phase in 1:number_of_phases(system)
+        mass_tot += S[phase, cell]*rho[phase, cell]
+    end
+    for i in eachindex(tracers)
+        mass = zero(eltype(out))
+        for phase in tracer_phase_indices(tracers[i])
+            mass += S[phase, cell]*rho[phase, cell]
+        end
+        if mass > TRACER_TOL
+            out[i] = -qT*(mass/mass_tot)*ctrl.tracers[i]
+        else
+            out[i] = zero(eltype(out))
+        end
+    end
+    return out
+end
+
 struct ReservoirFromWellTracerCT{I<:AbstractVector} <: JutulDarcy.AbstractReservoirFromWellCT
     reservoir_cells::I
     well_cells::I

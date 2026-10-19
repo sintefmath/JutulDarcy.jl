@@ -88,9 +88,6 @@ Compute phase-specific internal energy from specific enthalpy as `u = h - p/ρ`.
 struct FluidInternalEnergyFromFluidEnthalpy <: PhaseVariables end
 struct FluidEnthalpy <: PhaseVariables end
 
-"Internal-energy transport for TEMP decks, with pressure work omitted."
-struct FluidEnthalpyFromInternalEnergy <: PhaseVariables end
-
 struct TemperatureDependentVariable{T, R, N} <: VectorVariables
     tab::T
     regions::R
