@@ -57,10 +57,12 @@ function Jutul.prepare_step!(wsol_storage, wsol::PrepareStepWellSolver, storage,
 
         primary = wsol_storage.well_primary_variables
         for target in targets
-            for (k, v) in pairs(storage[target].primary_variables)
-                primary[target][k] .= v
+            substorage, = Jutul.submodel_evaluation_pair(storage, model, target)
+            for (k, v) in pairs(substorage.primary_variables)
+                Jutul.backend_copyto!(primary[target][k], v)
             end
         end
+        Jutul.synchronize(model.context)
         converged, num_its = solve_well_system_with_fixed_reservoir(
             storage, model, dt, forces, executor,
             wsol_storage.groups_and_linear_solvers, targets, iteration, relaxation,
@@ -72,10 +74,12 @@ function Jutul.prepare_step!(wsol_storage, wsol::PrepareStepWellSolver, storage,
         else
             # TODO: Should only cover non-converged wells.
             for target in targets
-                for (k, v) in pairs(storage[target].primary_variables)
-                    v .= primary[target][k]
+                substorage, = Jutul.submodel_evaluation_pair(storage, model, target)
+                for (k, v) in pairs(substorage.primary_variables)
+                    Jutul.backend_copyto!(v, primary[target][k])
                 end
             end
+            Jutul.synchronize(model.context)
             Jutul.update_state_dependents!(storage, model, dt, forces,
                 update_secondary = true, targets = targets)
             if il > 0
@@ -99,14 +103,20 @@ function solve_well_system_with_fixed_reservoir(storage, model, dt, forces, exec
         else
             tol_factor = 1.0
         end
-        ok = map(
-            k -> check_convergence(storage[k], model[k], config[:tolerances][k],
+        # Host-evaluated wells and facilities need their assembled residuals
+        # copied back before applying the usual convergence criteria.
+        for target in targets
+            Jutul.synchronize_backend_residual_to_host!(storage, target)
+        end
+        Jutul.synchronize(model.context)
+        ok = map(targets) do k
+            substorage, submodel = Jutul.submodel_evaluation_pair(storage, model, k)
+            check_convergence(substorage, submodel, config[:tolerances][k],
                 iteration = iteration,
                 dt = dt,
                 tol_factor = tol_factor
-            ),
-            targets
-        )
+            )
+        end
         if il > 0
             jutul_message("Well solver #$well_it/$max_well_iterations", "$(sum(ok))/$(length(ok)) well and facility models are converged.", color = :cyan)
             if il > 1
