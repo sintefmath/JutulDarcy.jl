@@ -6,7 +6,7 @@ import Jutul: first_lower, interval_weight, linear_interp
     return (w, ix)
 end
 
-function interp_pvt(pvto, p, v, F_tab = pvt.shrinkage; cap = false)
+@inline function interp_pvt(pvto, p, v, F_tab = pvt.shrinkage; cap = false)
     P, R, SP, pos = pvt_table_vectors(pvto)
     pos = pvto.pos
     if cap

@@ -353,7 +353,7 @@ function get_endpoint_scalers(state, scaling::Union{TwoPointKrScale, ThreePointK
     return scalers
 end
 
-function get_three_phase_scaled_relperms(scaling, krw, krow, krog, krg, swcon, scaler_w, scaler_ow, scaler_og, scaler_g, c)
+@inline function get_three_phase_scaled_relperms(scaling, krw, krow, krog, krg, swcon, scaler_w, scaler_ow, scaler_og, scaler_g, c)
     L_w, CR_w, U_w, KM_w = get_kr_scalers(scaler_w, c)
     L_ow, CR_ow, U_ow, KM_ow = get_kr_scalers(scaler_ow, c)
     L_og, CR_og, U_og, KM_og = get_kr_scalers(scaler_og, c)
