@@ -33,11 +33,12 @@ Set up iterative linear solver for a reservoir model from [`setup_reservoir_mode
   gets updated (`:once`, `:iteration`, `:ministep`, or `:step`)
 - `update_interval_partial=:iteration`: how often the partial CPR pressure
   update runs between full updates
-- `amg_rebuild_tolerance=0.0`: zero always performs scheduled full updates
-  without checking matrix changes. A positive value downgrades a scheduled full
+- `amg_rebuild_tolerance=0.05`: a positive value downgrades a scheduled full
   update to a partial update when the relative 2-norm change in the pressure
   matrix's nonzero values since the last full update is at or below this
-  tolerance. The reference values are saved only after full updates.
+  tolerance (5% by default). The reference values are saved only after full
+  updates. Set to zero to always perform scheduled full updates without
+  checking matrix changes.
 - `update_type`: KA AMG reuse mode for full pressure updates. Defaults to
   `:partial_sparsity` when `amg_rebuild_tolerance` is zero and `:memory` when
   it is positive. An explicit value overrides this default.
@@ -68,7 +69,7 @@ function select_reservoir_linear_solver(model, precond = :cpr;
         mode = :forward,
         solver = :bicgstab,
         max_iterations = missing,
-        amg_rebuild_tolerance = 0.0,
+        amg_rebuild_tolerance = 0.05,
         update_interval = :ministep,
         update_interval_partial = :iteration,
         update_type = ifelse(iszero(amg_rebuild_tolerance), :partial_sparsity, :memory),

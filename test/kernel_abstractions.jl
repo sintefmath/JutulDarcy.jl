@@ -159,12 +159,19 @@ end
         @test preconditioner isa CPRPreconditioner
         @test preconditioner.variant == variant
         @test preconditioner.pressure_precond isa Jutul.AMGPreconditioner
+        @test preconditioner.amg_rebuild_tolerance === 0.05
+        @test preconditioner.pressure_precond.reuse == :memory
         @test preconditioner.pressure_precond.reuse_partial == :operators
         @test preconditioner.update_interval == :ministep
         @test preconditioner.update_interval_partial == :iteration
         @test preconditioner.partial_update
         @test preconditioner.system_precond isa Jutul.KASmootherPreconditioner
     end
+
+    solver = select_reservoir_linear_solver(simulator.model, :cpr;
+        amg_rebuild_tolerance = 0.0)
+    @test solver.preconditioner.amg_rebuild_tolerance === 0.0
+    @test solver.preconditioner.pressure_precond.reuse == :partial_sparsity
 
     solver = select_reservoir_linear_solver(simulator.model, :cpr;
         update_type = :none,

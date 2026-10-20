@@ -96,13 +96,14 @@ Construct a constrained pressure residual (CPR) preconditioner.
 By default, this is a AMG-BILU(0) version (algebraic multigrid for pressure,
 block-ILU(0) for the global system).
 
-With `amg_rebuild_tolerance = 0.0` (the default), scheduled full updates always
-run without checking matrix changes. A positive tolerance gates these updates using
+The default `amg_rebuild_tolerance = 0.05` gates scheduled full updates using
 `norm(nonzeros(A_p) - previous_full_values)/norm(previous_full_values)`.
 Changes at or below the tolerance take the partial-update path instead,
 regardless of the partial-update interval. The reference is saved after each
 successful full update; initialization and storage replacement always require
-a full update. This assumes the pressure matrix's sparsity pattern is fixed.
+a full update. Set the tolerance to `0.0` to always perform scheduled full
+updates without checking matrix changes. This assumes the pressure matrix's
+sparsity pattern is fixed.
 """
 mutable struct CPRPreconditioner{P, S} <: JutulPreconditioner
     storage::Union{CPRStorage, Nothing}
@@ -139,7 +140,7 @@ function CPRPreconditioner(p = reservoir_system_amg(), s = ILUZeroPreconditioner
         p_rtol = nothing,
         full_system_correction = true,
         partial_update = update_interval == :once,
-        amg_rebuild_tolerance = 0.0,
+        amg_rebuild_tolerance = 0.05,
         mode = :forward
     )
     if !(amg_rebuild_tolerance >= 0)
