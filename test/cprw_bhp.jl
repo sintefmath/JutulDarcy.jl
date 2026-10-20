@@ -94,6 +94,7 @@ end
         tol_mb = 1e-9, tol_cnv_well = 1e-7)
     policies = [
         (mode = :default,),
+        (mode = :ka, ka_backend = KernelAbstractions.CPU()),
         (mode = :ka, ka_backend = JLBackend()),
     ]
     if CUDA.functional()
