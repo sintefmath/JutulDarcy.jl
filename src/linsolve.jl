@@ -23,6 +23,8 @@ Set up iterative linear solver for a reservoir model from [`setup_reservoir_mode
   backend-portable smoothers.
 - `amg_arg`, `smoother_arg`, `cpr_arg`: keyword arguments forwarded to the
   pressure AMG, full-system smoother, and CPR constructors, respectively.
+  KA pressure AMG defaults to Gauss-Seidel on CPU with one default-pool
+  thread, and SPAI0 otherwise. `amg_arg.smoother_type` overrides this choice.
 - `cpr_type=nothing`: type of CPR (`:true_impes`, `:quasi_impes` or `nothing` for automatic)
 - `partial_update=true`: perform partial update of CPR preconditioner outside of AMG update (see above)
 - `rtol=1e-3`: relative tolerance for the linear solver
@@ -78,6 +80,7 @@ function select_reservoir_linear_solver(model, precond = :cpr;
     )
     is_equation_major = !Jutul.is_cell_major(matrix_layout(model.context))
     is_ka_model_context = model.context isa Jutul.KernelAbstractionsContext
+    is_ka_cpu = is_ka_model_context && Jutul.is_cpu_backend(model.context)
     if backend == :auto
         if is_ka_model_context && !is_equation_major
             backend = :ka
@@ -91,12 +94,11 @@ function select_reservoir_linear_solver(model, precond = :cpr;
 
     is_cpr = precond == :cpr || precond == :cprw
     if is_ka_backend
-        # TODO: This should be part of the Jutul API somehow.
         ka_backend = model.context.backend
-        bs = "$(typeof(ka_backend))"
-        if startswith(bs, "CPU")
+        if is_ka_cpu
             array_type = "Julia"
         else
+            bs = "$(typeof(ka_backend))"
             array_type = split(bs, "Backend")[1]
         end
         is_accelerator_ka = Jutul.KernelExecution.KernelAbstractions.isgpu(ka_backend)
@@ -161,8 +163,9 @@ function select_reservoir_linear_solver(model, precond = :cpr;
                 cpr_type = :true_impes
             end
         end
-        is_serial = Threads.nthreads() == 1
-        if is_serial && is_ka_backend && array_type == "Julia"
+        # Interactive/GC threads do not make the numerical worker pool parallel.
+        is_serial = Threads.nthreads(:default) == 1
+        if is_serial && is_ka_backend && is_ka_cpu
             default_pressure_smoother_type = :gauss_seidel
         else
             default_pressure_smoother_type = :spai0
