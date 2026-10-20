@@ -18,7 +18,7 @@ module KernelExecution
         ReservoirFromWellThermalCT, ReservoirRelativePermeabilities, Rs, Rv,
         ScaledCapillaryPressure, SimpleCapillaryPressure, SimpleWell,
         StandardBlackOilSystem, WATDENT, WellGroup, WellSegmentFlow,
-        cpr_weights_no_partials!,
+        cpr_weights_no_partials!, cprw_zero_offdiagonals!,
         update_analytical_cpr_weights!, update_p_rhs!,
         update_pressure_system!, update_quasi_impes_weights!,
         update_true_impes_weights!,

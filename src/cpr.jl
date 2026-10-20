@@ -322,8 +322,64 @@ function update_cpr_internals!(cpr::CPRPreconditioner, lsys, model, storage, rec
     w_p = cpr_s.w_p
     rw_map = cpr_s.well_reservoir_map
     @tic "pressure system" update_pressure_system!(A_p, cpr.pressure_precond, A, w_p, ctx, executor, rw_map)
+    if !isnothing(rw_map)
+        cprw_fix_bhp_controlled_wells!(A_p, rw_map, model, storage)
+    end
     return do_p_update, do_p_update_partial
 end
+
+# A BHP-controlled well's pressure is fixed by its control equation, which is not part of the
+# CPRW pressure system. Its mass-balance row would make it a free, nearly volume-less node, so
+# keep only the diagonal (the row's rhs is already zero): the pressure stage then keeps BHP fixed.
+function cprw_fix_bhp_controlled_wells!(A_p::Jutul.StaticSparsityMatrixCSR, rw_map, model, storage)
+    model isa MultiModel || return A_p
+    fkey = :Facility
+    haskey(storage, fkey) || return A_p
+    # A host-evaluated facility owns the current controls; its backend mirror
+    # only receives numerical state updates.
+    facility_storage, = Jutul.submodel_evaluation_pair(storage, model, fkey)
+    cfg = facility_storage.state.WellGroupConfiguration
+    offset = rw_map.np - sum(length, rw_map.well_ranges; init = 0)  # wells come last
+    for (key, range) in zip(rw_map.wells, rw_map.well_ranges)
+        well = physical_representation(model.models[key].domain)
+        first_row = offset + first(range)
+        info = well.multiwell
+        if isnothing(info)
+            cprw_fix_bhp_controlled_well!(A_p, cfg, key, first_row, length(range))
+        else
+            # Merged wells retain their original control names and node ranges.
+            for (index, name) in enumerate(info.names)
+                start = info.nodes.pos[index]
+                count = info.nodes.pos[index + 1] - start
+                cprw_fix_bhp_controlled_well!(A_p, cfg, name, first_row + start - 1, count)
+            end
+        end
+    end
+    return A_p
+end
+
+function cprw_fix_bhp_controlled_well!(A_p, cfg, name, first_row, count)
+    haskey(cfg.operating_controls, name) || return A_p
+    if operating_control(cfg, name).target isa BottomHolePressureTarget
+        cprw_zero_offdiagonals!(A_p, first_row, count)
+    end
+    return A_p
+end
+
+function cprw_zero_offdiagonals!(A_p, first_row, count)
+    nz = nonzeros(A_p)
+    cols = Jutul.colvals(A_p)
+    for row in first_row:(first_row + count - 1)
+        for pos in nzrange(A_p, row)
+            if cols[pos] != row
+                nz[pos] = zero(eltype(nz))
+            end
+        end
+    end
+    return A_p
+end
+
+cprw_fix_bhp_controlled_wells!(A_p, rw_map, model, storage) = A_p
 
 # CSC (default) version
 function update_pressure_system!(A_p, p_prec, A, w_p, ctx, executor, ::Nothing)

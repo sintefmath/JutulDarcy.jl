@@ -39,6 +39,22 @@ jobs:
       # - uses: julia-actions/julia-uploadcoveralls@v1
       #  env:
       #    COVERALLS_TOKEN: ${{ secrets.COVERALLS_TOKEN }}
+  mpi:
+    name: MPI (2 ranks)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      JULIA_NUM_THREADS: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: '1'
+      - uses: julia-actions/cache@v2
+      - name: Instantiate MPI test environment
+        run: julia --project=test/mpi -e 'using Pkg; Pkg.develop(PackageSpec(path=pwd())); Pkg.instantiate()'
+      - name: Run MPI regression test
+        run: julia --project=test/mpi test/mpi/run.jl
   docs:
     name: Documentation
     runs-on: ubuntu-latest

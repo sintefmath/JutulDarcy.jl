@@ -2,14 +2,19 @@ using JutulDarcy, TestItems, Test, TestItemRunner
 
 @testitem "Mesh and reservoir" begin
     include("mesh_and_reservoir.jl")
+    include("corner_geometry.jl")
+    include("schedule_completions.jl")
 end
 
 @testitem "Utilities" begin
     include("utils.jl")
+    include("input_timestep_defaults.jl")
+    include("efficiency_summary.jl")
 end
 
 @testitem "Rel. Perm." begin
     include("relperm.jl")
+    include("initialization_scaling.jl")
 end
 
 @testitem "Capillary pressure" begin
@@ -24,12 +29,17 @@ end
     include("kernel_abstractions.jl")
 end
 
+@testitem "CPRW BHP controls" begin
+    include("cprw_bhp.jl")
+end
+
 @testitem "Float32 reservoir models" begin
     include("reservoir_float32.jl")
 end
 
 @testitem "Multi-phase" begin
     include("multiphase.jl")
+    include("source_terms.jl")
 end
 
 @testitem "Multi-model (wells + reservoir)" begin

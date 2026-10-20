@@ -1560,6 +1560,30 @@ function simulate_reservoir(state0, model, dt;
     return simulate_reservoir(case; kwarg...)
 end
 
+"""
+    reservoir_simulation_input_defaults(input_data)
+
+Return simulator keyword defaults supplied by a case's original input data.
+Overload this function for other input formats. Without recognized settings,
+the normal `setup_reservoir_simulator` defaults apply. Eclipse TUNING contributes
+the initial timestep settings; subsequent schedule changes are not supported.
+"""
+reservoir_simulation_input_defaults(input_data) = NamedTuple()
+
+function reservoir_simulation_input_defaults(input_data::AbstractDict)
+    schedule = get(input_data, "SCHEDULE", nothing)
+    isnothing(schedule) && return NamedTuple()
+    steps = get(schedule, "STEPS", [])
+    isempty(steps) && return NamedTuple()
+    if any(step -> haskey(step, "TUNING"), Iterators.drop(steps, 1))
+        jutul_message("TUNING", "Only initial timestep settings are supported; later TUNING changes are ignored.", color = :yellow)
+    end
+    tuning = get(first(steps), "TUNING", nothing)
+    isnothing(tuning) && return NamedTuple()
+    return (initial_dt = tuning[1], max_timestep = tuning[2],
+        min_timestep = tuning[3], timestep_max_increase = tuning[5])
+end
+
 function simulate_reservoir(case::JutulCase;
         config = missing,
         restart = false,
@@ -1571,7 +1595,12 @@ function simulate_reservoir(case::JutulCase;
     )
     (; model, forces, state0, parameters, dt) = case
     if ismissing(simulator)
-        sim, config_new = setup_reservoir_simulator(model, state0, parameters; kwarg...)
+        defaults = reservoir_simulation_input_defaults(case.input_data)
+        if haskey(kwarg, :max_dt)
+            defaults = merge(defaults, (max_timestep = kwarg[:max_dt],))
+        end
+        sim_kwarg = merge(defaults, (; kwarg...))
+        sim, config_new = setup_reservoir_simulator(model, state0, parameters; sim_kwarg...)
         if ismissing(config)
             config = config_new
         end
@@ -1908,6 +1937,7 @@ function setup_reservoir_forces(model::MultiModel;
     if !isnothing(sources) && !(sources isa AbstractVector)
         sources = [sources]
     end
+    validate_source_terms(sources)
     reservoir_forces = (bc = bc, sources = sources)
     (no_well_controls || has_facility) || error("Model must have facility when well controls are provided.")
     if haskey(submodels, :Facility)
@@ -1971,6 +2001,7 @@ function full_well_outputs(model, states, forces; targets = missing)
         end
         outw[:mass_rate] = well_output(model, states, w, forces, :TotalSurfaceMassRate)
         outw[:control] = well_output(model, states, w, forces, :control)
+        outw[:factor] = well_output(model, states, w, forces, :factor)
         if has_temperature
             key = WellMerging.merged_well_key(model, w)
             cell = WellMerging.well_top_node(physical_representation(model.models[key]), w)
@@ -2062,6 +2093,8 @@ function well_output(model::MultiModel, states, well_symbol, forces, target = Bo
             control = gforce.control[well_symbol]
             if target == :TotalSurfaceMassRate
                 d[i] = q_t
+            elseif target == :factor
+                d[i] = value(effective_surface_rate(1.0, control))
             elseif target isa Int
                 # Shorthand for component mass rate
                 pos = get_well_position(fmodel.domain, well_symbol)
@@ -2469,7 +2502,8 @@ function reservoir_transmissibility(d::DataDomain; version = missing)
         d[:permeability],
         faces, facepos, facesigns,
         version = version,
-        face_dir = face_dir
+        face_dir = face_dir,
+        half_face_centroids = get(d, :half_face_centroids, missing)
     )
     nf = number_of_faces(d)
     fig_negative_trans!(T_hf, faces)
@@ -3092,14 +3126,14 @@ function reservoir_measurables(model, wellresult, states = missing;
             if !ismissing(wells) && wk ∉ wells
                 continue
             end
+            factor = 1.0
+            if prefix != 'w'
+                factor = get(wval, :factor, 1.0)
+            end
             if is_prod
-                for (i, v) in enumerate(wval[k])
-                    vals[i] -= min(0.0, v)
-                end
+                vals .-= factor .* min.(0.0, wval[k])
             else
-                for (i, v) in enumerate(wval[k])
-                    vals[i] += max(0.0, v)
-                end
+                vals .+= factor .* max.(0.0, wval[k])
             end
         end
         return vals
@@ -3211,22 +3245,26 @@ function reservoir_measurables(model, wellresult, states = missing;
     @. fglr = abs(fgpr)/max.(abs(flpr), 1e-12)
 
     flpt = add_entry(:lpt)
-    flpt .= cumsum(flpr.*dt)
+    dt_for_cumsum = dt
+    if prefix == 'w'
+        dt_for_cumsum = dt .* get(ws[only(wells)], :factor, 1.0)
+    end
+    flpt .= cumsum(flpr.*dt_for_cumsum)
     fwit = add_entry(:wit)
-    fwit .= cumsum(fwir.*dt)
+    fwit .= cumsum(fwir.*dt_for_cumsum)
     foit = add_entry(:oit)
-    foit .= cumsum(foir.*dt)
+    foit .= cumsum(foir.*dt_for_cumsum)
     fgit = add_entry(:git)
-    fgit .= cumsum(fgir.*dt)
+    fgit .= cumsum(fgir.*dt_for_cumsum)
 
     flit = add_entry(:lit)
-    flit .= cumsum(flir.*dt)
+    flit .= cumsum(flir.*dt_for_cumsum)
     fwit = add_entry(:wpt)
-    fwit .= cumsum(fwpr.*dt)
+    fwit .= cumsum(fwpr.*dt_for_cumsum)
     foit = add_entry(:opt)
-    foit .= cumsum(fopr.*dt)
+    foit .= cumsum(fopr.*dt_for_cumsum)
     fgit = add_entry(:gpt)
-    fgit .= cumsum(fgpr.*dt)
+    fgit .= cumsum(fgpr.*dt_for_cumsum)
 
     return out
 end

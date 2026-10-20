@@ -25,7 +25,15 @@ function cell(s::SourceTerm{I, T}) where {I, T}
     return s.cell::I
 end
 
+function validate_source_terms(sources)
+    if !isnothing(sources) && !isconcretetype(eltype(sources))
+        throw(ArgumentError("Source terms must have a concrete element type, got $(eltype(sources))."))
+    end
+    return sources
+end
+
 function Jutul.subforce(s::AbstractVector{S}, model) where S<:SourceTerm
+    validate_source_terms(s)
     # Just to be safe
     s = deepcopy(s)
     m = global_map(model.domain)
@@ -44,7 +52,7 @@ function Jutul.subforce(s::AbstractVector{S}, model) where S<:SourceTerm
             continue
         end
         keep[i] = true
-        s[i] = SourceTerm(c_i, src.value, fractional_flow = src.fractional_flow)
+        s[i] = SourceTerm(c_i, src.value, fractional_flow = src.fractional_flow, type = src.type)
     end
     return s[keep]
 end

@@ -25,9 +25,10 @@ function update_pressure_system_hypre_csr!(A_p, A, w_p, helper,
         ::Val{is_adjoint}, ::Val{ncomp}) where {is_adjoint, ncomp}
     csr = helper.csr
     @assert !isnothing(csr)
-    n = size(A, 1)
+    # Only owned rows go to HYPRE; under MPI the local Jacobian also holds ghost rows.
     (; iupper, ilower) = A_p
-    @assert n == iupper - ilower + 1
+    n = iupper - ilower + 1
+    @assert size(A, 1) >= n
     nzval = SparseArrays.nonzeros(A)
     @inbounds for row in 1:n
         for position in nzrange(A, row)

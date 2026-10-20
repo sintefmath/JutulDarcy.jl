@@ -98,11 +98,9 @@ function coarsen_reservoir(D::DataDomain, partition;
         functions[:max_coordinate] = Jutul.CoarsenByMaximum()
     end
     D_c = Jutul.coarsen_data_domain(D, partition, functions = functions)
-    if haskey(D_c, :cpgrid_corners)
-        # Remove cpgrid_corners from the coarse data domain to avoid calling the
-        # cpgrid variant that requires IJK indices.
-        delete!(D_c.data, :cpgrid_corners)
-    end
+    # Fine-grid corners and half-face geometry do not describe the coarse mesh.
+    delete!(D_c.data, :cpgrid_corners)
+    delete!(D_c.data, :half_face_centroids)
     D_c[:ijk_permeability, NoEntity()] = false
     if preserve_faults
         G_c = physical_representation(D_c)

@@ -52,6 +52,7 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
         perforation_cells_well = missing,
         reference_depth = nothing,
         cell_centers = nothing,
+        cell_dimensions = missing,
         skin = 0.0,
         radius = 0.1,
         grouting_thickness = 0.0, # In addition to the radius
@@ -177,7 +178,10 @@ function setup_well(g, K, reservoir_cells::AbstractVector;
 
     perf_height = map((i, cell) -> cell_height(direction_expanded[i], cell), 1:n, reservoir_cells)
     Wdomain[:cell_length, c] = perf_height[closest_reservoir_cell_to_well_cell]
-    Wdomain[:cell_dims, p] = map(c -> peaceman_cell_dims(g, c), reservoir_cells)
+    if ismissing(cell_dimensions)
+        cell_dimensions = map(c -> peaceman_cell_dims(g, c), reservoir_cells)
+    end
+    Wdomain[:cell_dims, p] = cell_dimensions
 
     # Length of cell in direction of well - used for volumes of nodes
     if ismissing(cell_radius)
@@ -301,7 +305,10 @@ values (one per perforation/cell, depending on the type).
 - `roughness = 1e-4`: Roughness of the well wall (used to compute frictional
   pressure losses in multisegment wells).
 """
-function setup_well(D::DataDomain, reservoir_cells; cell_centers = D[:cell_centroids], kwarg...)
+function setup_well(D::DataDomain, reservoir_cells::AbstractVector;
+        cell_centers = D[:cell_centroids],
+        cell_dimensions = map(c -> peaceman_cell_dims(D, c), reservoir_cells),
+        kwarg...)
     # Get permeability
     K = D[:permeability]
     # Compute effective thermal conductivity
@@ -328,9 +335,14 @@ function setup_well(D::DataDomain, reservoir_cells; cell_centers = D[:cell_centr
     return setup_well(g, K, reservoir_cells;
         thermal_conductivity = Λ,
         cell_centers = cell_centers,
+        cell_dimensions = cell_dimensions,
         net_to_gross = ntg,
         kwarg...
     )
+end
+
+function setup_well(D::DataDomain, reservoir_cell::Union{Int, Tuple, NamedTuple}; kwarg...)
+    return setup_well(D, [reservoir_cell]; kwarg...)
 end
 
 function setup_well(g, K, reservoir_cell::Union{Int, Tuple, NamedTuple}; kwarg...)
