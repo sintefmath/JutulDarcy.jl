@@ -447,6 +447,28 @@ function well_control_equation(ctrl, cond, well, model, state)
     return (val - val_t)/scale
 end
 
+function well_control_equation(ctrl::ProducerControl{T}, cond, well, model, state) where {T <: SurfaceVolumeTarget}
+    target = ctrl.target
+    val_t = get_control_target_value(target, model, state)
+    val = well_target_value(ctrl, target, cond, well, model, state)
+    rate_slack = (val - val_t)/target_scaling(target)
+    limits = current_limits(state.WellGroupConfiguration, well)
+    if isnothing(limits) || !haskey(limits, :bhp)
+        return rate_slack
+    end
+    pressure_slack = (cond.bottom_hole_pressure - limits.bhp)/target_scaling(BottomHolePressureTarget(limits.bhp))
+    # Production may fall below its requested rate only at the lower BHP limit.
+    # A rate equation alone is singular when its phase is absent. The
+    # Fischer-Burmeister equation enforces both inequalities and their
+    # complementarity without inspecting phase mobilities or changing controls.
+    squared_norm = rate_slack^2 + pressure_slack^2
+    if iszero(value(squared_norm))
+        # Choose the rate branch of the generalized derivative at the origin.
+        return rate_slack
+    end
+    return rate_slack + pressure_slack - sqrt(squared_norm)
+end
+
 function get_control_target_value(target::WellTarget, model, state)
     return target.value
 end

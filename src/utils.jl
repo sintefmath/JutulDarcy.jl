@@ -471,7 +471,7 @@ low values can lead to slow convergence.
   so comments about changing limits near zero above does not apply to typical
   reservoir temperatures)
 - `dT_max_abs=50.0`: Maximum absolute change in temperature (in °K/°C)
-- `T_min=convert_to_si(0.0, :Celsius)`: Minimum temperature in model (hard limit)
+- `T_min=0.0`: Minimum absolute temperature in Kelvin (hard limit)
 - `fast_flash=false`: Shorthand to enable `flash_reuse_guess` and
   `flash_stability_bypass`. These options can together speed up the time spent
   in flash solver for compositional models. Options are based on "Increasing the
@@ -512,7 +512,7 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         dr_max = Inf,
         dT_max_rel = nothing,
         dT_max_abs = 50.0,
-        T_min = convert_to_si(0.0, :Celsius),
+        T_min = minimum_value(Temperature()),
         fast_flash = false,
         can_shut_wells = true,
         flash_reuse_guess = fast_flash,
@@ -863,7 +863,7 @@ function set_reservoir_variable_defaults!(model;
         dr_max,
         dT_max_rel = nothing,
         dT_max_abs = nothing,
-        T_min = convert_to_si(0.0, :Celsius),
+        T_min = minimum_value(Temperature()),
         flash_reuse_guess = false,
         flash_stability_bypass = false
     )

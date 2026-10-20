@@ -1,4 +1,4 @@
-using Jutul, JutulDarcy, Test, CUDA
+using Jutul, JutulDarcy, GeoEnergyIO, Test, CUDA
 
 @testset "Tracer injection follows the prescribed carrier stream" begin
     ctrl = InjectorControl(TotalRateTarget(1.0), [1.0, 0.0, 0.0]; tracers = [0.8])
@@ -37,13 +37,18 @@ end
             rmodel = reservoir_model(case.model)
             @test number_of_cells(rmodel.data_domain) == nc
             @test number_of_tracers(case.model) == Int(tracer)
+            if thermal
+                @test Jutul.minimum_value(rmodel[:Temperature]) == 0.0
+            end
             if thermal && !tracer
+                units = GeoEnergyIO.InputParser.DeckUnitSystem(:field)
                 properties = Jutul.evaluate_all_secondary_variables(rmodel,
                     case.state0[:Reservoir], case.parameters[:Reservoir])
                 @test properties[:FluidEnthalpy] ≈ properties[:FluidInternalEnergy] .+
                     properties[:Pressure]' ./ properties[:PhaseMassDensities]
-                @test vec(properties[:RockHeatCapacity]) .* case.parameters[:Reservoir][:RockDensity] ≈ fill(35000.0, nc)
-                @test rmodel.data_domain[:bulk_thermal_conductivity] ≈ fill(24/86.4, nc)
+                @test vec(properties[:RockHeatCapacity]) .* case.parameters[:Reservoir][:RockDensity] ≈ fill(35*units.volume_heat_capacity, nc)
+                @test rmodel.data_domain[:bulk_thermal_conductivity] ≈ fill(24*units.rock_conductivity, nc)
+                @test case.forces[1][:Facility].control[:I1].temperature ≈ convert_to_si(20.0, :Fahrenheit)
             end
             if tracer
                 @test all(iszero, case.state0[:Reservoir][:TracerConcentrations])
@@ -64,7 +69,7 @@ end
             for state in result.states
                 @test all(p -> isfinite(p) && p > 0, state[:Pressure])
                 if thermal
-                    @test all(T -> isfinite(T) && T > 273.15, state[:Temperature])
+                    @test all(T -> isfinite(T) && T > 0, state[:Temperature])
                 end
                 if tracer
                     concentrations = state[:TracerConcentrations]
@@ -82,6 +87,10 @@ end
             end
             if tracer
                 @test maximum(result.states[end][:TracerConcentrations]) > 0
+                if thermal
+                    @test case.forces[1][:Facility].control[:P1].target isa SurfaceWaterRateTarget
+                    @test first(result.wells[:P1, :bhp]) ≈ si_unit(:bar) rtol = 1e-6
+                end
             end
             if thermal
                 @test minimum(result.states[end][:Temperature]) < minimum(case.state0[:Reservoir][:Temperature])

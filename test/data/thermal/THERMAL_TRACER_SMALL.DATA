@@ -96,11 +96,11 @@ WTRACER
  I1 BBB 1 /
 /
 WCONPROD
--- Use pressure control while the reservoir initially contains only oil.
- P1 OPEN BHP 5* 1 /
- P2 OPEN BHP 5* 1 /
- P3 OPEN BHP 5* 1 /
- P4 OPEN BHP 5* 1 /
+-- Water-rate targets with the original lower BHP limit at dry-water startup.
+ P1 OPEN WRAT 1* 1.25 3* 1 /
+ P2 OPEN WRAT 1* 1.25 3* 1 /
+ P3 OPEN WRAT 1* 1.25 3* 1 /
+ P4 OPEN WRAT 1* 1.25 3* 1 /
 /
 TSTEP
  1.15740740740741e-5 0.1 2 /

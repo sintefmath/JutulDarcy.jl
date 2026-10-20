@@ -10,7 +10,7 @@ OIL
 WATER
 GAS
 DISGAS
-METRIC
+FIELD
 TEMP
 START
  1 JAN 1994 /
@@ -105,8 +105,7 @@ COMPDAT
  I1 5 5 1 2 OPEN 0 1* 0.3 /
 /
 WCONPROD
--- Keep the initial pressure drop moderate with pressure work included.
- P1 OPEN BHP 5* 2900 /
+ P1 OPEN BHP 5* 1500 /
 /
 WCONINJE
  I1 WAT OPEN RATE 40 /
