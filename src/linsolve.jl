@@ -38,7 +38,9 @@ Set up iterative linear solver for a reservoir model from [`setup_reservoir_mode
   matrix's nonzero values since the last full update is at or below this
   tolerance (5% by default). The reference values are saved only after full
   updates. Set to zero to always perform scheduled full updates without
-  checking matrix changes.
+  checking matrix changes. This mode only applies to CSR pressure matrices
+  (`Jutul.StaticSparsityMatrixCSR`) with non-HYPRE preconditioners; other
+  configurations ignore the tolerance and do not save reference values.
 - `update_type`: KA AMG reuse mode for full pressure updates. Defaults to
   `:partial_sparsity` when `amg_rebuild_tolerance` is zero and `:memory` when
   it is positive. An explicit value overrides this default.

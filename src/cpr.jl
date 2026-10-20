@@ -253,9 +253,15 @@ function cpr_amg_rebuild_compatible(values, reference::CPRAMGRebuildStorage)
     return same_type && same_axes
 end
 
+function cpr_amg_rebuild_supported(cpr)
+    is_csr = cpr.storage.A_p isa Jutul.StaticSparsityMatrixCSR
+    is_hypre = cpr.pressure_precond isa BoomerAMGPreconditioner
+    return is_csr && !is_hypre
+end
+
 function cpr_amg_update_decision(cpr, full, partial)
     tolerance = cpr.amg_rebuild_tolerance
-    check_change = full && tolerance > 0
+    check_change = full && tolerance > 0 && cpr_amg_rebuild_supported(cpr)
     if check_change
         reference = cpr.amg_rebuild_storage
         pressure_matrix = cpr.storage.A_p
@@ -275,7 +281,7 @@ end
 
 function update_cpr_amg_rebuild_reference!(cpr)
     tolerance = cpr.amg_rebuild_tolerance
-    if iszero(tolerance)
+    if iszero(tolerance) || !cpr_amg_rebuild_supported(cpr)
         cpr.amg_rebuild_storage = nothing
         return nothing
     end
