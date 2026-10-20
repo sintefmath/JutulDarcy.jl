@@ -33,7 +33,14 @@ Set up iterative linear solver for a reservoir model from [`setup_reservoir_mode
   gets updated (`:once`, `:iteration`, `:ministep`, or `:step`)
 - `update_interval_partial=:iteration`: how often the partial CPR pressure
   update runs between full updates
-- `update_type=:partial_sparsity`: KA AMG reuse mode for full pressure updates
+- `amg_rebuild_tolerance=0.0`: zero always performs scheduled full updates
+  without checking matrix changes. A positive value downgrades a scheduled full
+  update to a partial update when the relative 2-norm change in the pressure
+  matrix's nonzero values since the last full update is at or below this
+  tolerance. The reference values are saved only after full updates.
+- `update_type`: KA AMG reuse mode for full pressure updates. Defaults to
+  `:partial_sparsity` when `amg_rebuild_tolerance` is zero and `:memory` when
+  it is positive. An explicit value overrides this default.
 - `update_type_partial=:operators`: KA AMG reuse mode for partial pressure
   updates. Both update paths fully refresh the AMG and system smoothers. HYPRE
   performs a full setup for either path. The pressure system itself is updated
@@ -61,9 +68,10 @@ function select_reservoir_linear_solver(model, precond = :cpr;
         mode = :forward,
         solver = :bicgstab,
         max_iterations = missing,
+        amg_rebuild_tolerance = 0.0,
         update_interval = :ministep,
         update_interval_partial = :iteration,
-        update_type = :partial_sparsity,
+        update_type = ifelse(iszero(amg_rebuild_tolerance), :partial_sparsity, :memory),
         update_type_partial = :operators,
         partial_update = true,
         amg_type = missing,
@@ -183,6 +191,7 @@ function select_reservoir_linear_solver(model, precond = :cpr;
             variant = precond,
             update_interval = update_interval,
             partial_update = partial_update,
+            amg_rebuild_tolerance = amg_rebuild_tolerance,
             update_interval_partial = update_interval_partial,
             mode = mode,
             cpr_arg...

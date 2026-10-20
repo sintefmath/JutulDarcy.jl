@@ -83,6 +83,11 @@ function CPRStorage(np::Int, bz::Int, lin_op, psys::Tuple, solution, residual, T
 end
 
 
+mutable struct CPRAMGRebuildStorage{V, T}
+    values::V
+    squared_norm::T
+end
+
 """
     CPRPreconditioner(p = reservoir_system_amg(), s = ILUZeroPreconditioner(); strategy = :quasi_impes, weight_scaling = :unit, update_frequency = 1, update_interval = :iteration, partial_update = true)
 
@@ -90,6 +95,14 @@ Construct a constrained pressure residual (CPR) preconditioner.
 
 By default, this is a AMG-BILU(0) version (algebraic multigrid for pressure,
 block-ILU(0) for the global system).
+
+With `amg_rebuild_tolerance = 0.0` (the default), scheduled full updates always
+run without checking matrix changes. A positive tolerance gates these updates using
+`norm(nonzeros(A_p) - previous_full_values)/norm(previous_full_values)`.
+Changes at or below the tolerance take the partial-update path instead,
+regardless of the partial-update interval. The reference is saved after each
+successful full update; initialization and storage replacement always require
+a full update. This assumes the pressure matrix's sparsity pattern is fixed.
 """
 mutable struct CPRPreconditioner{P, S} <: JutulPreconditioner
     storage::Union{CPRStorage, Nothing}
@@ -103,6 +116,8 @@ mutable struct CPRPreconditioner{P, S} <: JutulPreconditioner
     update_frequency_partial::Int     # Frequency for partial pressure-preconditioner updates
     update_interval_partial::Symbol   # iteration, ministep, step, ...
     partial_update::Bool              # Enable partial pressure-preconditioner updates
+    amg_rebuild_tolerance::Float64
+    amg_rebuild_storage::Union{Nothing, CPRAMGRebuildStorage}
     full_system_correction::Bool
     p_rtol::Union{Float64, Nothing}
     npre::Int
@@ -124,8 +139,12 @@ function CPRPreconditioner(p = reservoir_system_amg(), s = ILUZeroPreconditioner
         p_rtol = nothing,
         full_system_correction = true,
         partial_update = update_interval == :once,
+        amg_rebuild_tolerance = 0.0,
         mode = :forward
     )
+    if !(amg_rebuild_tolerance >= 0)
+        throw(ArgumentError("amg_rebuild_tolerance must be nonnegative"))
+    end
     return CPRPreconditioner(
         nothing,
         p,
@@ -138,6 +157,8 @@ function CPRPreconditioner(p = reservoir_system_amg(), s = ILUZeroPreconditioner
         update_frequency_partial,
         update_interval_partial,
         partial_update,
+        amg_rebuild_tolerance,
+        nothing,
         full_system_correction,
         p_rtol,
         npre,
@@ -159,6 +180,7 @@ function update_preconditioner!(cpr::CPRPreconditioner, lsys::Jutul.JutulLinearS
     end
     if update_p
         @tic "p-precond" update_preconditioner!(cpr.pressure_precond, cpr.storage.A_p, cpr.storage.r_p, ctx, executor)
+        update_cpr_amg_rebuild_reference!(cpr)
     elseif update_p_partial
         @tic "p-precond (partial)" partial_update_preconditioner!(cpr.pressure_precond, cpr.storage.A_p, cpr.storage.r_p, ctx, executor)
     end
@@ -183,7 +205,94 @@ function initialize_cpr_storage!(cpr, model, lsys, bz, T)
             lsys = lsys,
             T = T
         )
+        cpr.amg_rebuild_storage = nothing
     end
+    return do_setup
+end
+
+# GPUArrays fuses multi-array mapreduce into its existing reduction kernels.
+function cpr_amg_rebuild_difference(values, reference)
+    squared_difference(a, b) = abs2(a - b)
+    initial_sum = zero(eltype(values))
+    difference_squared = mapreduce(squared_difference, +, values, reference; init = initial_sum)
+    return difference_squared
+end
+
+# Base's multi-array mapreduce materializes map(f, a, b), so sum over indices
+# for ordinary CPU vectors instead.
+function cpr_amg_rebuild_difference(values::Vector, reference::Vector)
+    indices = eachindex(values, reference)
+    initial_sum = zero(eltype(values))
+    difference_squared = sum(indices; init = initial_sum) do i
+        @inbounds difference = values[i] - reference[i]
+        return abs2(difference)
+    end
+    return difference_squared
+end
+
+function cpr_amg_rebuild_change(values, reference::CPRAMGRebuildStorage)
+    reference_values = reference.values
+    difference_squared = cpr_amg_rebuild_difference(values, reference_values)
+    reference_squared = reference.squared_norm
+    finite_norms = isfinite(difference_squared) && isfinite(reference_squared)
+    if !finite_norms
+        return Inf
+    elseif iszero(reference_squared)
+        return iszero(difference_squared) ? 0.0 : Inf
+    else
+        relative_change_squared = difference_squared/reference_squared
+        return sqrt(relative_change_squared)
+    end
+end
+
+function cpr_amg_rebuild_compatible(values, reference::CPRAMGRebuildStorage)
+    reference_values = reference.values
+    same_type = typeof(values) === typeof(reference_values)
+    same_axes = axes(values) == axes(reference_values)
+    return same_type && same_axes
+end
+
+function cpr_amg_update_decision(cpr, full, partial)
+    tolerance = cpr.amg_rebuild_tolerance
+    check_change = full && tolerance > 0
+    if check_change
+        reference = cpr.amg_rebuild_storage
+        pressure_matrix = cpr.storage.A_p
+        values = nonzeros(pressure_matrix)
+        compatible_reference = !isnothing(reference) && cpr_amg_rebuild_compatible(values, reference)
+        if compatible_reference
+            change = cpr_amg_rebuild_change(values, reference)
+            within_tolerance = isfinite(change) && change <= tolerance
+            if within_tolerance
+                full = false
+                partial = true
+            end
+        end
+    end
+    return full, partial
+end
+
+function update_cpr_amg_rebuild_reference!(cpr)
+    tolerance = cpr.amg_rebuild_tolerance
+    if iszero(tolerance)
+        cpr.amg_rebuild_storage = nothing
+        return nothing
+    end
+    pressure_matrix = cpr.storage.A_p
+    values = nonzeros(pressure_matrix)
+    reference = cpr.amg_rebuild_storage
+    needs_new_reference = isnothing(reference) || !cpr_amg_rebuild_compatible(values, reference)
+    if needs_new_reference
+        reference_values = copy(values)
+        reference_squared = sum(abs2, values)
+        cpr.amg_rebuild_storage = CPRAMGRebuildStorage(reference_values, reference_squared)
+    else
+        reference_values = reference.values
+        copyto!(reference_values, values)
+        reference_squared = sum(abs2, values)
+        reference.squared_norm = reference_squared
+    end
+    return nothing
 end
 
 function pressure_matrix_from_global_jacobian(J::SparseMatrixCSC, T, lsys, well_reservoir_map::Nothing)
@@ -305,12 +414,12 @@ function create_pressure_system(p_prec, J, lsys, n, T, well_reservoir_map)
 end
 
 function update_cpr_internals!(cpr::CPRPreconditioner, lsys, model, storage, recorder, executor, T)
-    do_p_update = should_update_cpr(cpr, recorder, :amg)
-    do_p_update_partial = !do_p_update && should_update_cpr(cpr, recorder, :partial)
     A = reservoir_jacobian(lsys)
     rmodel = reservoir_model(model)
     bz = number_of_components(rmodel.system)
-    initialize_cpr_storage!(cpr, model, lsys, bz, T)
+    storage_changed = initialize_cpr_storage!(cpr, model, lsys, bz, T)
+    do_p_update = storage_changed || should_update_cpr(cpr, recorder, :amg)
+    do_p_update_partial = !do_p_update && should_update_cpr(cpr, recorder, :partial)
     ps = rmodel.primary_variables[:Pressure].scale
     # The pressure operator and weights always follow the current Jacobian.
     # The update intervals only select how its preconditioner is refreshed.
@@ -325,7 +434,7 @@ function update_cpr_internals!(cpr::CPRPreconditioner, lsys, model, storage, rec
     if !isnothing(rw_map)
         cprw_fix_bhp_controlled_wells!(A_p, rw_map, model, storage)
     end
-    return do_p_update, do_p_update_partial
+    return cpr_amg_update_decision(cpr, do_p_update, do_p_update_partial)
 end
 
 # A BHP-controlled well's pressure is fixed by its control equation, which is not part of the
