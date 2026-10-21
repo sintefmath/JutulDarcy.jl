@@ -361,6 +361,42 @@ gap. Measure full well-reduced operators and individual numeric-update stages,
 and test existing Int32/mixed-precision options separately. No timestep or
 nonlinear-control changes are part of this investigation.
 
+## Matching-work full-simulation follow-up
+
+Three warmed Olympus z4 samples (three one-day reports) give 32.740 s with
+native serial ILU/GS and 20.056 s with 15-worker KA level ILU/GS. Both use 25
+Newton / 157 linear iterations without wasted work; this comparison is about
+1.63x. Native serial ILU with two/four SPAI sweeps takes 34.577 / 36.527 s;
+the corresponding 15-worker level-ILU times are 19.156 / 18.692 s. The first
+two-sweep parallel sample contains 0.668 s compilation following a diagnostic
+SIGUSR1 peek during its warm-up; repeat that configuration independently before
+using it as a final reference. The GS and four-sweep samples report zero JIT.
+
+For matching-work Olympus GS, median phase times show the remaining limits:
+
+| Phase | Serial, s | 15 workers, s | Speedup |
+|---|---:|---:|---:|
+| Assembly / linear-system update | 7.055 | 1.530 | 4.61x |
+| Secondary properties | 1.328 | 0.487 | 2.73x |
+| Equation work outside fused assembly | 0.146 | 0.113 | 1.29x |
+| Convergence | 0.383 | 0.143 | 2.68x |
+| State updates | 0.407 | 0.263 | 1.55x |
+| Krylov excluding preconditioning | 3.620 | 2.441 | 1.48x |
+| Linear setup | 5.037 | 2.627 | 1.92x |
+| Preconditioner application | 13.889 | 11.667 | 1.19x |
+
+Norne z8's 15-worker medians are GS 9.965 s (17 / 82 Newton/linear), two SPAI
+sweeps 15.471 s (28 / 129), and four sweeps 38.036 s (95 / 299, including
+60 / 198 wasted). Its pressure-only replay winner therefore does not establish
+a full-simulation improvement. Keep separate model-specific results.
+
+The secondary-property path already processes all variables within each worker's
+cell interval. Those intervals can be tens of thousands of cells. A possible
+future probe is smaller cache tiles inside each worker interval, retaining the
+configured worker limit and variable dependency order; simply increasing the
+number of dispatched batches would lose the context's worker cap. No source
+change has been made for this hypothesis.
+
 ## Audit status
 
 | Area | Evidence / next check |
