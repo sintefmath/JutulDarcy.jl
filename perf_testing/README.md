@@ -58,3 +58,22 @@ The sweep defaults to 1, 2, 4, 8, and 15 workers, saving each process log
 and TOML result under `results/`. Set `PERF_REPEATS` or `PERF_STEPS` to override
 the default three measured samples or three report intervals. Warm-up is always
 separate. The short scripts do not load plotting packages.
+
+`compare_solvers.jl` screens the existing Krylov, system-smoother and pressure-
+smoother choices. Select lists with `PERF_SOLVERS`, `PERF_SYSTEM_SMOOTHERS`,
+and `PERF_PRESSURE_SMOOTHERS`. `PERF_LABEL` separates result sets.
+`PERF_SCREEN_INFO=1` shows warm-up progress. Optional
+`PERF_SCREEN_LIMIT_SECONDS` aborts an over-budget candidate through the existing
+iteration hook and records its status before continuing; it defaults to infinity.
+Use unbounded fresh runs for final performance validation.
+
+`compare_amg.jl` uses the same driver to compare the existing AMG update APIs:
+default, fixed sparsity, fixed operators, a 20% rebuild tolerance, and disabled
+partial updates. `PERF_AMG_POLICIES` selects a subset by name. These are
+experiments, with no change to application defaults.
+
+`PERF_SINGLE_PRECISION_LINEAR=true` selects the existing mixed-precision solve
+interface (Float64 simulation, Float32 linear algebra, FGMRES). Keep its results
+separately labelled and compare complete states before selecting it.
+`PERF_INDEX_TYPE=Int32` uses the existing narrower-index interface; default is
+`Int`. Record this separately from floating-point precision.

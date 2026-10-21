@@ -1,6 +1,8 @@
 # Included into JutulDarcy only by the isolated probe until full-run validation.
-function cpu_convergence_supported(r, volume, properties)
-    return Threads.nthreads(:default) > 1 && length(volume) >= 16_384 &&
+function cpu_convergence_supported(r, volume, properties, dt = 1.0)
+    return r isa StridedMatrix{Float64} && volume isa StridedVector &&
+        properties isa StridedMatrix && dt isa Float64 &&
+        Threads.nthreads(:default) > 1 && length(volume) >= 16_384 &&
         typeof(Jutul.value(zero(eltype(volume)))) === Float64 &&
         typeof(Jutul.value(zero(eltype(properties)))) === Float64
 end
@@ -14,7 +16,7 @@ function cpu_convergence_volume(volume)
 end
 
 function cpu_convergence_phase(r, volume, properties, dt, phase, ::Val{blackoil}) where blackoil
-    maximum_residual = 0.0
+    maximum_residual = -Inf
     residual_sum = 0.0
     property_sum = 0.0
     @batch minbatch=1000 reduction=((max, maximum_residual), (+, residual_sum), (+, property_sum)) for cell in eachindex(volume)

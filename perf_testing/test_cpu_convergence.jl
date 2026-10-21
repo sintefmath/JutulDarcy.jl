@@ -23,9 +23,15 @@ results = []
     end
     external = fill(Jutul.ForwardDiff.Dual{Nothing}(1.0,1.0),2,20_000)
     @test !JutulDarcy.cpu_convergence_supported(zeros(2,20_000),ones(20_000),external)
+    @test !JutulDarcy.cpu_convergence_supported(zeros(Float32,2,20_000),ones(20_000),ones(2,20_000))
+    @test !JutulDarcy.cpu_convergence_supported(zeros(2,20_000),ones(20_000),ones(2,20_000),Jutul.ForwardDiff.Dual{Nothing}(1.0,1.0))
     @test_throws DimensionMismatch JutulDarcy.cpu_convergence_errors(zeros(2,3),ones(4),ones(2,3),1.0,Val(2),Val(false))
     nan_residual = fill(NaN,2,20_000)
     nan_result = JutulDarcy.cpu_convergence_errors(nan_residual,ones(20_000),ones(2,20_000),1.0,Val(2),Val(false))
     @test all(isnan,nan_result[1]) && all(isnan,nan_result[2])
+    negative_volume = fill(-1.0,20_000)
+    negative_reference = JutulDarcy.cnv_mb_errors(ones(2,20_000),negative_volume,ones(2,20_000),1.0,Val(2))
+    negative_actual = JutulDarcy.cpu_convergence_errors(ones(2,20_000),negative_volume,ones(2,20_000),1.0,Val(2),Val(false))
+    @test negative_reference == negative_actual
 end
 TOML.print(stdout, Dict("allocation_checks"=>results))

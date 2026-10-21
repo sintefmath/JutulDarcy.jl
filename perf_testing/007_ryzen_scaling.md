@@ -169,6 +169,44 @@ The isolated fused host convergence helper passes 27 checks at one worker and
 NaNs, dimensions, and exclusion of external AD. It is still outside package
 source pending full-simulation before/after validation.
 
+## KA pressure smoother screen
+
+One warmed short-fixture sample per configuration, 15 physical cores, level-
+scheduled system ILU, Float64. These are screening results, not final scaling
+claims. No defaults have changed.
+
+| Case | Krylov | Pressure smoother | Seconds | Accepted Newton / linear | Wasted Newton / linear |
+|---|---|---|---:|---:|---:|
+| Olympus z2 | BiCGStab | GS | 4.919 | 14 / 42 | 0 / 0 |
+| Olympus z2 | BiCGStab | ILU0 | 41.425 | 20 / 389 | 0 / 0 |
+| Olympus z2 | GMRES | GS | 4.868 | 14 / 70 | 0 / 0 |
+| Olympus z2 | GMRES | ILU0 | 11.749 | 15 / 172 | 0 / 0 |
+| Norne z4 | BiCGStab | GS | 11.814 | 46 / 124 | 15 / 28 |
+| Norne z4 | BiCGStab | ILU0 | 15.599 | 48 / 130 | 15 / 29 |
+| Norne z4 | GMRES | GS | 9.635 | 41 / 163 | 15 / 70 |
+| Norne z4 | GMRES | ILU0 | 8.419 | 29 / 97 | 0 / 0 |
+
+Olympus DILU exceeds the 120-second per-run screening budget with both Krylov
+methods, with repeated cuts and poor linear convergence. Norne BiCGStab/DILU
+also exceeds that budget; GMRES/DILU is still running. The first exploratory
+Olympus DILU warm-up was stopped manually before adding this bound. A single
+SIGUSR1 peek during that warm-up confirmed active solver work. No timing from
+the instrumented warm-up is used above.
+
+GS is best on Olympus. Norne does not share that outcome: ILU0/GMRES avoids
+recovered cuts but has a higher per-iteration cost, finishing near the earlier
+SPAI0/GMRES time. Test the original-duration schedules and AMG update policies
+before changing application defaults. The shared comparison driver now uses
+the existing iteration hook to bound candidates, and forwards named options to
+the existing solver API. An unbounded driver remains available for final runs.
+
+The broader preconditioner audit found two independent native CPU correctness
+issues: ILU `apply!` ignores non-default alpha/beta and loses the old output,
+while CSC SPAI0 fails to clear its normalization buffer on numeric updates.
+Focused regression tests are prepared. These are outside the current KA hot
+path and do not explain the smoother timings above. Keep their fix separate
+from performance claims.
+
 ## Audit status
 
 | Area | Evidence / next check |

@@ -25,18 +25,21 @@ function benchmark_case(name, refinement, steps)
     return short
 end
 
-function new_simulator(case)
+function new_simulator(case; solver_options = NamedTuple())
     smoother = Symbol(get(ENV, "PERF_PRESSURE_SMOOTHER", "spai0"))
     linear_solver_arg = smoother == :default ? NamedTuple() : (amg_arg = (smoother_type = smoother,),)
     system_smoother = Symbol(get(ENV, "PERF_SYSTEM_SMOOTHER", "default"))
     if system_smoother != :default
         linear_solver_arg = merge(linear_solver_arg, (smoother_type = system_smoother,))
     end
+    linear_solver_arg = merge(linear_solver_arg, solver_options)
     linear_solver = Symbol(get(ENV, "PERF_LINEAR_SOLVER", "gmres"))
     mode = Symbol(get(ENV, "PERF_MODE", "ka"))
+    single_precision_linear_solver = parse(Bool, get(ENV, "PERF_SINGLE_PRECISION_LINEAR", "false"))
+    index_type = Dict("Int" => Int, "Int32" => Int32)[get(ENV, "PERF_INDEX_TYPE", "Int")]
     return setup_reservoir_simulator(case;
         mode, linear_solver, info_level = -1,
-        linear_solver_arg, output_substates = false)
+        linear_solver_arg, single_precision_linear_solver, index_type, output_substates = false)
 end
 
 function run_simulation(sim, config, case)
@@ -139,6 +142,8 @@ function main()
         "system_smoother" => get(ENV, "PERF_SYSTEM_SMOOTHER", "default"),
         "linear_solver" => get(ENV, "PERF_LINEAR_SOLVER", "gmres"),
         "mode" => get(ENV, "PERF_MODE", "ka"),
+        "single_precision_linear_solver" => get(ENV, "PERF_SINGLE_PRECISION_LINEAR", "false"),
+        "index_type" => get(ENV, "PERF_INDEX_TYPE", "Int"),
         "julia" => string(VERSION), "label" => label,
         "package_versions" => Dict("Jutul" => string(pkgversion(Jutul)),
             "JutulDarcy" => string(pkgversion(JutulDarcy)),
