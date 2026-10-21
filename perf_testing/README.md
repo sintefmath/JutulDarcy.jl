@@ -87,8 +87,8 @@ material JIT time. Default warm-up still uses the entire measured case.
 `PERF_RUN_INFO` enables progress during diagnostic measurements; final timings
 default to quiet output. `probe_pressure.jl` replays saved pressure matrices
 through the existing smoothers to separate kernel cost from convergence.
-`PERF_RELAXATION=true` selects the existing `SimpleRelaxation` interface when
-investigating nonlinear oscillations. Its default remains false.
+Nonlinear controls and timestep selection stay at their factory defaults.
+The harness fixes relaxation to false; no relaxation experiment is included.
 
 ## Optional experiments
 

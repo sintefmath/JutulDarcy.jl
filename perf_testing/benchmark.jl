@@ -43,10 +43,10 @@ function new_simulator(case; solver_options = NamedTuple())
     mode = Symbol(get(ENV, "PERF_MODE", "ka"))
     single_precision_linear_solver = parse(Bool, get(ENV, "PERF_SINGLE_PRECISION_LINEAR", "false"))
     index_type = Dict("Int" => Int, "Int32" => Int32)[get(ENV, "PERF_INDEX_TYPE", "Int")]
-    relaxation = parse(Bool, get(ENV, "PERF_RELAXATION", "false"))
     return setup_reservoir_simulator(case;
         mode, linear_solver, info_level = -1,
-        linear_solver_arg, single_precision_linear_solver, index_type, relaxation, output_substates = false)
+        linear_solver_arg, single_precision_linear_solver, index_type,
+        relaxation = false, output_substates = false)
 end
 
 function run_simulation(sim, config, case)
@@ -125,9 +125,13 @@ function main()
             "compile_seconds" => measurement.compile_time,
             "recompile_seconds" => measurement.recompile_time,
             "newtons" => stats.newtons, "linear_iterations" => stats.linear_iterations,
+            "linearizations" => stats.linearizations,
+            "preconditioner_applications" => stats.linear_precond_iterations,
             "ministeps" => stats.ministeps,
             "wasted_newtons" => stats.wasted.newtons,
             "wasted_linear_iterations" => stats.wasted.linear_iterations,
+            "wasted_linearizations" => stats.wasted.linearizations,
+            "wasted_preconditioner_applications" => stats.wasted.linear_precond_iterations,
             "pressure_sum" => sum(pressure), "pressure_norm" => norm(pressure),
             "saturation_norm" => norm(saturations),
             "phase_seconds" => Dict(string(k) => v for (k, v) in pairs(stats.time_sum)))
@@ -162,7 +166,7 @@ function main()
         "mode" => get(ENV, "PERF_MODE", "ka"),
         "single_precision_linear_solver" => get(ENV, "PERF_SINGLE_PRECISION_LINEAR", "false"),
         "index_type" => get(ENV, "PERF_INDEX_TYPE", "Int"),
-        "relaxation" => get(ENV, "PERF_RELAXATION", "false"),
+        "relaxation" => "false",
         "gs_levels_prototype" => get(ENV, "PERF_GS_LEVELS", "false"),
         "pinned_cpus" => get(ENV, "PERF_PIN_CPUS", ""),
         "gs_global_chunks_prototype" => get(ENV, "PERF_GS_GLOBAL_CHUNKS", "false"),
