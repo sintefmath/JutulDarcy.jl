@@ -13,9 +13,14 @@ function benchmark_case(name, refinement, steps)
         data = refine_layers(data, refinement)
     end
     case = setup_case_from_data_file(data; backend = :csr, block_backend = true)
+    fraction = parse(Float64, get(ENV, "PERF_FRACTION", "0"))
+    0 <= fraction <= 1 || throw(ArgumentError("PERF_FRACTION must be in [0, 1]"))
+    if fraction > 0
+        steps = ceil(Int, fraction * length(case.dt))
+    end
     short = case[1:min(steps, length(case.dt))]
     # Olympus uses annual report steps: shorten the physical interval as well.
-    max_days = parse(Float64, get(ENV, "PERF_MAX_DAYS", "1"))
+    max_days = parse(Float64, get(ENV, "PERF_MAX_DAYS", fraction > 0 ? "Inf" : "1"))
     short.dt .= min.(short.dt, max_days * si_unit(:day))
     return short
 end
@@ -89,7 +94,8 @@ function main()
     end
     result = Dict(
         "report_days" => case.dt ./ si_unit(:day),
-        "case" => name, "refinement_z" => refinement, "report_steps" => steps,
+        "case" => name, "refinement_z" => refinement, "report_steps" => length(case.dt),
+        "schedule_fraction" => parse(Float64, get(ENV, "PERF_FRACTION", "0")),
         "cells" => nc, "threads" => Threads.nthreads(:default),
         "pressure_smoother" => get(ENV, "PERF_PRESSURE_SMOOTHER", "spai0"),
         "system_smoother" => get(ENV, "PERF_SYSTEM_SMOOTHER", "default"),
