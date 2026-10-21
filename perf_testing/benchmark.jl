@@ -32,8 +32,9 @@ function new_simulator(case)
     if system_smoother != :default
         linear_solver_arg = merge(linear_solver_arg, (smoother_type = system_smoother,))
     end
+    linear_solver = Symbol(get(ENV, "PERF_LINEAR_SOLVER", "gmres"))
     return setup_reservoir_simulator(case;
-        mode = :ka, linear_solver = :gmres, info_level = -1,
+        mode = :ka, linear_solver, info_level = -1,
         linear_solver_arg, output_substates = false)
 end
 
@@ -91,6 +92,11 @@ function main()
         flush(stdout)
         if repeat == repeats
             serialize(prefix * ".state", (pressure = copy(pressure), saturations = copy(saturations)))
+            if get(ENV, "PERF_SAVE_FIXTURE", "false") == "true"
+                serialize(prefix * ".fixture", (
+                    preconditioner = config[:linear_solver].preconditioner,
+                    linear_system = sim.storage.LinearizedSystem))
+            end
         end
         sim = config = measurement = nothing
     end
@@ -101,6 +107,7 @@ function main()
         "cells" => nc, "threads" => Threads.nthreads(:default),
         "pressure_smoother" => get(ENV, "PERF_PRESSURE_SMOOTHER", "spai0"),
         "system_smoother" => get(ENV, "PERF_SYSTEM_SMOOTHER", "default"),
+        "linear_solver" => get(ENV, "PERF_LINEAR_SOLVER", "gmres"),
         "julia" => string(VERSION), "label" => label,
         "package_versions" => Dict("Jutul" => string(pkgversion(Jutul)),
             "JutulDarcy" => string(pkgversion(JutulDarcy)),

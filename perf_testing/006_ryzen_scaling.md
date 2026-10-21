@@ -33,4 +33,49 @@ MultiComponentFlash is registry-resolved rather than requiring a fourth checkout
 4. Verify complete 20% schedules, intermediate worker counts, correctness
    checks, and commit each supported improvement without pushing.
 
-Results pending.
+## Initial short-fixture baseline
+
+Julia 1.13.2 under Ubuntu WSL2, native Linux dependency depot, working-tree
+sources from the Windows filesystem. Mesh/input and simulator construction are
+outside the timer. Fixed pressure SPAI0 and explicit `:ka_ilu0` system smoother
+at both worker counts; this is an algorithm-controlled diagnostic, not a
+comparison against the fastest serial application default.
+
+Olympus z2, 385,500 active cells, three one-day intervals:
+
+| Workers | Median simulation, s | Assembly, s | Preconditioner apply, s | Other Krylov, s | Linear setup, s |
+|---:|---:|---:|---:|---:|---:|
+| 1 | 19.866 | 3.142 | 10.701 | 1.465 | 3.084 |
+| 15 | 7.454 | 0.653 | 3.518 | 1.066 | 1.152 |
+
+Scaling is 2.665x. All samples take 22 Newton iterations, 146 linear iterations,
+six ministeps, and zero wasted iterations. Final state checksums match; full
+array comparison remains pending. Measured 15-worker runs report zero JIT time.
+
+The one-worker call tree identifies sparse ILU row scanning as a large cost:
+both triangular solves scan the whole row and test every column despite having
+stored diagonal positions and sorted columns. Probe restricted triangular ranges.
+Convergence is only about 0.16–0.22 s here, so it cannot by itself close the gap.
+Linux exposes sibling CPU pairs 0/1, 2/3, ..., 30/31; compare physical-core
+affinity separately if scaling remains limited.
+
+## Audit status
+
+| Area | Evidence / next check |
+|---|---|
+| Fused assembly and secondary properties | Existing Polyester paths; Olympus assembly scales 4.8x. Retain state comparisons. |
+| Linear algebra and Krylov | Main products already use host batches. Serial BLAS/vector operations scale weakly. Other session rejected a vector wrapper due to allocation growth. |
+| ILU factorization and application | Large profile share; test diagonal-bounded row traversal using existing symbolic data. |
+| Pressure AMG | Host row batches already present; setup and coarse operations remain partly serial. Separate construction from repeated numeric updates in replay probes. |
+| CPR weights and pressure matrix | Remaining KA CPU launches; measure host-loop dispatch without changing GPU dispatch. |
+| Convergence | Multi-array Base mapreduce materializes temporaries; focused fused-reduction probe queued. |
+| State updates and pressure increments | Existing strided broadcasts; measure only if profiles justify changes. |
+| Wells and Schur complement | Existing per-well blocks and host/device policies; retain complete reservoir KA regression coverage. |
+| Allocation, GC, output | Retain GC/allocation counters and saved-state IO in simulation timing; fixture serialization is optional and outside timed runs. |
+
+## Concurrent work
+
+Checked remote `sol-perf` at the user's request. Jutul is unchanged; JutulDarcy
+advanced to `bc8be059`, adding M4 larger-grid results and a rejected dense-vector
+wrapper probe. Its best reported scaling is about 3.22x on Olympus z4 at ten
+workers. Incorporate that commit after this baseline batch. No remote writes.
