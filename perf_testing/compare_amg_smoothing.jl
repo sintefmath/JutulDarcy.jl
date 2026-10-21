@@ -2,6 +2,7 @@
 include("compare_solvers.jl")
 policies = (
     "gs" => (amg_arg = (smoother_type = :gauss_seidel,),),
+    "pressure_ilu" => (amg_arg = (smoother_type = :ilu0,),),
     "spai2" => (amg_arg = (smoother_type = :spai0, npre = 2),),
     "spai4" => (amg_arg = (smoother_type = :spai0, npre = 4),),
 )

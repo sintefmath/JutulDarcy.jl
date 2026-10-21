@@ -2,6 +2,7 @@
 using Jutul, JutulDarcy, LinearAlgebra, Serialization, Statistics, TOML
 include("pin_threads.jl")
 Base.include(Jutul.KAPreconditioners, joinpath(@__DIR__, "gs_levels_candidate.jl"))
+Base.include(Jutul.KAPreconditioners, joinpath(@__DIR__, "hybrid_smoother_candidate.jl"))
 
 function pressure_measure(f; repeats = 9)
     f()
@@ -21,6 +22,9 @@ function probe_pressure()
         ("gs", :hmis, (smoother_type = :gauss_seidel,)),
         ("gs_levels", :hmis, (smoother_type = :gauss_seidel,)),
         ("gs_chunks", :hmis, (smoother_type = :gauss_seidel,)),
+        ("hybrid8k", :hmis, (smoother = Jutul.KAPreconditioners.PerfHybridSmoother(8192),)),
+        ("hybrid32k", :hmis, (smoother = Jutul.KAPreconditioners.PerfHybridSmoother(32768),)),
+        ("hybrid32k_2", :hmis, (smoother = Jutul.KAPreconditioners.PerfHybridSmoother(32768; steps = 2),)),
         ("spai1", :hmis, (smoother_type = :spai0,)),
         ("spai2", :hmis, (smoother_type = :spai0, npre = 2)),
         ("spai4", :hmis, (smoother_type = :spai0, npre = 4)),

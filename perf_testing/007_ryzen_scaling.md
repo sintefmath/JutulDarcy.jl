@@ -397,6 +397,38 @@ configured worker limit and variable dependency order; simply increasing the
 number of dispatched batches would lose the context's worker cap. No source
 change has been made for this hypothesis.
 
+## Recycled ILU symbolic state correction
+
+Jutul `c1379eaf` fixes a demonstrated ILU0/DILU setup bug. AMG's
+`owned_on_backend_reusing` can replace the contents of retained CSR index arrays.
+The old smoother-compatibility check accepted those arrays by identity, reusing
+stale diagonal positions and dependency levels. A same-size/same-nonzero-count
+graph replacement reproduces 32 failures out of 40 checks; one reused solve
+returns `[0.25, -2, 48.75, 1]` instead of approximately
+`[0.518, 0.768, 1.071, 1]`.
+
+Setup now checks the saved index snapshots, with allocation-free host comparisons.
+The ordinary numeric-update shortcut is unchanged. The regression passes all 40
+checks at both one and 15 workers, alongside 24 native preconditioner checks,
+24 scalar/block CSR precision checks and 48 isolated hybrid-smoother checks at
+each count. Broader KA regressions are running. Earlier pressure ILU/DILU full-
+simulation screens predate this correction and need rechecking before treating
+their results as definitive rejections. This correctness fix is not a claimed
+speedup of the GS/SPAI baseline paths.
+
+The hybrid experiment uses existing SPAI0 kernels above a row-count threshold
+and existing GS kernels below it, through the existing smoother interface.
+It adds no application default or public option. Its setup, numeric reset and
+memory-rebuild checks pass at one and 15 workers; pressure and full-simulation
+performance still need validation. The separate full-operation probe will
+measure saved-hierarchy application, a native serial ILU reference, Schur
+couplings, CPR transfers, Galerkin updates and a fixed-system GMRES solve.
+
+Stopped the last Norne serial four-sweep SPAI screening after it consumed several
+minutes without completing the comparison. Completed GS/two-sweep samples and
+their full arrays are retained. No four-sweep serial timing is accepted for
+Norne. Remote branches checked again at 19:36 UTC are unchanged.
+
 ## Audit status
 
 | Area | Evidence / next check |

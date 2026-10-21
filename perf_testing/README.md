@@ -109,3 +109,9 @@ processes for each thread count, sequentially. `probe_full_terms.jl` adds the
 well-reduced operator, CPR transfers and individual AMG numeric-update stages.
 Isolated level timings reuse smaller working sets; their sum does not predict
 a complete cycle's wall time. They do not change simulation timestepping.
+
+`compare_hybrid_smoothing.jl` experiments with the existing SPAI0 and GS kernels
+on different hierarchy levels. `test_hybrid_smoother.jl` checks it against a
+manually assembled mixed hierarchy, including numeric and memory resets. The
+prototype is confined to the performance scripts; it is not an application
+default. `test_smoother_reuse.jl` invokes the retained Jutul symbolic-reuse test.

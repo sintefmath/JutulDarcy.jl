@@ -58,6 +58,10 @@ function compare_solvers(; solver_policies = ("default" => NamedTuple(),))
                     "pressure_sum" => sum(state[:Pressure]),
                     "saturation_norm" => norm(state[:Saturations]),
                     "phase_seconds" => Dict(string(k)=>v for (k,v) in pairs(stats.time_sum))))
+                println("Measured ", (policy = policy, repeat = repeat, seconds = measurement.time,
+                    newtons = stats.newtons, linear_iterations = stats.linear_iterations,
+                    compile_seconds = measurement.compile_time))
+                flush(stdout)
                 if repeat == repeats && get(ENV, "PERF_SAVE_STATES", "false") == "true"
                     prefix = "$(label)_$(name)_z$(refinement)_t$(Threads.nthreads())_$(policy)_$(system)_$(pressure)_$(linear)"
                     serialize(joinpath(@__DIR__, "results", prefix * ".state"),
