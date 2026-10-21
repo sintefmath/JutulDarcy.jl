@@ -25,10 +25,23 @@ and output label. `case` is `norne` or `olympus`; factor 1 is the original grid.
 `PERF_MAX_DAYS` caps each report interval (default 1). `PERF_PROFILE=true`
 adds one separately profiled run. `PERF_PRESSURE_SMOOTHER=default` measures the
 thread-dependent application default instead of fixed SPAI0.
-`PERF_SYSTEM_SMOOTHER=ka_ilu0` selects the existing level-scheduled ILU path;
-the benchmark default `ilu0` matches the current CPU application default.
+`PERF_SYSTEM_SMOOTHER=ilu0` forces serial CSR ILU0;
+`PERF_SYSTEM_SMOOTHER=ka_ilu0` forces level-scheduled ILU0. The benchmark default
+leaves the application choice in place.
 All runs use `mode=:ka`, GMRES, Float64, and single-threaded BLAS.
 
 TOML results include wall/GC time, allocations, phase timings, iteration counts,
 checksums, cell counts, and source commits. Serialized final pressure/saturation
 arrays support complete state comparisons. No full model or dataset is committed.
+
+Run a thread-count sweep sequentially with:
+
+```sh
+bash perf_testing/run_scaling.sh olympus 4 scaling
+PERF_THREADS="1 4 10 14" bash perf_testing/run_scaling.sh norne 8 scaling
+```
+
+The sweep defaults to 1, 2, 4, 6, 8, 10, and 14 workers, saving each process log
+and TOML result under `results/`. Set `PERF_REPEATS` or `PERF_STEPS` to override
+the default three measured samples or three report intervals. Warm-up is always
+separate. The short scripts do not load plotting packages.
