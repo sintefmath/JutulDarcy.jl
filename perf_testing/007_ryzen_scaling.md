@@ -319,6 +319,48 @@ directions, correction sweeps, damping, asymmetric edges, and wide levels that
 exercise all 15 workers. Pressure-matrix performance replays are in progress;
 correctness alone is not a reason to retain the prototype.
 
+## Fixed-input operation scaling
+
+`probe_terms.jl` replays the same frozen arrays at 1, 2, 4, 8 and 15 workers,
+each pinned to a distinct physical CPU. BLAS stays at one thread. Measurements
+are medians of nine batches after warming each operation, with compilation
+recorded separately. These are operation timings, not end-to-end speedups.
+The first Olympus serial run preceded addition of the two-sweep SPAI case;
+`term_scaling_olympus_t1_v2` repeats it with the final schema. Other runs use
+that final schema. Numerical library sources remain `3baad4b2` / `2ffcf2b7`.
+
+| Term, Olympus z2 | 1 worker, ms | 15 workers, ms | Speedup |
+|---|---:|---:|---:|
+| Block CSR product | 4.778 | 1.766 | 2.70x |
+| System ILU application | 35.713 | 5.039 | 7.09x |
+| System ILU numeric update | 54.228 | 11.894 | 4.56x |
+| Full CPR, one SPAI pressure sweep | 63.780 | 20.426 | 3.12x |
+| Pressure AMG, one SPAI sweep | 19.456 | 7.396 | 2.63x |
+| Pressure AMG, two SPAI sweeps | 25.272 | 9.993 | 2.53x |
+| Pressure AMG numeric update, SPAI | 43.260 | 18.430 | 2.35x |
+| Pressure AMG, GS | 22.060 | 17.196 | 1.28x |
+| Krylov vector norm | 0.287 | 0.289 | 1.00x |
+
+| Term, Norne z4 | 1 worker, ms | 15 workers, ms | Speedup |
+|---|---:|---:|---:|
+| Block CSR product | 6.947 | 1.641 | 4.23x |
+| System ILU application | 24.810 | 4.799 | 5.17x |
+| System ILU numeric update | 37.680 | 13.009 | 2.90x |
+| Full CPR, one SPAI pressure sweep | 46.872 | 14.664 | 3.20x |
+| Pressure AMG, one SPAI sweep | 10.435 | 2.428 | 4.30x |
+| Pressure AMG, two SPAI sweeps | 13.109 | 3.105 | 4.22x |
+| Pressure AMG numeric update, SPAI | 22.674 | 8.049 | 2.82x |
+| Pressure AMG, GS | 10.265 | 9.329 | 1.10x |
+| Krylov vector norm | 0.198 | 0.198 | 1.00x |
+
+AMG residuals/restriction/prolongation often scale 6–16x in isolation, while
+serial GS sweeps do not scale. Isolated per-level measurements repeatedly reuse
+one level's arrays; their sum is not a prediction of whole-cycle time. Larger
+working sets and traffic across the hierarchy are a hypothesis for the remaining
+gap. Measure full well-reduced operators and individual numeric-update stages,
+and test existing Int32/mixed-precision options separately. No timestep or
+nonlinear-control changes are part of this investigation.
+
 ## Audit status
 
 | Area | Evidence / next check |

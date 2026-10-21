@@ -102,3 +102,10 @@ replays a saved pressure matrix and RHS with selected `PERF_PRESSURE_POLICIES`;
 its pressure-only GMRES measurements are screening surrogates, not full CPR or
 simulation timings. `PERF_SAVE_STATES=true` saves comparison-driver final arrays
 outside its measured interval.
+
+`probe_terms.jl fixture output.toml` measures fixed-input CSR products, ILU,
+CPR, Krylov vector operations and individual AMG cycle stages. Run separate
+processes for each thread count, sequentially. `probe_full_terms.jl` adds the
+well-reduced operator, CPR transfers and individual AMG numeric-update stages.
+Isolated level timings reuse smaller working sets; their sum does not predict
+a complete cycle's wall time. They do not change simulation timestepping.
