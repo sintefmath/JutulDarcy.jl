@@ -33,8 +33,9 @@ function new_simulator(case)
         linear_solver_arg = merge(linear_solver_arg, (smoother_type = system_smoother,))
     end
     linear_solver = Symbol(get(ENV, "PERF_LINEAR_SOLVER", "gmres"))
+    mode = Symbol(get(ENV, "PERF_MODE", "ka"))
     return setup_reservoir_simulator(case;
-        mode = :ka, linear_solver, info_level = -1,
+        mode, linear_solver, info_level = -1,
         linear_solver_arg, output_substates = false)
 end
 
@@ -106,9 +107,11 @@ function main()
         "schedule_fraction" => parse(Float64, get(ENV, "PERF_FRACTION", "0")),
         "cells" => nc, "threads" => Threads.nthreads(:default),
         "blas_threads" => BLAS.get_num_threads(),
+        "cpu_set" => get(ENV, "PERF_CPUSET", "unrestricted"),
         "pressure_smoother" => get(ENV, "PERF_PRESSURE_SMOOTHER", "spai0"),
         "system_smoother" => get(ENV, "PERF_SYSTEM_SMOOTHER", "default"),
         "linear_solver" => get(ENV, "PERF_LINEAR_SOLVER", "gmres"),
+        "mode" => get(ENV, "PERF_MODE", "ka"),
         "julia" => string(VERSION), "label" => label,
         "package_versions" => Dict("Jutul" => string(pkgversion(Jutul)),
             "JutulDarcy" => string(pkgversion(JutulDarcy)),

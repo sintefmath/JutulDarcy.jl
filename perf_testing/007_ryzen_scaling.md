@@ -75,9 +75,41 @@ Accelerator matrices retain their previous one-worker host metadata.
 
 Validation: direct three-worker context/three-factor ILU check passes inside a
 15-worker process. The complete existing Jutul KA context, generic-AD, grouped
-multimodel, interpolation, and sparse-product file passes (306 assertions).
+multimodel, interpolation, and sparse-product file passes (316 assertions).
 The application still automatically selects level-scheduled ILU for large KA
 CPU models; benchmark explicit partitioned ILU before changing that policy.
+
+## Existing-solver screen (one warmed sample per configuration)
+
+These are screening samples; repeat finalists and validate full states before
+calling a policy change an improvement. Source is Jutul `458f2ab9`.
+
+| Case | Workers | Krylov | System ILU | Pressure smoother | Seconds | Newton / linear |
+|---|---:|---|---|---|---:|---:|
+| Olympus z2 | 1 | GMRES | serial CSR | default GS | 8.625 | 14 / 70 |
+| Olympus z2 | 1 | BiCGStab | serial CSR | default GS | 8.464 | 14 / 42 |
+| Olympus z2 | 15 | GMRES | partitioned CSR | SPAI0 | 7.441 | 22 / 151 |
+| Olympus z2 | 15 | GMRES | level scheduled | SPAI0 | 7.401 | 22 / 146 |
+| Olympus z2 | 15 | BiCGStab | partitioned CSR | SPAI0 | 6.333 | 16 / 84 |
+| Olympus z2 | 15 | BiCGStab | level scheduled | SPAI0 | 5.526 | 15 / 69 |
+| Norne z4 | 1 | GMRES | serial CSR | default GS | 20.037 | 41 / 163 |
+| Norne z4 | 1 | BiCGStab | serial CSR | default GS | 26.336 | 43 / 175 |
+| Norne z4 | 15 | GMRES | partitioned CSR | SPAI0 | 8.880 | 38 / 200 |
+| Norne z4 | 15 | GMRES | level scheduled | SPAI0 | 8.469 | 41 / 143 |
+
+Partitioned ILU is now available through its existing interface but has not yet
+shown an end-to-end advantage on these short cases. Do not replace the default
+with it on this evidence. The true serial default is much faster than fixed
+SPAI0/level-ILU on Olympus; the earlier 2.665x ratio overstates scaling relative
+to the best serial setting. Pressure-smoother strength and Krylov choice change
+Newton counts, so investigate these together rather than extrapolating kernel
+speedups. Norne's recovered cuts remain included (see raw TOML).
+
+Next queued workload: original-duration 20% schedules on Olympus z4 (771,000
+cells) and Norne z8 (~355,444 cells), one warmed screening sample at 15 workers,
+with `PERF_CPUSET=0-28:2` to use distinct physical cores. Olympus uses BiCGStab;
+Norne uses GMRES. Both retain current level ILU/SPAI0. This establishes the
+longer-workload phase distribution before selecting further code changes.
 
 ## Probe corrections
 
@@ -91,7 +123,10 @@ bitwise-equal complete solutions and zero allocation. Fifteen-worker check pendi
 The first reduction prototype captured a reassigned accumulator in a closure,
 creating allocations and an unsafe reduction. Moving volume reduction to a
 separate function removes that capture. An AD-array multiworker comparison
-still needs investigation; keep the prototype out of production until it passes.
+failed because the synthetic dual used a non-Jutul tag, so `Jutul.value`
+correctly retained it and the reduction changed type mid-loop. Use Jutul's
+existing tagged-AD constructor in the fixture and keep this out of production
+until the corrected multiworker comparison passes.
 
 ## Audit status
 

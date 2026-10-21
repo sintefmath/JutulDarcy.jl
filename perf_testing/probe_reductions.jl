@@ -62,7 +62,7 @@ for n in (177724, 385500), phases in (2, 3), ad in (false, true)
     volume = 1 .+ rand(n)
     properties = 1 .+ rand(phases, n)
     if ad
-        properties = ForwardDiff.Dual{Nothing}.(properties, properties)
+        properties = map(v -> Jutul.get_ad_entity_scalar(v, phases; tag=Cells()), properties)
     end
     blackoil = phases == 3
     reference = blackoil ? () -> JutulDarcy.cnv_mb_errors_bo(r, volume, properties, 1.0, (1000.0, 800.0, 100.0), Val(phases)) :
