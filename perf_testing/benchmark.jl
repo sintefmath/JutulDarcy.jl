@@ -3,6 +3,9 @@ using Jutul, JutulDarcy, LinearAlgebra, Statistics, TOML, Serialization, Profile
 
 include("refine_layers.jl")
 include("pin_threads.jl")
+if parse(Bool, get(ENV, "PERF_SECONDARY_TILING", "false"))
+    Base.include(Jutul, joinpath(@__DIR__, "secondary_tiles_candidate.jl"))
+end
 if parse(Bool, get(ENV, "PERF_GS_LEVELS", "false"))
     Base.include(Jutul.KAPreconditioners, joinpath(@__DIR__, "gs_levels_candidate.jl"))
     Jutul.KAPreconditioners.perf_gs_use_levels[] = true
@@ -43,9 +46,10 @@ function new_simulator(case; solver_options = NamedTuple())
     mode = Symbol(get(ENV, "PERF_MODE", "ka"))
     single_precision_linear_solver = parse(Bool, get(ENV, "PERF_SINGLE_PRECISION_LINEAR", "false"))
     index_type = Dict("Int" => Int, "Int32" => Int32)[get(ENV, "PERF_INDEX_TYPE", "Int")]
+    reduce_memory = parse(Bool, get(ENV, "PERF_REDUCE_MEMORY", "true"))
     return setup_reservoir_simulator(case;
         mode, linear_solver, info_level = -1,
-        linear_solver_arg, single_precision_linear_solver, index_type,
+        linear_solver_arg, single_precision_linear_solver, index_type, reduce_memory,
         relaxation = false, output_substates = false)
 end
 
@@ -167,6 +171,9 @@ function main()
         "single_precision_linear_solver" => get(ENV, "PERF_SINGLE_PRECISION_LINEAR", "false"),
         "index_type" => get(ENV, "PERF_INDEX_TYPE", "Int"),
         "relaxation" => "false",
+        "secondary_tiles_prototype" => get(ENV, "PERF_SECONDARY_TILING", "false"),
+        "secondary_tile_size" => get(ENV, "PERF_SECONDARY_TILE", "context minbatch"),
+        "reduce_memory" => get(ENV, "PERF_REDUCE_MEMORY", "true"),
         "gs_levels_prototype" => get(ENV, "PERF_GS_LEVELS", "false"),
         "pinned_cpus" => get(ENV, "PERF_PIN_CPUS", ""),
         "gs_global_chunks_prototype" => get(ENV, "PERF_GS_GLOBAL_CHUNKS", "false"),

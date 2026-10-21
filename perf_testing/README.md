@@ -117,6 +117,10 @@ variables are timed individually. On the host, record both the built-in serial
 variable evaluation and its threaded per-cell loop. Production gives each
 worker a range of cells for all variables. Retain this distinction when
 comparing those timings with a full simulation.
+Use `PERF_BUILTIN_SECTIONS="assembly"` for an assembly-only screen.
+`PERF_REDUCE_MEMORY=false` selects the existing unfused TPFA storage interface;
+the default remains true. Compare equation work plus linear-system assembly,
+since their split changes between these two implementations.
 
 `probe_ilu_dispatch.jl fixture output.toml` sweeps Polyester minimum batch
 sizes on the saved system ILU, preserving its exact row arithmetic and checking
@@ -134,3 +138,12 @@ on different hierarchy levels. `test_hybrid_smoother.jl` checks it against a
 manually assembled mixed hierarchy, including numeric and memory resets. The
 prototype is confined to the performance scripts; it is not an application
 default. `test_smoother_reuse.jl` invokes the retained Jutul symbolic-reuse test.
+
+`PERF_SECONDARY_TILING=true` enables `secondary_tiles_candidate.jl` in the
+full-simulation harness. It applies only to large threaded KA CPU models whose
+secondary variables share an entity count; existing serial/GPU/other paths
+remain available through the original method. `PERF_SECONDARY_TILE` selects
+the experimental tile size (default context minbatch). This is a process-local
+experiment. `PERF_SECONDARY_VARIANT=typed_rebuild` checks the cost of constructing
+typed definitions on every probe call; `split` compares per-variable ranges
+against per-cell dispatch using existing threading interfaces.

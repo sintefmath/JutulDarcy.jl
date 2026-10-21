@@ -511,6 +511,50 @@ This resolves the generic loop's multi-megabyte allocation growth. Norne and
 full-simulation validation are still pending; no library property-loop change
 has been adopted. Existing Jutul operation benchmarks are queued next.
 
+The same typed experiment on Norne z8 takes 18.136 ms with 512-cell tiles,
+versus 27.255 ms originally, with allocation reduced from 810,192 to 3,776 B.
+Every secondary array is bitwise equal at one and 15 workers. A plain named-
+tuple `foreach` still allocates megabytes when tiled; explicit `Val` names
+are needed for this prototype. The per-call definition-construction cost and
+full-simulation behavior remain to be validated. No library source is changed
+by these process-local experiments.
+
+## Existing operation benchmarks: Olympus z4
+
+The initial-state built-in benchmark uses Jutul's own routines. Each variable
+has 50 repeated evaluations; assembly has 30 and linear products have 100.
+Both columns below use its threaded per-cell host path, with one/15 workers:
+
+| Secondary variable | One worker, ms | 15 workers, ms | Speedup |
+|---|---:|---:|---:|
+| Fluid volume | 1.993 | 0.863 | 2.31x |
+| Phase densities | 8.827 | 0.920 | 9.59x |
+| Total masses | 4.610 | 2.632 | 1.75x |
+| Relative permeabilities | 14.209 | 2.910 | 4.88x |
+| Phase viscosities | 15.424 | 1.206 | 12.79x |
+| Phase mobilities | 4.901 | 2.336 | 2.10x |
+| Phase mass mobilities | 4.118 | 1.983 | 2.08x |
+
+The separate serial whole-variable path has different overhead; e.g. fluid
+volume takes 1.036 ms there. Do not silently use that column as the one-worker
+threaded baseline. Production still batches all variables within a worker's
+cell interval. A further existing-interface probe will compare per-variable
+range batches with per-cell dispatch, checking all arrays before timing.
+
+Assembly's linear-system update takes 246.126 / 54.704 ms, and its equation
+update excluding secondary variables takes 4.834 / 3.646 ms. Combined this is
+4.30x. The full well-reduced operator takes 14.780 / 5.815 ms (2.54x). Repeated
+CPR update takes 219.799 / 96.456 ms and application 137.630 / 64.662 ms. These
+use KA system ILU even at one worker; the earlier native serial reference is
+faster. They measure the fixed initial state and repeated coefficients, not a
+whole simulation. The existing `reduce_memory=false` assembly interface is
+queued separately to compare compute/storage tradeoffs without new kernels.
+
+The first built-in wrapper completed its numerical work but failed on cell-
+count metadata from the stripped evaluation model. It now reads that count
+from the full case model before timing and checkpoints each finished stage.
+The completed Olympus results above come from the corrected rerun.
+
 ## Audit status
 
 | Area | Evidence / next check |
