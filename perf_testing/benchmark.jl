@@ -1,5 +1,5 @@
 # Usage: julia --project=perf_testing --threads=10,0 perf_testing/benchmark.jl olympus 1 3 3 baseline
-using Jutul, JutulDarcy, LinearAlgebra, Statistics, TOML, Serialization, Profile
+using Jutul, JutulDarcy, LinearAlgebra, Statistics, TOML, Serialization, Profile, SHA
 
 include("refine_layers.jl")
 include("pin_threads.jl")
@@ -87,6 +87,10 @@ function main()
     steps = parse(Int, get(ARGS, 3, "3"))
     repeats = parse(Int, get(ARGS, 4, "3"))
     label = get(ARGS, 5, "baseline")
+    source_state = Dict(string(nameof(package)) => Dict(
+        "commit" => readchomp(`git -C $(pkgdir(package)) rev-parse HEAD`),
+        "source_diff_sha256" => bytes2hex(sha256(read(`git -C $(pkgdir(package)) diff HEAD -- src`))))
+        for package in (Jutul, JutulDarcy))
     outdir = get(ENV, "PERF_OUTPUT", joinpath(@__DIR__, "results"))
     mkpath(outdir)
     println("Preparing ", (name, refinement, steps, Threads.nthreads(:default)))
@@ -144,6 +148,10 @@ function main()
         flush(stdout)
         if repeat == repeats
             serialize(prefix * ".state", (pressure = copy(pressure), saturations = copy(saturations)))
+            mesh = Jutul.physical_representation(reservoir_model(case.model).data_domain)
+            if hasproperty(mesh, :cell_map)
+                serialize(prefix * ".cells", copy(mesh.cell_map))
+            end
             if get(ENV, "PERF_SAVE_FIXTURE", "false") == "true"
                 serialize(prefix * ".fixture", (
                     preconditioner = config[:linear_solver].preconditioner,
@@ -159,6 +167,7 @@ function main()
         "case" => name, "refinement_z" => refinement, "report_steps" => length(case.dt),
         "schedule_fraction" => parse(Float64, get(ENV, "PERF_FRACTION", "0")),
         "cells" => nc, "threads" => Threads.nthreads(:default),
+        "phase_names" => collect(string.(JutulDarcy.phase_names(reservoir_model(case.model).system))),
         "blas_threads" => BLAS.get_num_threads(),
         "cpu_set" => get(ENV, "PERF_CPUSET", "unrestricted"),
         "omp_threads" => get(ENV, "OMP_NUM_THREADS", "runtime default"),
@@ -183,8 +192,9 @@ function main()
             "Krylov" => string(pkgversion(Jutul.Krylov)),
             "KernelAbstractions" => string(pkgversion(Jutul.KernelExecution.KernelAbstractions)),
             "Polyester" => string(pkgversion(Jutul.Polyester))),
-        "jutul_commit" => readchomp(`git -C $(pkgdir(Jutul)) rev-parse HEAD`),
-        "darcy_commit" => readchomp(`git -C $(pkgdir(JutulDarcy)) rev-parse HEAD`),
+        "jutul_commit" => source_state["Jutul"]["commit"],
+        "darcy_commit" => source_state["JutulDarcy"]["commit"],
+        "source_state" => source_state,
         "samples" => samples,
         "median_seconds" => median(s["seconds"] for s in samples))
     open(prefix * ".toml", "w") do io

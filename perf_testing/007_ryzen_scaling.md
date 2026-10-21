@@ -722,3 +722,28 @@ The first 15-rank reference is running, pinned to the same physical cores as the
 Julia tests, one OpenMP thread per rank. Setup used about 10 GiB at the first
 check; the fifteen rank CPU IDs were 0,2,...,28. Each command and deck SHA256 is
 retained with Flow's version, stdout, process timing and PRT/INFOSTEP diagnostics.
+
+The first actual 15-rank Olympus Flow diagnostic completed with process exit
+zero in 681.60 s wall time (11:21.60), including input/setup. Its stdout option
+suppressed the final solver-work summary, so this is not yet a solver-time or
+iteration-normalized comparison with Jutul's 857.859 s simulation timer. The
+controller failed *after* Flow returned because the runner file had been edited
+while its shell was waiting; reading from the old file offset entered a changed
+command tail. The numerical timing/command are retained. The runner now parses
+its whole body as a compound block and exits from that block. Statistics are
+enabled in redirected output for subsequent runs. The interrupted queue did not
+start Norne or either one-rank run.
+
+A 30-line library trial now implements the validated typed property tiling,
+using the existing minbatch and worker interface. It is restricted to large
+batch-threaded KA CPU updates with common entity counts; original paths handle
+serial, small and mixed-entity updates. Focused dependency/AD/matrix-layout and
+one/15-worker context tests, followed by both three-sample Float64/Int32 short
+simulations, are running before a production commit. Startup source commits and
+source-diff SHA256 are now captured by the harness. Final active-cell maps are
+saved outside the timer to support correctly aligned OPM field comparisons.
+
+A separate waiting controller resumes OPM only if both production-trial complete
+state comparisons are bitwise equal. It runs Norne MPI15, separate double-output
+MPI15 state validation for both cases, then the one-rank references. These
+remain sequential; no numerical benchmark overlaps another numerical run.

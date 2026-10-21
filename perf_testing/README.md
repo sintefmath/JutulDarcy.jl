@@ -39,6 +39,8 @@ remain in place. Binary result output is disabled for timing. Commands, input
 hash, Flow version, process wall time and Flow's own solve statistics are saved.
 Output directories must be fresh, and validation must be newer than the deck.
 These scripts require the system OPM Python bindings, Flow and Open MPI.
+`PERF_OPM_SAVE_STATES=true` enables separate double-precision binary output
+runs for cross-simulator state checks, with `_states` output directories.
 
 ## Reproduction
 
