@@ -49,9 +49,10 @@ function Jutul.update_before_step_multimodel_backend!(
         disabled = DisabledControl()
         new_is_disabled = newctrl isa DisabledControl
         old_is_disabled = oldctrl isa DisabledControl
-        well_was_disabled = op_ctrls[key] == disabled && !new_is_disabled
-        changed = (is_new_step && newctrl != oldctrl) || well_was_disabled
-        if !changed && !well_was_disabled && !(new_is_disabled || old_is_disabled)
+        well_was_shut = op_ctrls[key] == disabled || is_zero_rate_control(op_ctrls[key])
+        retry_control = well_was_shut && !new_is_disabled && !is_zero_rate_control(newctrl)
+        changed = (is_new_step && newctrl != oldctrl) || retry_control
+        if !changed && !retry_control && !(new_is_disabled || old_is_disabled)
             # Handle the case where controls may be identical, but a higher type
             # might be incoming (e.g. use of AD)
             changed = changed || value_has_promoted_type(newctrl.target.value, oldctrl.target.value)
@@ -104,14 +105,20 @@ function Jutul.update_before_step_multimodel_backend!(
 end
 
 
-function valid_surface_rate_for_control(q_t, ::InjectorControl, val = MIN_INITIAL_WELL_RATE)
+function valid_surface_rate_for_control(q_t, ctrl::InjectorControl, val = MIN_INITIAL_WELL_RATE)
+    if is_zero_rate_control(ctrl)
+        return Jutul.replace_value(q_t, 0.0)
+    end
     if q_t < val
         q_t = Jutul.replace_value(q_t, val)
     end
     return q_t
 end
 
-function valid_surface_rate_for_control(q_t, ::ProducerControl, val = MIN_INITIAL_WELL_RATE)
+function valid_surface_rate_for_control(q_t, ctrl::ProducerControl, val = MIN_INITIAL_WELL_RATE)
+    if is_zero_rate_control(ctrl)
+        return Jutul.replace_value(q_t, 0.0)
+    end
     if q_t > -val
         q_t = Jutul.replace_value(q_t, -val)
     end
@@ -123,8 +130,9 @@ function valid_surface_rate_for_control(q_t, ::DisabledControl)
 end
 
 function apply_well_limits!(cfg::WellGroupConfiguration, model, state, limits, control, well::Symbol, cond::FacilityVariablesForWell)
-    if control isa DisabledControl
-        # Disabled wells cannot change active constraint
+    if control isa DisabledControl || is_zero_rate_control(control)
+        # A shut well may have an infeasible BHP. Keep its zero-rate equation
+        # for this timestep; retry the requested control before the next one.
         # println("Well $well is disabled; skipping limit application.")
         return cfg
     end
@@ -445,6 +453,31 @@ function well_control_equation(ctrl, cond, well, model, state)
     val = well_target_value(ctrl, target, cond, well, model, state)
     scale = target_scaling(target)
     return (val - val_t)/scale
+end
+
+function well_control_equation(ctrl::ProducerControl{T}, cond, well, model, state) where {T <: SurfaceVolumeTarget}
+    target = ctrl.target
+    val_t = get_control_target_value(target, model, state)
+    val = well_target_value(ctrl, target, cond, well, model, state)
+    rate_slack = (val - val_t)/target_scaling(target)
+    if is_zero_rate_control(ctrl)
+        return rate_slack
+    end
+    limits = current_limits(state.WellGroupConfiguration, well)
+    if isnothing(limits) || !haskey(limits, :bhp)
+        return rate_slack
+    end
+    pressure_slack = (cond.bottom_hole_pressure - limits.bhp)/target_scaling(BottomHolePressureTarget(limits.bhp))
+    # Production may fall below its requested rate only at the lower BHP limit.
+    # A rate equation alone is singular when its phase is absent. The
+    # Fischer-Burmeister equation enforces both inequalities and their
+    # complementarity without inspecting phase mobilities.
+    squared_norm = rate_slack^2 + pressure_slack^2
+    if iszero(value(squared_norm))
+        # Choose the rate branch of the generalized derivative at the origin.
+        return rate_slack
+    end
+    return rate_slack + pressure_slack - sqrt(squared_norm)
 end
 
 function get_control_target_value(target::WellTarget, model, state)

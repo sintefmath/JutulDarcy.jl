@@ -4,6 +4,7 @@ using JutulDarcy, TestItems, Test, TestItemRunner
     include("mesh_and_reservoir.jl")
     include("corner_geometry.jl")
     include("schedule_completions.jl")
+    include("zero_rate_deck_controls.jl")
 end
 
 @testitem "Utilities" begin
@@ -44,6 +45,10 @@ end
 
 @testitem "Multi-model (wells + reservoir)" begin
     include("multimodel.jl")
+end
+
+@testitem "Runtime well shutting" begin
+    include("well_shutting.jl")
 end
 
 @testitem "Multisegment wells" begin
