@@ -822,3 +822,32 @@ Resumed the separate Olympus MPI15 output-validation run with double-precision
 binary output, retaining its existing Flow solver and strict reference tolerances.
 The controller will hold again after this run. The existing OPM binary reader
 and saved Jutul active-cell ordering will support the complete-field check.
+
+## Olympus MPI15 fields and Float64 follow-up
+
+The separate Olympus output-validation run completed in 667.26 s simulation,
+19.44 s setup and 688.27 s process wall, with 148 timesteps. It reports 1,640
+linearizations (777 wasted), 1,529 Newton iterations (777 wasted) and 1,414
+linear iterations (534 wasted). Assembly is 142.40 s, linear solve 422.71 s
+(including 196.79 s setup), properties/update 79.65 s and output 3.31 s. These
+are Flow's phase definitions and work units. This is a second reference run,
+with output enabled; it does not replace the output-disabled wall sample.
+
+An official `opm.io` restart extraction checks metric units, report 4 and day
+1461, and matches all 771,000 global active-cell identities before permuting
+fields into the saved Jutul mesh order. Against the earlier original-20% Jutul
+state, relative pressure norm difference is 1.52323e-4 and maximum difference
+246,892 Pa. Saturation relative norm difference is 5.11604e-4, maximum 0.0587591.
+This establishes a complete aligned comparison, not numerical equivalence.
+The restart pressure and saturation arrays are Float32 despite the requested
+`--ecl-output-double-precision=true`; this is recorded separately from Flow's
+Float64 linear algebra (`--max-single-precision-days=0`). No timestep or nonlinear
+control experiments follow from these field differences.
+
+The Norne MPI15 output-validation run is next, with the parent controller held
+at its following boundary to keep all numerical jobs sequential. A focused
+Float64 numeric-ILU trial uses the already stored diagonal positions to skip
+irrelevant entries during factorization. The previously rejected triangle-bound
+*solve* optimization is excluded; no repeat of that configuration is needed.
+The factor-only patch awaits paired measurements and correctness checks.
+Remote `sol-perf` was checked again: Jutul c1379eaf / Darcy 2d5ee982 unchanged.
