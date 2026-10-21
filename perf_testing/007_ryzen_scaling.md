@@ -8,7 +8,7 @@ the `origin` forks do not contain `sol-perf`. No pushes are authorized.
 Earlier numbered results were measured on an Apple M4 Pro; do not combine
 their absolute times with this workstation's results.
 
-Target (updated by the user): at least 5x warmed simulation throughput at 15 Julia workers relative
+Target: at least 5x warmed simulation throughput at 15 Julia workers relative
 to one worker on this Ryzen 9 7950X (16 cores / 32 hardware threads). Use refined
 Olympus and Norne, with the first 20% of report intervals at their original
 durations for final validation. Short three-day fixtures are diagnostic only.
@@ -16,6 +16,13 @@ BLAS stays single threaded, CPU benchmark processes run sequentially, and
 warm-up is separate. Record convergence, iteration counts, phase timings,
 allocations, source commits, and complete final pressure/saturation comparisons.
 Compare fixed solver settings as well as the application defaults.
+
+Latest user direction: focus on Float64 correctness and execution performance,
+including the serial case, aiming for parity with MPI OPM or better. Stop the
+mixed-precision and alternative-solver investigation. Keep the existing
+nonlinear/timestep controls fixed. Int32 sparse indices still store Float64
+coefficients and are a separate memory-traffic optimization. The fivefold goal
+has not been achieved, and short screens do not establish OPM parity.
 
 `PERF_FRACTION=0.2` selects the first ceil(20% * report count) intervals and
 disables the one-day cap unless `PERF_MAX_DAYS` is explicitly supplied.
@@ -583,3 +590,53 @@ scheduled GS prototype including asymmetric edges. Avoid duplicating that GS
 implementation; test resulting commits on Ryzen when available. This continuation
 focuses meanwhile on host convergence reductions, KA smoother selection,
 original-duration schedules, and physical-core scheduling.
+
+## Float64 execution follow-up
+
+All subsequent simulation and kernel work uses Float64. Historical mixed-
+precision screens are evidence only; the queued mixed-convergence experiment
+was disabled when the user clarified the scope. The installed local reference
+is OPM Flow 2026.04 with MPI. A deck-export helper reuses OPM's own parser and
+mirrors `refine_layers.jl`; geometry, property, completion and schedule checks
+must pass before its timings can be compared. Final comparison uses the first
+20% of the original schedules, recording both setup and simulation time and
+iteration counts. Different nonlinear work between programs must remain visible.
+
+Typed property construction per call retains the low allocation counts.
+Separately batching every whole variable, or every cell, did not outperform
+cache tiling on these large grids: Olympus 20.478 / 19.815 ms and Norne
+29.426 / 34.613 ms for the two whole-variable modes, compared with about
+11–12 / 18 ms for typed tiles. Repeated isolated-variable benchmarks keep a
+smaller working set hot and do not predict the whole update by summation.
+
+Three fresh Float64/Int32 short simulations with 1,000-cell tiles completed at
+15 workers. Olympus z4 median is 18.713 s (25 Newton / 157 linear iterations),
+Norne z8 9.753 s (17 / 82). Every final pressure and saturation is bitwise
+identical to the corresponding untiled Float64/Int32 reference. Secondary
+update time falls to about 0.334 / 0.339 s, but total runtime is not consistently
+better than the earlier 18.332 / 9.506 s references. No production tiling change
+is justified by that unpaired comparison. `compare_execution.jl` now alternates
+baseline, tiles, raw GS, and both in one process with fresh simulators, reverses
+every second round, and saves complete-state differences and phase timings.
+
+The raw-array dependency-scheduled GS prototype passed 2,853 exact-result tests
+at both one and 15 workers, including directed/asymmetric graphs and wide
+levels. Its first large pressure replay is:
+
+| Float64 pressure cycle at 15 workers | Original GS, ms | Raw arrays, ms | Fixed row ownership, ms |
+|---|---:|---:|---:|
+| Olympus z4 | 36.377 | 30.436 | 32.932 |
+| Norne z8 | 20.006 | 15.623 | 24.221 |
+
+All variants require five pressure GMRES iterations and produce identical true
+relative residuals (0.000852596 / 0.00147409). Raw arrays reduce cycle time by
+16% / 22%, with an extra 5.8 / 4.6 KB per application. Numeric update is slower
+because the schedule currently validates copied graph buffers in the prototype.
+Fixed row ownership allocates about 185–187 KB/application and is not retained.
+Full simulation validation of raw GS is in progress. Production would own its
+schedule on the smoother state instead of using the experimental weak cache.
+
+The application already selects native system ILU at exactly one worker. The
+other session's below-four-worker change remains unmerged because the restored
+worker metadata makes native ILU partition at two/three workers; that crossover
+needs its own evidence. No default change is needed for the one-worker case.

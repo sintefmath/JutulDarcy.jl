@@ -1,8 +1,9 @@
 # Process-local host experiment, included into Jutul. Keep worker limits and
 # variable order; use the existing minbatch as the cache-tile size by default.
+const perf_secondary_tiles_enabled = Ref(true)
 function update_secondary_variables_state!(state, model::SimulationModel, vars::NamedTuple)
     ctx = model.context
-    eligible = ctx isa KernelAbstractionsContext && KernelExecution.is_cpu_backend(ctx) &&
+    eligible = perf_secondary_tiles_enabled[] && ctx isa KernelAbstractionsContext && KernelExecution.is_cpu_backend(ctx) &&
         !ctx.use_kernels_for_secondary && Threads.nthreads(:default) > 1 &&
         nthreads(ctx) > 1 && thread_type(ctx) == :batch && !isempty(vars)
     cells = eligible ? number_of_entities(model, first(values(vars))) : 0

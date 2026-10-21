@@ -8,6 +8,11 @@ checkouts in `D:/agent-jd-fixes`. Commit locally; do not push this continuation.
 See the numbered Markdown files for experiments, results, and decisions.
 The Ryzen continuation and current fivefold/15-worker target are documented in
 [`007_ryzen_scaling.md`](007_ryzen_scaling.md).
+The latest scope is Float64 correctness and execution performance, including
+serial speedups, toward parity with MPI OPM. Mixed precision and alternative
+solver screens are deferred. Neither fivefold scaling nor OPM parity has been
+established. `compare_execution.jl` pairs execution-only changes in one process
+and checks complete final states.
 Benchmark scripts and a small standalone Julia environment will live here.
 Generated case caches and raw profiles should not be committed.
 

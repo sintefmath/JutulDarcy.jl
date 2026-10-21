@@ -22,6 +22,8 @@ function probe_pressure()
         ("gs", :hmis, (smoother_type = :gauss_seidel,)),
         ("gs_levels", :hmis, (smoother_type = :gauss_seidel,)),
         ("gs_chunks", :hmis, (smoother_type = :gauss_seidel,)),
+        ("gs_raw", :hmis, (smoother_type = :gauss_seidel,)),
+        ("gs_raw_chunks", :hmis, (smoother_type = :gauss_seidel,)),
         ("hybrid8k", :hmis, (smoother = Jutul.KAPreconditioners.PerfHybridSmoother(8192),)),
         ("hybrid32k", :hmis, (smoother = Jutul.KAPreconditioners.PerfHybridSmoother(32768),)),
         ("hybrid32k_2", :hmis, (smoother = Jutul.KAPreconditioners.PerfHybridSmoother(32768; steps = 2),)),
@@ -50,8 +52,9 @@ function probe_pressure()
         label in selected || continue
         println("Pressure replay: ", label)
         flush(stdout)
-        Jutul.KAPreconditioners.perf_gs_use_levels[] = label in ("gs_levels", "gs_chunks")
-        Jutul.KAPreconditioners.perf_gs_global_chunks[] = label == "gs_chunks"
+        Jutul.KAPreconditioners.perf_gs_use_levels[] = label in ("gs_levels", "gs_chunks", "gs_raw", "gs_raw_chunks")
+        Jutul.KAPreconditioners.perf_gs_global_chunks[] = label in ("gs_chunks", "gs_raw_chunks")
+        Jutul.KAPreconditioners.perf_gs_raw[] = label in ("gs_raw", "gs_raw_chunks")
         result = try
             pressure = AMGPreconditioner(method; options...)
             Jutul.update_preconditioner!(pressure, A, rhs, context, nothing)
@@ -70,7 +73,7 @@ function probe_pressure()
                 if hasproperty(smoother, :inverse_diagonal)
                     row["negative_inverse_diagonals"] = count(<(0), smoother.inverse_diagonal)
                     row["nonfinite_inverse_diagonals"] = count(!isfinite, smoother.inverse_diagonal)
-                    if label in ("gs_levels", "gs_chunks")
+                    if label in ("gs_levels", "gs_chunks", "gs_raw", "gs_raw_chunks")
                         schedule = Jutul.KAPreconditioners.perf_gs_schedule(level.A, smoother.inverse_diagonal)
                         row["gs_levels"] = length(schedule.offsets) - 1
                         row["gs_maximum_width"] = schedule.width

@@ -15,6 +15,60 @@ const perf_gs_use_levels = Ref(false)
 const perf_gs_minimum_rows = Ref(16_384)
 const perf_gs_minbatch = Ref(8)
 const perf_gs_global_chunks = Ref(false)
+const perf_gs_raw = Ref(parse(Bool, get(ENV, "PERF_GS_RAW", "false")))
+
+@inline function perf_gs_raw_row!(x, target, rowptr, colval, matrix_values, b,
+        inverse_diagonal, damping, i, ::Val{correction}) where correction
+    @inbounds begin
+        value = b[i]
+        @simd for k in rowptr[i]:rowptr[i + 1]-1
+            value -= matrix_values[k]*target[colval[k]]
+        end
+        delta = damping*inverse_diagonal[i]*value
+        if correction
+            target[i] = delta
+        end
+        x[i] += delta
+    end
+    return nothing
+end
+
+function perf_gs_raw_levels!(x, target, A, b, inverse_diagonal, damping,
+        schedule::PerfGSLevels, forward, ::Val{correction}) where correction
+    correction && fill!(target, zero(eltype(target)))
+    rowptr, colval, matrix_values = A.rowptr, A.colval, A.nzval
+    offsets, scheduled_rows = schedule.offsets, schedule.rows
+    nlevels = length(offsets) - 1
+    batch_size = perf_gs_minbatch[]
+    workers, fixed = Threads.nthreads(:default), perf_gs_global_chunks[]
+    mode = Val(correction)
+    for batch in 1:nlevels
+        level = forward ? batch : nlevels - batch + 1
+        level_start = offsets[level]
+        count = offsets[level + 1] - level_start
+        if fixed && count >= 2*workers
+            @batch for worker in 1:workers
+                low, high = perf_level_interval(scheduled_rows, level_start, count, worker, length(x), workers)
+                @inbounds for q in low:high
+                    perf_gs_raw_row!(x, target, rowptr, colval, matrix_values, b,
+                        inverse_diagonal, damping, scheduled_rows[q], mode)
+                end
+            end
+        elseif fixed
+            @inbounds for q in level_start:level_start+count-1
+                perf_gs_raw_row!(x, target, rowptr, colval, matrix_values, b,
+                    inverse_diagonal, damping, scheduled_rows[q], mode)
+            end
+        else
+            @batch minbatch=batch_size for q in 1:count
+                @inbounds i = scheduled_rows[level_start + q - 1]
+                perf_gs_raw_row!(x, target, rowptr, colval, matrix_values, b,
+                    inverse_diagonal, damping, i, mode)
+            end
+        end
+    end
+    return x
+end
 
 function perf_gs_schedule(A, inverse_diagonal; validate = true)
     n, nnz = matrix_nrows(A), matrix_nonzeros(A)
@@ -79,6 +133,9 @@ function perf_gs_enabled(A, rows)
 end
 
 function perf_gs_sweep_levels!(x, A, b, inverse_diagonal, damping, schedule::PerfGSLevels, forward)
+    if perf_gs_raw[]
+        return perf_gs_raw_levels!(x, x, A, b, inverse_diagonal, damping, schedule, forward, Val(false))
+    end
     offsets, scheduled_rows = schedule.offsets, schedule.rows
     nlevels = length(offsets) - 1
     operation = row -> gauss_seidel_sweep!(x, A, b, inverse_diagonal, damping, (row,))
@@ -106,6 +163,9 @@ end
 
 function perf_gs_correction_levels!(x, correction, A, residual, inverse_diagonal, damping,
         schedule::PerfGSLevels, forward)
+    if perf_gs_raw[]
+        return perf_gs_raw_levels!(x, correction, A, residual, inverse_diagonal, damping, schedule, forward, Val(true))
+    end
     fill!(correction, zero(eltype(correction)))
     offsets, scheduled_rows = schedule.offsets, schedule.rows
     nlevels = length(offsets) - 1
