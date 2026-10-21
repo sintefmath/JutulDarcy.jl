@@ -25,11 +25,16 @@ function fused_phase(r, pore_volume, properties, dt, phase, blackoil)
     return maximum_residual, residual_sum, property_sum/length(pore_volume)
 end
 
-function fused_errors(r, pore_volume, properties, dt, ::Val{N}, blackoil) where N
+function batched_volume(pore_volume)
     total_volume = 0.0
     @batch minbatch=1000 reduction=((+, total_volume),) for cell in eachindex(pore_volume)
         @inbounds total_volume += Jutul.value(pore_volume[cell])
     end
+    return total_volume
+end
+
+function fused_errors(r, pore_volume, properties, dt, ::Val{N}, blackoil) where N
+    total_volume = batched_volume(pore_volume)
     metrics = ntuple(phase -> fused_phase(r, pore_volume, properties, dt, phase, blackoil), Val(N))
     reference_density = (1000.0, 800.0, 100.0)
     cnv = ntuple(Val(N)) do phase
@@ -65,7 +70,7 @@ for n in (177724, 385500), phases in (2, 3), ad in (false, true)
     fused = () -> fused_errors(r, volume, properties, 1.0, Val(phases), blackoil)
     a, b = reference(), fused()
     @assert all(isapprox.(a[1], b[1]; rtol=1e-12))
-    @assert all(isapprox.(a[2], b[2]; rtol=1e-10, atol=1e-15))
+    @assert all(isapprox.(a[2], b[2]; rtol=1e-10, atol=1e-15)) (a, b)
     row = Dict("cells" => n, "phases" => phases, "ad" => ad,
         "threads" => Threads.nthreads(), "original" => measurement(reference), "fused" => measurement(fused))
     push!(results, row)

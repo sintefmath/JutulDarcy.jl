@@ -55,6 +55,17 @@ function main()
     scalar = spdiagm(-4800 => fill(-0.8, n-4800), -80 => fill(-0.9, n-80),
         -1 => fill(-1.1, n-1), 0 => fill(8.0, n),
         1 => fill(-1.0, n-1), 80 => fill(-0.85, n-80), 4800 => fill(-0.7, n-4800))
+    # Remove wraparound edges at Cartesian row/plane boundaries. Retaining them
+    # would turn the lower graph into a chain with one row per dependency level.
+    for column in 1:n, position in nzrange(scalar, column)
+        row = scalar.rowval[position]
+        offset = abs(row-column)
+        if (offset == 1 && (row-1) ÷ 80 != (column-1) ÷ 80) ||
+                (offset == 80 && (row-1) ÷ 4800 != (column-1) ÷ 4800)
+            scalar.nzval[position] = 0
+        end
+    end
+    dropzeros!(scalar)
     results = []
     for block in (1, 2, 3)
         if block == 1
@@ -79,7 +90,7 @@ function main()
         println(row)
         flush(stdout)
     end
-    open(joinpath(@__DIR__, "results", "ilu_ranges_t$(Threads.nthreads()).toml"), "w") do io
+    open(joinpath(@__DIR__, "results", "ilu_grid_ranges_t$(Threads.nthreads()).toml"), "w") do io
         TOML.print(io, Dict("results" => results))
     end
 end

@@ -1,4 +1,4 @@
-# 006 — Ryzen 7950X continuation (2026-10-21)
+# 007 — Ryzen 7950X continuation (2026-10-21)
 
 ## Starting point and objective
 
@@ -59,6 +59,40 @@ Convergence is only about 0.16–0.22 s here, so it cannot by itself close the g
 Linux exposes sibling CPU pairs 0/1, 2/3, ..., 30/31; compare physical-core
 affinity separately if scaling remains limited.
 
+Norne z4 has 177,722 active cells. The corresponding one/15-worker medians
+are 23.268 / 8.627 s (2.697x). All runs take 41 accepted Newton iterations,
+143 accepted linear iterations, seven ministeps, plus 15 wasted Newton and 44
+wasted linear iterations from recovered cuts. The cost of those cuts is retained.
+The measured samples all report zero JIT time.
+
+## First production fix: CPU matrix worker metadata
+
+Jutul `458f2ab9` preserves the CPU context's worker count and Polyester policy
+when adapting CSR matrices. Previously transfer unconditionally set one worker
+and serial scheduling, which disabled the existing partitioned CSR ILU even
+when the caller explicitly requested `smoother_type=:ilu0` at many workers.
+Accelerator matrices retain their previous one-worker host metadata.
+
+Validation: direct three-worker context/three-factor ILU check passes inside a
+15-worker process. The complete existing Jutul KA context, generic-AD, grouped
+multimodel, interpolation, and sparse-product file passes (306 assertions).
+The application still automatically selects level-scheduled ILU for large KA
+CPU models; benchmark explicit partitioned ILU before changing that policy.
+
+## Probe corrections
+
+An initial synthetic seven-point matrix retained wraparound edges, producing
+192,000 dependency levels of width one. Its ILU times are invalid as a
+parallel-grid model. The corrected 80x60x40 grid removes those edges and has
+178 levels. One-worker diagonal-bounded traversal improves scalar / 2x2 / 3x3
+apply from 3.637 / 12.126 / 19.251 ms to 3.116 / 10.270 / 17.378 ms, with
+bitwise-equal complete solutions and zero allocation. Fifteen-worker check pending.
+
+The first reduction prototype captured a reassigned accumulator in a closure,
+creating allocations and an unsafe reduction. Moving volume reduction to a
+separate function removes that capture. An AD-array multiworker comparison
+still needs investigation; keep the prototype out of production until it passes.
+
 ## Audit status
 
 | Area | Evidence / next check |
@@ -78,4 +112,4 @@ affinity separately if scaling remains limited.
 Checked remote `sol-perf` at the user's request. Jutul is unchanged; JutulDarcy
 advanced to `bc8be059`, adding M4 larger-grid results and a rejected dense-vector
 wrapper probe. Its best reported scaling is about 3.22x on Olympus z4 at ten
-workers. Incorporate that commit after this baseline batch. No remote writes.
+workers. Incorporated that commit after the baseline batch. No remote writes.

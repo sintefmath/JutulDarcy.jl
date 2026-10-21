@@ -6,7 +6,11 @@ function compare_solvers()
     refinement = parse(Int, get(ARGS, 2, "2"))
     case = benchmark_case(name, refinement, 3)
     output = Any[]
-    for linear in ("gmres", "bicgstab"), system in ("ilu0", "ka_ilu0"), pressure in ("spai0", "default")
+    solvers = split(get(ENV, "PERF_SOLVERS", "gmres bicgstab"))
+    systems = split(get(ENV, "PERF_SYSTEM_SMOOTHERS", "ilu0 ka_ilu0"))
+    pressures = split(get(ENV, "PERF_PRESSURE_SMOOTHERS", "spai0 default"))
+    repeats = parse(Int, get(ENV, "PERF_REPEATS", "3"))
+    for linear in solvers, system in systems, pressure in pressures
         ENV["PERF_LINEAR_SOLVER"] = linear
         ENV["PERF_SYSTEM_SMOOTHER"] = system
         ENV["PERF_PRESSURE_SMOOTHER"] = pressure
@@ -15,7 +19,7 @@ function compare_solvers()
         sim, config = new_simulator(case)
         run_simulation(sim, config, case)
         samples = Any[]
-        for _ in 1:3
+        for _ in 1:repeats
             sim, config = new_simulator(case)
             GC.gc()
             measurement = @timed run_simulation(sim, config, case)
@@ -40,7 +44,11 @@ function compare_solvers()
         println(row)
         flush(stdout)
         open(joinpath(@__DIR__, "results", "solver_comparison_$(name)_z$(refinement)_t$(Threads.nthreads()).toml"), "w") do io
-            TOML.print(io, Dict("results" => output))
+            TOML.print(io, Dict("results" => output,
+                "report_days" => case.dt ./ si_unit(:day),
+                "julia" => string(VERSION), "blas_threads" => BLAS.get_num_threads(),
+                "jutul_commit" => readchomp(`git -C $(pkgdir(Jutul)) rev-parse HEAD`),
+                "darcy_commit" => readchomp(`git -C $(pkgdir(JutulDarcy)) rev-parse HEAD`)))
         end
     end
 end
