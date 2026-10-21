@@ -142,6 +142,9 @@ module JutulDarcyPartitionedArraysExt
             return x
         end
         if isnothing(cpr.storage)
+            if cpr.variant == :cprw && MPI.Comm_rank(comm) == 0
+                @warn "CPRW is not implemented for MPI, using CPR without well rows."
+            end
             # HYPRE owns one contiguous row range per MPI rank.
             # Each MPI rank stores one local item in these distributed arrays.
             # `getany` returns that item without invoking forbidden scalar
