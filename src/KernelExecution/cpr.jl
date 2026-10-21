@@ -278,25 +278,41 @@ function update_analytical_cpr_weights!(weights, model, state, rhs,
     return weights
 end
 
+@inline function pressure_rhs_cell!(pressure_rhs, full_rhs, weights, cell,
+        number_of_cells, number_of_components, block_size, forward_mode)
+    value = zero(eltype(pressure_rhs))
+    if cell <= number_of_cells
+        if forward_mode
+            @inbounds for component in 1:number_of_components
+                value += full_rhs[(cell - 1)*block_size + component]*
+                    weights[component, cell]
+            end
+        else
+            @inbounds value = full_rhs[(cell - 1)*block_size + 1]*
+                weights[1, cell]
+        end
+    end
+    @inbounds pressure_rhs[cell] = value
+    return nothing
+end
+
 @kernel function pressure_rhs_kernel!(
         pressure_rhs, @Const(full_rhs), @Const(weights), number_of_cells,
         number_of_components, block_size, forward_mode)
     cell = @index(Global)
     if cell <= length(pressure_rhs)
-        value = zero(eltype(pressure_rhs))
-        if cell <= number_of_cells
-            if forward_mode
-                @inbounds for component in 1:number_of_components
-                    value += full_rhs[(cell - 1)*block_size + component]*
-                        weights[component, cell]
-                end
-            else
-                @inbounds value = full_rhs[(cell - 1)*block_size + 1]*
-                    weights[1, cell]
-            end
-        end
-        @inbounds pressure_rhs[cell] = value
+        pressure_rhs_cell!(pressure_rhs, full_rhs, weights, cell,
+            number_of_cells, number_of_components, block_size, forward_mode)
     end
+end
+
+function pressure_rhs_cpu!(pressure_rhs, full_rhs, weights, number_of_cells,
+        ::Val{N}, block_size, ::Val{forward}) where {N, forward}
+    Jutul.KAPreconditioners.foreach_cpu_row(length(pressure_rhs), 1000) do cell
+        pressure_rhs_cell!(pressure_rhs, full_rhs, weights, cell,
+            number_of_cells, N, block_size, forward)
+    end
+    return pressure_rhs
 end
 
 function update_p_rhs!(pressure_rhs, full_rhs, number_of_components,
@@ -305,8 +321,12 @@ function update_p_rhs!(pressure_rhs, full_rhs, number_of_components,
             <:Any, <:Any, <:Any, <:Any, <:Any,
             <:KernelAbstractions.Backend}, mode)
     backend = pressure_matrix.backend
-    kernel! = pressure_rhs_kernel!(backend, 128)
     number_of_cells = length(full_rhs) ÷ block_size
+    if backend isa KernelAbstractions.CPU
+        return pressure_rhs_cpu!(pressure_rhs, full_rhs, weights, number_of_cells,
+            Val(number_of_components), block_size, Val(mode == :forward))
+    end
+    kernel! = pressure_rhs_kernel!(backend, 128)
     event = kernel!(pressure_rhs, full_rhs, weights, number_of_cells,
         number_of_components, block_size, mode == :forward;
         ndrange = length(pressure_rhs))

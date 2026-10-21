@@ -19,8 +19,10 @@ Set up iterative linear solver for a reservoir model from [`setup_reservoir_mode
   with `:hmis` as the default. CPU uses `:hypre` by default and the legacy CUDA
   backend uses `:amgx`. An initialized Jutul preconditioner can also be passed.
 - `smoother_type`: full-system smoother. The default is `:ilu0` on CPU and
-  `:dilu` on accelerator KA backends. The `:ka_*` choices use the new
-  backend-portable smoothers.
+  `:dilu` on accelerator KA backends. CPU KA uses the level-scheduled ILU0
+  implementation for at least 100,000 cells with multiple workers and default
+  smoother options. The `:ka_*`
+  choices explicitly select the backend-portable smoothers.
 - `amg_arg`, `smoother_arg`, `cpr_arg`: keyword arguments forwarded to the
   pressure AMG, full-system smoother, and CPR constructors, respectively.
   KA pressure AMG defaults to Gauss-Seidel on CPU with one default-pool
@@ -159,6 +161,10 @@ function select_reservoir_linear_solver(model, precond = :cpr;
         if ismissing(amg_type)
             amg_type = :hypre
         end
+    end
+    if ismissing(smoother_type) && isempty(smoother_arg) && is_ka_backend && is_ka_cpu &&
+            Threads.nthreads(:default) > 1 && number_of_cells(model.domain) >= 100_000
+        smoother_type = :ka_ilu0
     end
     smoother = reservoir_system_smoother(smoother_type;
         backend = backend,
