@@ -61,9 +61,9 @@ Linux exposes sibling CPU pairs 0/1, 2/3, ..., 30/31; compare physical-core
 affinity separately if scaling remains limited.
 
 Norne z4 has 177,722 active cells. The corresponding one/15-worker medians
-are 23.268 / 8.627 s (2.697x). All runs take 41 accepted Newton iterations,
-143 accepted linear iterations, seven ministeps, plus 15 wasted Newton and 44
-wasted linear iterations from recovered cuts. The cost of those cuts is retained.
+are 23.268 / 8.627 s (2.697x). All runs take 41 total Newton iterations,
+143 total linear iterations and seven ministeps, including 15 wasted Newton and
+44 wasted linear iterations from recovered cuts. The cost of those cuts is retained.
 The measured samples all report zero JIT time.
 
 ## First production fix: CPU matrix worker metadata
@@ -175,7 +175,7 @@ One warmed short-fixture sample per configuration, 15 physical cores, level-
 scheduled system ILU, Float64. These are screening results, not final scaling
 claims. No defaults have changed.
 
-| Case | Krylov | Pressure smoother | Seconds | Accepted Newton / linear | Wasted Newton / linear |
+| Case | Krylov | Pressure smoother | Seconds | Total Newton / linear | Wasted Newton / linear |
 |---|---|---|---:|---:|---:|
 | Olympus z2 | BiCGStab | GS | 4.919 | 14 / 42 | 0 / 0 |
 | Olympus z2 | BiCGStab | ILU0 | 41.425 | 20 / 389 | 0 / 0 |
@@ -221,7 +221,7 @@ Three fresh warmed simulations with the original controlled SPAI0/GMRES/level-
 ILU configuration and unrestricted affinity give 6.945 s for Olympus z2 and
 7.937 s for Norne z4, versus 7.454 / 8.627 s previously. All six measurements
 report zero compilation time. Complete final arrays remain bit-for-bit equal
-to the original 15-worker baseline, with unchanged accepted/wasted counts.
+to the original 15-worker baseline, with unchanged total/wasted counts.
 These are observed improvements of about 6.8% / 8.0%, not fivefold scaling.
 Frozen pressure/system fixtures are saved outside timed simulation work for
 focused preconditioner replays; their IO is excluded from the timing.
@@ -238,6 +238,87 @@ commit `c03425a8` is deferred here: after the worker-metadata fix, native `:ilu0
 at two workers is partitioned rather than serial. Validate that policy on Ryzen
 before importing a threshold whose stated serial behavior no longer applies.
 
+## Original-duration 20% screening
+
+Olympus z4 completes four original annual reports (1,461 days) in 857.859 s at
+15 physical cores with GS pressure AMG, level-scheduled system ILU and GMRES.
+This is one diagnostic sample with progress output, after a separate three-day
+warm-up. It reports 3.034 s compilation (0.128 s recompilation) and is not
+a final scaling measurement. Final pressure/saturation arrays are retained.
+
+The counters are totals including failed attempts: 1,517 Newton / 5,829 linear
+iterations, of which 840 / 2,319 are wasted, over 178 attempted ministeps.
+Earlier descriptions that called the totals accepted work were incorrect;
+the raw TOML counters and timings are unchanged. Failed work accounts for
+55% of the Newton total. At the user's direction, leave timestepping and nonlinear
+controls unchanged. Investigate the scaling of each operation and report total
+and wasted work separately when solver changes alter iteration counts.
+
+Preconditioner application takes 456.22 s, linear setup/update 128.64 s, and
+Krylov work 111.82 s. Together these are about 81% of wall time. The warmed
+pressure hierarchy has 13 levels, about 1.44 million total rows, and an operator
+complexity around 2.7. Profile/replay pressure smoothing and coarsening as well
+as the system smoother. Convergence checks take 10.10 s after the fused fix.
+
+Norne z8's original 20% prefix completes 50 reports, spanning roughly 1.57 years,
+in 1,171.912 s with the same settings. It reports 2.254 s compilation (0.127 s
+recompilation), 2,834 total Newton / 8,433 total linear iterations, of which
+1,200 / 3,160 are wasted, over 363 attempted ministeps. Preconditioner application
+takes 489.21 s, setup/update 207.64 s, Krylov work 110.40 s, assembly 179.12 s,
+and secondary properties 83.86 s. Both diagnostics use original report durations;
+the capped warm-up is recorded separately. Neither has a matched serial 20%
+reference yet, so neither establishes a scaling ratio.
+
+New process-local GS tests enforce ordering on every structural edge in either
+direction. A forward level order can be reversed for backward GS because both
+respect every natural-index adjacency. The row operation remains the existing
+GS sweep. All 522 Float64 checks pass at one and two workers, including directed
+graphs, damping, cache reuse after numeric changes, and pattern invalidation.
+Those tiny correctness checks ran on the physical core excluded from the Norne
+diagnostic; final timing repeats will be quiet and run alone. Extended Float32/
+Float64 coverage subsequently passes 1,074 checks at both two and 15 workers.
+The first pressure replay nevertheless takes 16.83 ms versus 16.36 ms for serial
+GS, with allocations rising from 2,896 to 369,008 bytes per application. Do not
+retain that implementation. A stable function boundary and fixed global row
+ownership are being tested in isolation, including directed graphs with wide
+levels and optional per-worker Linux affinity. No schedule/cache implementation
+has entered Jutul. The WSL guest exposes one L3 cache domain, so guest CPU numbering
+does not establish the host's CCD mapping.
+
+## Further preconditioner screens
+
+At 15 physical cores on Olympus z4, three one-day reports with GS pressure AMG
+and GMRES give the following single warmed samples. They screen candidates;
+they do not replace the original-duration measurements.
+
+| System smoother | Seconds | Total Newton / linear | Wasted Newton / linear |
+|---|---:|---:|---:|
+| KA ILU0 | 19.836 | 25 / 157 | 0 / 0 |
+| KA DILU | 19.796 | 25 / 157 | 0 / 0 |
+| Native partitioned ILU0 | 20.184 | 24 / 175 | 0 / 0 |
+| KA SPAI0 | 26.821 | 29 / 291 | 0 / 0 |
+
+DILU's behavior on the system matrix differs from its poor pressure-AMG result.
+It is viable here, but does not provide a material measured gain. Norne z8 gives
+10.544 s / 17 Newton / 82 linear with KA ILU0 and 9.918 s / 17 / 83 with KA DILU,
+both without failed work. Native partitioned ILU takes 27.891 s / 48 / 289
+(15 / 78 wasted), and KA SPAI0 takes 95.869 s / 91 / 1,603 (45 / 922 wasted).
+These are single warmed samples; final arrays are saved for comparisons.
+Leave all timestep/nonlinear controls fixed while evaluating preconditioners.
+
+The CPR initial-copy elimination probe preserves results bit-for-bit but gives
+no consistent benefit: the default pre/post 1/0 configuration changes 20.575 to
+20.521 ms on Olympus z2 and 13.967 to 14.626 ms on Norne z4. Reject that change.
+The corrected, allocation-free ILU range probe also remains inconsistent at 15
+workers (scalar 0.732 to 0.830 ms; block-2 1.095 to 1.003; block-3 2.726 to 2.718).
+Its serial improvements alone do not justify changing the general path.
+
+The revised isolated GS scheduler passes 2,853 Float32/Float64 checks at both
+one and 15 workers. Coverage includes fixed/rank-based ownership, both sweep
+directions, correction sweeps, damping, asymmetric edges, and wide levels that
+exercise all 15 workers. Pressure-matrix performance replays are in progress;
+correctness alone is not a reason to retain the prototype.
+
 ## Audit status
 
 | Area | Evidence / next check |
@@ -247,7 +328,7 @@ before importing a threshold whose stated serial behavior no longer applies.
 | ILU factorization and application | Worker metadata fixed; narrowed row traversal rejected after multiworker regression. |
 | Pressure AMG | Host row batches already present; setup and coarse operations remain partly serial. Separate construction from repeated numeric updates in replay probes. |
 | CPR weights and pressure matrix | Remaining KA CPU launches; measure host-loop dispatch without changing GPU dispatch. |
-| Convergence | Fused-reduction probe passes at one/15; integrate and compare complete simulations. |
+| Convergence | Integrated fused reductions pass one/15-worker checks and complete-state comparisons. |
 | State updates and pressure increments | Existing strided broadcasts; measure only if profiles justify changes. |
 | Wells and Schur complement | Existing per-well blocks and host/device policies; retain complete reservoir KA regression coverage. |
 | Allocation, GC, output | Retain GC/allocation counters and saved-state IO in simulation timing; fixture serialization is optional and outside timed runs. |

@@ -8,13 +8,14 @@ function triangular_ranges!(x, state, b)
     factors, diagonal = state.factors, state.diagonal_positions
     rowptr, colval = state.rowptr, state.colval
     work = state.work
-    rows, offsets = state.factor_rows, state.factor_offsets
-    for level in 1:(length(offsets) - 1)
-        first = offsets[level]
-        count = offsets[level + 1] - first
+    lower_rows = state.factor_rows
+    lower_offsets = state.factor_offsets
+    for level in 1:(length(lower_offsets) - 1)
+        lower_start = lower_offsets[level]
+        count = lower_offsets[level + 1] - lower_start
         @batch for q in 1:count
             @inbounds begin
-                i = rows[first + q - 1]
+                i = lower_rows[lower_start + q - 1]
                 value = b[i]
                 for k in rowptr[i]:(diagonal[i] - 1)
                     value -= factors[k] * work[colval[k]]
@@ -23,15 +24,16 @@ function triangular_ranges!(x, state, b)
             end
         end
     end
-    rows, offsets = state.upper_rows, state.upper_offsets
+    upper_rows = state.upper_rows
+    upper_offsets = state.upper_offsets
     damping = KP.smoother_damping(state)
     inverse_diagonal = state.inverse_diagonal
-    for level in 1:(length(offsets) - 1)
-        first = offsets[level]
-        count = offsets[level + 1] - first
+    for level in 1:(length(upper_offsets) - 1)
+        upper_start = upper_offsets[level]
+        count = upper_offsets[level + 1] - upper_start
         @batch for q in 1:count
             @inbounds begin
-                i = rows[first + q - 1]
+                i = upper_rows[upper_start + q - 1]
                 value = work[i]
                 for k in (diagonal[i] + 1):(rowptr[i + 1] - 1)
                     value -= factors[k] * x[colval[k]]
@@ -90,7 +92,8 @@ function main()
         println(row)
         flush(stdout)
     end
-    open(joinpath(@__DIR__, "results", "ilu_grid_ranges_t$(Threads.nthreads()).toml"), "w") do io
+    label = get(ENV, "PERF_LABEL", "ilu_grid_ranges")
+    open(joinpath(@__DIR__, "results", "$(label)_t$(Threads.nthreads()).toml"), "w") do io
         TOML.print(io, Dict("results" => results))
     end
 end

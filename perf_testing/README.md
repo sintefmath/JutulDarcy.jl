@@ -46,6 +46,8 @@ cores. Keep affinity experiments separately labeled and record the setting.
 TOML results include wall/GC time, allocations, phase timings, iteration counts,
 checksums, cell counts, and source commits. Serialized final pressure/saturation
 arrays support complete state comparisons. No full model or dataset is committed.
+Newton and linear iteration totals include failed attempts. The `wasted_*`
+fields are subsets of those totals; subtract them to obtain successful-step work.
 
 Run a thread-count sweep sequentially with:
 
@@ -85,3 +87,18 @@ material JIT time. Default warm-up still uses the entire measured case.
 `PERF_RUN_INFO` enables progress during diagnostic measurements; final timings
 default to quiet output. `probe_pressure.jl` replays saved pressure matrices
 through the existing smoothers to separate kernel cost from convergence.
+`PERF_RELAXATION=true` selects the existing `SimpleRelaxation` interface when
+investigating nonlinear oscillations. Its default remains false.
+
+## Optional experiments
+
+`PERF_PIN_CPUS=0,2,...,28` pins each default Julia worker to one Linux CPU. Supply
+exactly one CPU per worker; the script verifies the observed affinity. This is
+separate from a process-wide `taskset` mask. `PERF_GS_LEVELS=true` enables the
+isolated natural-order GS schedule prototype; `PERF_GS_GLOBAL_CHUNKS=true` also
+tests fixed global row ownership. Both default off and are not library options.
+Use `test_gs_levels.jl` before timing a modified prototype. `probe_pressure.jl`
+replays a saved pressure matrix and RHS with selected `PERF_PRESSURE_POLICIES`;
+its pressure-only GMRES measurements are screening surrogates, not full CPR or
+simulation timings. `PERF_SAVE_STATES=true` saves comparison-driver final arrays
+outside its measured interval.

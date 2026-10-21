@@ -2,6 +2,12 @@
 using Jutul, JutulDarcy, LinearAlgebra, Statistics, TOML, Serialization, Profile
 
 include("refine_layers.jl")
+include("pin_threads.jl")
+if parse(Bool, get(ENV, "PERF_GS_LEVELS", "false"))
+    Base.include(Jutul.KAPreconditioners, joinpath(@__DIR__, "gs_levels_candidate.jl"))
+    Jutul.KAPreconditioners.perf_gs_use_levels[] = true
+    Jutul.KAPreconditioners.perf_gs_global_chunks[] = parse(Bool, get(ENV, "PERF_GS_GLOBAL_CHUNKS", "false"))
+end
 
 BLAS.set_num_threads(parse(Int, get(ENV, "PERF_BLAS_THREADS", "1")))
 
@@ -37,9 +43,10 @@ function new_simulator(case; solver_options = NamedTuple())
     mode = Symbol(get(ENV, "PERF_MODE", "ka"))
     single_precision_linear_solver = parse(Bool, get(ENV, "PERF_SINGLE_PRECISION_LINEAR", "false"))
     index_type = Dict("Int" => Int, "Int32" => Int32)[get(ENV, "PERF_INDEX_TYPE", "Int")]
+    relaxation = parse(Bool, get(ENV, "PERF_RELAXATION", "false"))
     return setup_reservoir_simulator(case;
         mode, linear_solver, info_level = -1,
-        linear_solver_arg, single_precision_linear_solver, index_type, output_substates = false)
+        linear_solver_arg, single_precision_linear_solver, index_type, relaxation, output_substates = false)
 end
 
 function run_simulation(sim, config, case)
@@ -63,6 +70,7 @@ function solver_metadata(config)
         metadata["system_factor_type"] = string(typeof(system.factor))
     end
     if pressure isa Jutul.AMGPreconditioner
+        metadata["pressure_smoother"] = repr(pressure.options.smoother)
         metadata["amg_level_rows"] = [size(level.A, 1) for level in pressure.factor.levels]
         metadata["amg_level_nonzeros"] = [length(level.A.nzval) for level in pressure.factor.levels]
     end
@@ -154,6 +162,10 @@ function main()
         "mode" => get(ENV, "PERF_MODE", "ka"),
         "single_precision_linear_solver" => get(ENV, "PERF_SINGLE_PRECISION_LINEAR", "false"),
         "index_type" => get(ENV, "PERF_INDEX_TYPE", "Int"),
+        "relaxation" => get(ENV, "PERF_RELAXATION", "false"),
+        "gs_levels_prototype" => get(ENV, "PERF_GS_LEVELS", "false"),
+        "pinned_cpus" => get(ENV, "PERF_PIN_CPUS", ""),
+        "gs_global_chunks_prototype" => get(ENV, "PERF_GS_GLOBAL_CHUNKS", "false"),
         "julia" => string(VERSION), "label" => label,
         "package_versions" => Dict("Jutul" => string(pkgversion(Jutul)),
             "JutulDarcy" => string(pkgversion(JutulDarcy)),

@@ -37,8 +37,9 @@ function compare_solvers(; solver_policies = ("default" => NamedTuple(),))
             actual_linear_solver = String(config[:linear_solver].solver)
             config[:info_level] = parse(Int, get(ENV, "PERF_SCREEN_INFO", "-1"))
             run_simulation(sim, config, case)
+            solver_info = solver_metadata(config)
             samples = Any[]
-            for _ in 1:repeats
+            for repeat in 1:repeats
                 sim, config = screen_simulator(case; solver_options)
                 GC.gc()
                 measurement = @timed run_simulation(sim, config, case)
@@ -53,11 +54,17 @@ function compare_solvers(; solver_policies = ("default" => NamedTuple(),))
                     "pressure_sum" => sum(state[:Pressure]),
                     "saturation_norm" => norm(state[:Saturations]),
                     "phase_seconds" => Dict(string(k)=>v for (k,v) in pairs(stats.time_sum))))
+                if repeat == repeats && get(ENV, "PERF_SAVE_STATES", "false") == "true"
+                    prefix = "$(label)_$(name)_z$(refinement)_t$(Threads.nthreads())_$(policy)_$(system)_$(pressure)_$(linear)"
+                    serialize(joinpath(@__DIR__, "results", prefix * ".state"),
+                        (pressure = copy(state[:Pressure]), saturations = copy(state[:Saturations])))
+                end
                 sim = config = measurement = nothing
             end
             Dict("case" => name, "refinement_z" => refinement,
                 "threads" => Threads.nthreads(), "linear_solver" => actual_linear_solver,
                 "requested_linear_solver" => linear, "solver_options" => repr(solver_options),
+                "solver_metadata" => solver_info,
                 "system_smoother" => system, "pressure_smoother" => pressure, "policy" => policy,
                 "samples" => samples, "median_seconds" => median(s["seconds"] for s in samples))
         catch err
@@ -78,6 +85,10 @@ function compare_solvers(; solver_policies = ("default" => NamedTuple(),))
                 "screen_limit_seconds" => get(ENV, "PERF_SCREEN_LIMIT_SECONDS", "Inf"),
                 "single_precision_linear_solver" => get(ENV, "PERF_SINGLE_PRECISION_LINEAR", "false"),
                 "index_type" => get(ENV, "PERF_INDEX_TYPE", "Int"),
+                "relaxation" => get(ENV, "PERF_RELAXATION", "false"),
+                "pinned_cpus" => get(ENV, "PERF_PIN_CPUS", ""),
+                "gs_levels" => get(ENV, "PERF_GS_LEVELS", "false"),
+                "gs_global_chunks" => get(ENV, "PERF_GS_GLOBAL_CHUNKS", "false"),
                 "jutul_commit" => readchomp(`git -C $(pkgdir(Jutul)) rev-parse HEAD`),
                 "darcy_commit" => readchomp(`git -C $(pkgdir(JutulDarcy)) rev-parse HEAD`)))
         end
