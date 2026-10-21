@@ -750,7 +750,7 @@ struct InjectorControl{T, R, P, M, E, TR} <: WellControlForce
         mix = vec(mix)
         if check && R == Float64
             if rate_weighted(target)
-                @assert target.value > 0.0 "Injector target rate must be positive"
+                target.value >= 0.0 || error("Injector target rate must be non-negative")
             end
             @assert sum(mix) ≈ 1
             @assert isfinite(density) && density > 0.0 "Injector density must be finite and positive"
@@ -812,7 +812,7 @@ struct ProducerControl{T, R} <: WellControlForce
     factor::R
     function ProducerControl(target::T; factor::R = 1.0, check = true) where {T<:WellTarget, R<:Real}
         if check && rate_weighted(target)
-            target.value < 0.0 || error("Producer target rate must be negative, was $(target.value)")
+            target.value <= 0.0 || error("Producer target rate must be negative or zero, was $(target.value)")
         end
         return new{T, R}(target, factor)
     end
@@ -824,6 +824,14 @@ default_limits(f::ProducerControl{T}) where T<:BottomHolePressureTarget = merge(
 
 function replace_target(f::ProducerControl, target)
     return ProducerControl(target, factor = f.factor, check = false)
+end
+
+# A zero total-rate target closes the surface connection while retaining the
+# producer/injector properties. Runtime closures keep the requested control so
+# it can be retried before the next timestep.
+is_zero_rate_control(::Any) = false
+function is_zero_rate_control(ctrl::Union{ProducerControl{<:TotalRateTarget}, InjectorControl{<:TotalRateTarget}})
+    return iszero(value(ctrl.target.value))
 end
 
 effective_surface_rate(qts, ::DisabledControl) = qts

@@ -11,7 +11,8 @@ end
 
 @kernel function cprw_zero_offdiagonals_kernel!(values,
         @Const(rowptr), @Const(columns), first_row)
-    row = first_row + @index(Global) - 1
+    index = @index(Global)
+    row = first_row + index - 1
     @inbounds for position in rowptr[row]:(rowptr[row + 1] - 1)
         if columns[position] != row
             values[position] = zero(eltype(values))

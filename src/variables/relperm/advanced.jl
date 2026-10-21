@@ -577,7 +577,7 @@ end
     return (krw, krow, krog, krg)
 end
 
-function get_three_phase_relperms(relperm, c, krw, krow, krog, krg, swcon, scalers)
+@inline function get_three_phase_relperms(relperm, c, krw, krow, krog, krg, swcon, scalers)
     scaler_w, scaler_ow, scaler_og, scaler_g = scalers
     scaling = endpoint_scaling_model(relperm)
     return get_three_phase_scaled_relperms(scaling, krw, krow, krog, krg, swcon, scaler_w, scaler_ow, scaler_og, scaler_g, c)

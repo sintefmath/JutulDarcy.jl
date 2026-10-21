@@ -45,6 +45,11 @@ end
     @test config[:linear_solver].preconditioner isa CPRPreconditioner{<:Jutul.BoomerAMGPreconditioner}
 
     raw_result = simulate!(sim, case.dt; forces = case.forces, config = config)
+    _, local_preconditioners = config[:linear_solver].preconditioner
+    local_cpr = PartitionedArrays.getany(local_preconditioners)
+    @test local_cpr.storage.A_p isa HYPRE.HYPREMatrix
+    @test local_cpr.amg_rebuild_tolerance > 0
+    @test isnothing(local_cpr.amg_rebuild_storage)
     if MPI.Comm_rank(MPI.COMM_WORLD) == 0
         # Distributed output is consolidated on rank zero. Compare all report
         # steps, checking the counts first so an empty result cannot pass.

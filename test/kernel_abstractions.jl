@@ -4,6 +4,42 @@ using MultiComponentFlash
 using ForwardDiff
 using SparseArrays
 using Test
+using HYPRE, MPI
+
+@testset "CPR rebuild support" begin
+    csc = sparse([4.0 -1.0; -1.0 4.0])
+    csr = Jutul.KAPreconditioners.csr_matrix(csc)
+    storage(matrix) = JutulDarcy.CPRStorage(2, 1, nothing,
+        (matrix, zeros(2), zeros(2)), zeros(2), zeros(2), Float64)
+
+    cpr = CPRPreconditioner(AMGPreconditioner(:aggregation), nothing;
+        amg_rebuild_tolerance = Inf)
+    cpr.storage = storage(csr)
+    JutulDarcy.update_cpr_amg_rebuild_reference!(cpr)
+    reference = cpr.amg_rebuild_storage
+    @test !isnothing(reference)
+    @test JutulDarcy.cpr_amg_update_decision(cpr, true, false) == (false, true)
+    cpr.amg_rebuild_tolerance = 0.0
+    @test JutulDarcy.cpr_amg_update_decision(cpr, true, false) == (true, false)
+    JutulDarcy.update_cpr_amg_rebuild_reference!(cpr)
+    @test isnothing(cpr.amg_rebuild_storage)
+
+    # HYPRE cannot reuse its hierarchy, even with a native CSR pressure matrix.
+    hypre = BoomerAMGPreconditioner()
+    hypre_matrix = HYPRE.HYPREMatrix(MPI.COMM_SELF, 1, 2)
+    for (matrix, pressure) in ((csc, nothing), (csc, hypre),
+            (csr, hypre), (hypre_matrix, hypre))
+        cpr = CPRPreconditioner(pressure, nothing; amg_rebuild_tolerance = Inf)
+        cpr.storage = storage(matrix)
+        cpr.amg_rebuild_storage = reference
+        @test JutulDarcy.cpr_amg_update_decision(cpr, true, false) == (true, false)
+        @test JutulDarcy.cpr_amg_update_decision(cpr, false, true) == (false, true)
+        @test JutulDarcy.cpr_amg_update_decision(cpr, false, false) == (false, false)
+        # In particular, HYPREMatrix has no nonzeros method to read or copy.
+        JutulDarcy.update_cpr_amg_rebuild_reference!(cpr)
+        @test isnothing(cpr.amg_rebuild_storage)
+    end
+end
 
 @testset "Float32 CPR inner pressure solve" begin
     T = Float32
@@ -159,12 +195,19 @@ end
         @test preconditioner isa CPRPreconditioner
         @test preconditioner.variant == variant
         @test preconditioner.pressure_precond isa Jutul.AMGPreconditioner
+        @test preconditioner.amg_rebuild_tolerance === 0.05
+        @test preconditioner.pressure_precond.reuse == :memory
         @test preconditioner.pressure_precond.reuse_partial == :operators
         @test preconditioner.update_interval == :ministep
         @test preconditioner.update_interval_partial == :iteration
         @test preconditioner.partial_update
         @test preconditioner.system_precond isa Jutul.KASmootherPreconditioner
     end
+
+    solver = select_reservoir_linear_solver(simulator.model, :cpr;
+        amg_rebuild_tolerance = 0.0)
+    @test solver.preconditioner.amg_rebuild_tolerance === 0.0
+    @test solver.preconditioner.pressure_precond.reuse == :partial_sparsity
 
     solver = select_reservoir_linear_solver(simulator.model, :cpr;
         update_type = :none,

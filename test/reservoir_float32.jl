@@ -61,6 +61,7 @@ function test_float32_reservoir_case(case, linear_float, linear_index;
         linear_float_type = linear_float,
         linear_index_type = linear_index,
         precond = precond,
+        linear_solver_arg = (smoother_type = :ka_ilu0,),
         info_level = -1,
         failure_cuts_timestep = false,
         error_on_incomplete = true)
@@ -174,7 +175,7 @@ end
                 backend = :csr, block_backend = true)
             precond = :cpr
             if physics == :single_phase
-                precond = :ka_spai0
+                precond = :ka_ilu0
             end
             options =  ((Float32, Int32), (Float64, Int64))
             for (linear_float, linear_index) in options

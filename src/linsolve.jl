@@ -23,6 +23,8 @@ Set up iterative linear solver for a reservoir model from [`setup_reservoir_mode
   backend-portable smoothers.
 - `amg_arg`, `smoother_arg`, `cpr_arg`: keyword arguments forwarded to the
   pressure AMG, full-system smoother, and CPR constructors, respectively.
+  KA pressure AMG defaults to Gauss-Seidel on CPU with one default-pool
+  thread, and SPAI0 otherwise. `amg_arg.smoother_type` overrides this choice.
 - `cpr_type=nothing`: type of CPR (`:true_impes`, `:quasi_impes` or `nothing` for automatic)
 - `partial_update=true`: perform partial update of CPR preconditioner outside of AMG update (see above)
 - `rtol=1e-3`: relative tolerance for the linear solver
@@ -33,7 +35,17 @@ Set up iterative linear solver for a reservoir model from [`setup_reservoir_mode
   gets updated (`:once`, `:iteration`, `:ministep`, or `:step`)
 - `update_interval_partial=:iteration`: how often the partial CPR pressure
   update runs between full updates
-- `update_type=:partial_sparsity`: KA AMG reuse mode for full pressure updates
+- `amg_rebuild_tolerance=0.05`: a positive value downgrades a scheduled full
+  update to a partial update when the relative 2-norm change in the pressure
+  matrix's nonzero values since the last full update is at or below this
+  tolerance (5% by default). The reference values are saved only after full
+  updates. Set to zero to always perform scheduled full updates without
+  checking matrix changes. This mode only applies to CSR pressure matrices
+  (`Jutul.StaticSparsityMatrixCSR`) with non-HYPRE preconditioners; other
+  configurations ignore the tolerance and do not save reference values.
+- `update_type`: KA AMG reuse mode for full pressure updates. Defaults to
+  `:partial_sparsity` when `amg_rebuild_tolerance` is zero and `:memory` when
+  it is positive. An explicit value overrides this default.
 - `update_type_partial=:operators`: KA AMG reuse mode for partial pressure
   updates. Both update paths fully refresh the AMG and system smoothers. HYPRE
   performs a full setup for either path. The pressure system itself is updated
@@ -61,9 +73,10 @@ function select_reservoir_linear_solver(model, precond = :cpr;
         mode = :forward,
         solver = :bicgstab,
         max_iterations = missing,
+        amg_rebuild_tolerance = 0.05,
         update_interval = :ministep,
         update_interval_partial = :iteration,
-        update_type = :partial_sparsity,
+        update_type = ifelse(iszero(amg_rebuild_tolerance), :partial_sparsity, :memory),
         update_type_partial = :operators,
         partial_update = true,
         amg_type = missing,
@@ -78,6 +91,7 @@ function select_reservoir_linear_solver(model, precond = :cpr;
     )
     is_equation_major = !Jutul.is_cell_major(matrix_layout(model.context))
     is_ka_model_context = model.context isa Jutul.KernelAbstractionsContext
+    is_ka_cpu = is_ka_model_context && Jutul.is_cpu_backend(model.context)
     if backend == :auto
         if is_ka_model_context && !is_equation_major
             backend = :ka
@@ -91,12 +105,11 @@ function select_reservoir_linear_solver(model, precond = :cpr;
 
     is_cpr = precond == :cpr || precond == :cprw
     if is_ka_backend
-        # TODO: This should be part of the Jutul API somehow.
         ka_backend = model.context.backend
-        bs = "$(typeof(ka_backend))"
-        if startswith(bs, "CPU")
+        if is_ka_cpu
             array_type = "Julia"
         else
+            bs = "$(typeof(ka_backend))"
             array_type = split(bs, "Backend")[1]
         end
         is_accelerator_ka = Jutul.KernelExecution.KernelAbstractions.isgpu(ka_backend)
@@ -161,8 +174,9 @@ function select_reservoir_linear_solver(model, precond = :cpr;
                 cpr_type = :true_impes
             end
         end
-        is_serial = Threads.nthreads() == 1
-        if is_serial && is_ka_backend && array_type == "Julia"
+        # Interactive/GC threads do not make the numerical worker pool parallel.
+        is_serial = Threads.nthreads(:default) == 1
+        if is_serial && is_ka_backend && is_ka_cpu
             default_pressure_smoother_type = :gauss_seidel
         else
             default_pressure_smoother_type = :spai0
@@ -183,6 +197,7 @@ function select_reservoir_linear_solver(model, precond = :cpr;
             variant = precond,
             update_interval = update_interval,
             partial_update = partial_update,
+            amg_rebuild_tolerance = amg_rebuild_tolerance,
             update_interval_partial = update_interval_partial,
             mode = mode,
             cpr_arg...

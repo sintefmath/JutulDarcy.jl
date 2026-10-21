@@ -48,10 +48,14 @@ module JutulDarcyPartitionedArraysExt
         return config
     end
 
-    function Jutul.parray_preconditioner_apply!(global_out, main_prec::CPRPreconditioner{<:BoomerAMGPreconditioner, <:Any}, R, preconditioners, simulator, arg...)
+    function Jutul.parray_preconditioner_apply!(global_out, main_prec::CPRPreconditioner{<:BoomerAMGPreconditioner, <:Any}, R_in, preconditioners, simulator, arg...)
         global_cell_vector = simulator.storage.distributed_cell_buffer
         global_buf = simulator.storage.distributed_residual_buffer
         A_ps = main_prec.storage.A_ps
+        # The stages below correct the residual in place. Work on a copy: with
+        # right preconditioning the input is a Krylov vector that is used again.
+        R = main_prec.storage.x_ps
+        map(copy!, local_values(R), local_values(R_in))
 
         @. global_out = 0.0
         npre = main_prec.npre
@@ -138,6 +142,9 @@ module JutulDarcyPartitionedArraysExt
             return x
         end
         if isnothing(cpr.storage)
+            if cpr.variant == :cprw && MPI.Comm_rank(comm) == 0
+                @warn "CPRW is not implemented for MPI, using CPR without well rows."
+            end
             # HYPRE owns one contiguous row range per MPI rank.
             # Each MPI rank stores one local item in these distributed arrays.
             # `getany` returns that item without invoking forbidden scalar
