@@ -1629,6 +1629,14 @@ function simulate_reservoir(case::JutulCase;
         reports = reports,
         extra_arg...,
     )
+    if sim isa Jutul.PArraySimulator && sim.storage[:number_of_processes] > 1 && isnothing(config[:output_path])
+        # Without output_path each rank only holds its own cells and wells, so
+        # there are no global states to build well results from.
+        if sim.storage[:is_main_process] && length(result.states) > 0
+            jutul_message("MPI", "States and well results are only available when output_path is set.", color = :yellow)
+        end
+        empty!(result.states)
+    end
     return ReservoirSimResult(model, result, forces; simulator = sim, config = config, start_date = case.start_date)
 end
 
