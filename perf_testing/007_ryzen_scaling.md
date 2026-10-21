@@ -774,3 +774,35 @@ the four-policy historical measurements remain tied to `d313001c` and their
 recorded Jutul source commit. Active-cell order and phase-name metadata were
 saved successfully for both cases. The OPM continuation gate passed and its
 Norne 15-rank reference is running with solver diagnostics redirected to files.
+
+## First complete Norne MPI15 Float64 reference
+
+Flow 2026.04 completed the matched refined Norne first-50-report schedule:
+846.95 s simulation, 11.72 s setup (4.14 s deck input), 859.43 s process wall.
+It uses 15 pinned ranks, one thread each, Float64 linear solves and the recorded
+common CNV/MB/linear tolerances. Solver statistics are now visible in redirected
+stdout. There are 267 timesteps, 2,620 linearizations (630 wasted), 2,383 Newton
+iterations (630 wasted), and 2,097 linear iterations (359 wasted).
+
+| Norne original 20% phase | Flow MPI15, s | Earlier Jutul KA15, s |
+|---|---:|---:|
+| Simulation | 846.95 | 1171.912 |
+| Assembly | 253.78 | 179.12 |
+| Properties/update | 69.58 | secondary 83.86 |
+| Linear solve, including setup | 500.96 | setup+preconditioner+Krylov about 807.25 |
+| Linear setup (subset) | 271.59 | 207.64 |
+
+Phase definitions and Krylov work units differ; keep these counts alongside
+timing. Existing nonlinear/timestep policies remain in place. This Jutul
+reference predates the new cache tiles and uses Int64 indices. It cannot be
+substituted for a new matched production run or a one/15-worker scaling pair.
+No fivefold or parity claim is made.
+
+Flow's actual logged pressure configuration has `add_wells=true` and
+`use_well_weights=false`. The earlier Jutul reference uses `:cpr`, while the
+existing `:cprw` option includes well pressure coupling. A single targeted
+Float64 comparison now checks this existing interface with GMRES, KA ILU0,
+pressure GS and Int32 indices fixed. There is no new solver implementation or
+parameter sweep. The short simulations are bounded and will retain full-state
+comparisons before any longer validation. The rest of the MPI controller is
+held at the completed-run boundary, so measurements remain sequential.
