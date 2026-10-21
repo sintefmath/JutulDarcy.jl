@@ -640,3 +640,48 @@ The application already selects native system ILU at exactly one worker. The
 other session's below-four-worker change remains unmerged because the restored
 worker metadata makes native ILU partition at two/three workers; that crossover
 needs its own evidence. No default change is needed for the one-worker case.
+
+The paired Float64/Int32 execution screen is complete (three fresh samples per
+policy, four policies per model, alternating round order). All 24 final states
+are bitwise identical within their model, with zero timed compilation and
+unchanged Newton/linear counts. Medians in seconds:
+
+| Model at 15 workers | Baseline | Typed tiles | Raw GS | Both |
+|---|---:|---:|---:|---:|
+| Olympus z4 | 18.923 | 18.800 | 18.093 | 18.016 |
+| Norne z8 | 9.840 | 9.572 | 9.587 | 9.346 |
+
+Combined gain is 4.8% / 5.0%, rather than the larger gain suggested by isolated
+property timings. Property-update medians fall 0.492→0.334 / 0.503→0.339 s;
+preconditioner application falls 10.733→9.784 / 4.364→4.113 s. No original-20%
+result or OPM parity claim follows from this short diagnostic.
+
+A small source change now selects natural CPU ILU/DILU traversal at one runtime
+worker, retaining dependency levels for multiple workers. The same row loops
+are reused through a function barrier for factorization, triangular application,
+and fused correction. The initial one-worker correctness pass completed 68 new
+checks plus the existing KA/symbolic-reuse tests. The first 15-worker test driver
+incorrectly forced its natural reference through a parallel batch; the reference
+now uses the existing Polyester thread-disable context. It is being rerun before
+any source commit or performance conclusion.
+
+The natural serial ILU change passes the new tests and existing KA/reuse suite:
+1,155 assertions at one worker and 1,147 at 15 (36 summaries each). Three paired
+fixed-matrix rounds on the larger Float64/Int32 fixtures give:
+
+| One-worker operation | Dependency levels, ms | Natural rows, ms | Gain |
+|---|---:|---:|---:|
+| Olympus z4 ILU application | 64.596 | 21.011 | 3.07x |
+| Olympus z4 factorization | 95.782 | 35.944 | 2.66x |
+| Norne z8 ILU application | 51.107 | 29.588 | 1.73x |
+| Norne z8 factorization | 95.298 | 69.860 | 1.36x |
+
+All factor arrays, inverse diagonals and solution vectors agree exactly in
+these probes; all timed kernels allocate zero bytes and report zero compilation.
+At 15 workers both schedule selections use the same level arrays and helper:
+application medians are 10.693/10.544 ms for Olympus and 10.959/11.579 for Norne;
+factorization is 23.899/23.517 and 30.751/30.798 ms. These paired selections do
+not measure different algorithms at 15 workers. Source was the uncommitted
+natural-traversal patch on c1379eaf, retained with SHA256 in the raw results.
+The application already uses faster native serial ILU by default, so this
+improves explicit KA serial use without claiming a fastest-serial full-run gain.

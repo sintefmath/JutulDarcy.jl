@@ -4,3 +4,4 @@ cache/
 *.profile
 *.profile.txt
 setup.log
+__pycache__/
