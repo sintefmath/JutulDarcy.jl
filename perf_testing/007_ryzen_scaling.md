@@ -806,3 +806,19 @@ pressure GS and Int32 indices fixed. There is no new solver implementation or
 parameter sweep. The short simulations are bounded and will retain full-state
 comparisons before any longer validation. The rest of the MPI controller is
 held at the completed-run boundary, so measurements remain sequential.
+
+The targeted existing `:cprw` Float64 option is rejected for these fixtures.
+Olympus median is 18.395 s versus the current library's 18.359 s, with the same
+25 Newton iterations but 159 versus 157 linear iterations and about 400 MB more
+allocation. Its final maximum differences are 192.55 Pa / 7.06e-6 saturation.
+Norne regresses to median 41.147 s versus 9.231 s, with 98 / 311 Newton/linear
+iterations (63 / 190 wasted), compared with 17 / 82 and no waste. Final maximum
+differences reach 24,741 Pa / 0.004984 saturation after the different solve
+history. All timed samples have zero compilation; none justifies promoting the
+variant. The application default and nonlinear/timestep settings are unchanged.
+No further configuration sweep is planned from this result.
+
+Resumed the separate Olympus MPI15 output-validation run with double-precision
+binary output, retaining its existing Flow solver and strict reference tolerances.
+The controller will hold again after this run. The existing OPM binary reader
+and saved Jutul active-cell ordering will support the complete-field check.
