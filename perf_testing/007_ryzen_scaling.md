@@ -460,6 +460,57 @@ takes 1.393 s / 0.529 s; this uses the saved SPAI0 hierarchy, not a GS baseline.
 All these measured operations report zero JIT. Index-width and mixed-precision
 screens use existing interfaces with fixed nonlinear/timestep controls.
 
+## Dispatch and narrower-index follow-up
+
+Jutul `c1379eaf` / Darcy numerical source `2ffcf2b7`, BLAS one worker,
+15 individually pinned default workers. Two fresh full-short samples per
+median, all measured JIT zero:
+
+| Case / pressure smoother | Int64 indices, s | Int32 indices, s | Newton / linear |
+|---|---:|---:|---:|
+| Olympus z4 / GS | 20.056 | 18.332 | 25 / 157 |
+| Olympus z4 / four SPAI sweeps | 18.692 | 15.635 | 23 / 135 |
+| Norne z8 / GS | 9.965 | 9.506 | 17 / 82 |
+
+Complete GS state comparisons against native serial references give pressure
+errors below 5.4e-6 Pa and saturation errors below 4.0e-12. Olympus Int64 serial
+and parallel GS are bitwise identical. These improvements do not establish 5x
+scaling. The corrected Norne Int32 pressure-ILU screen takes 72.136 s with
+142 / 445 Newton/linear iterations; exclude it from remaining precision screens.
+
+The user's launch-overhead observation is material. System ILU application has
+548 dependency-level dispatches on Olympus z2 and 586 on Norne z4. Combined
+level widths have medians 1522.5 / 649 rows and maxima 2634 / 1114. A store-only
+loop with the same dispatch shapes takes 1.476 / 1.156 ms at 15 workers versus
+0.036 / 0.017 ms at one. This includes stores and host loop overhead; it is
+not a pure launch-latency measurement.
+
+| Fixed saved factors, 15 workers | Olympus z2, ms | Norne z4, ms |
+|---|---:|---:|
+| Existing ILU application | 4.224 | 4.522 |
+| Minimum batch 8 | 4.002 | 3.910 |
+| Minimum batch 128 | 6.540 | 7.550 |
+| Minimum batch 512 | 12.945 | 22.480 |
+
+All batch variants are allocation-free and bitwise equal to the existing solve.
+Repeat favorable choices before changing defaults: minimum batch 1 also differs
+from the existing function's first timing, so a single ordered sweep is not
+sufficient. The natural-order serial traversal of the same unsplit factor
+storage takes 9.784 / 13.517 ms, compared with 33.577 / 24.991 ms through serial
+dependency levels. Its relative differences are below 1e-18 / zero. Traversal
+locality is therefore a separate cost from thread dispatch. A further probe
+uses existing native split-CSR construction and triangular row kernels with the
+same dependency schedules, retaining the saved factors rather than refactoring
+a potentially different Newton iterate.
+
+The specialized tiled property experiment uses a tuple and `foreach` to keep
+variable types and symbols concrete. On Olympus z4 at 15 workers, the original
+update is 19.698 ms / 214,832 B, while 512-cell tiles take 11.428 ms / 2,032 B.
+Every secondary array is bitwise equal. Serial variants measure zero allocation.
+This resolves the generic loop's multi-megabyte allocation growth. Norne and
+full-simulation validation are still pending; no library property-loop change
+has been adopted. Existing Jutul operation benchmarks are queued next.
+
 ## Audit status
 
 | Area | Evidence / next check |

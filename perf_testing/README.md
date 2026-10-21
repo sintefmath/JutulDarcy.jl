@@ -125,6 +125,9 @@ traversal, and a store-only loop with the same dispatch shapes. The last loop
 includes stores and scheduling; it is not a measurement of pure launch latency.
 `PERF_SECONDARY_VARIANT=typed` selects a tuple/`foreach` specialization experiment
 in `probe_secondary.jl`; it checks every secondary array before timing.
+`probe_ilu_storage.jl` uses existing native split-CSR construction and triangular
+row kernels with the saved KA dependency schedule to separate factor-storage
+layout from scheduling. It records repacking cost and additional retained bytes.
 
 `compare_hybrid_smoothing.jl` experiments with the existing SPAI0 and GS kernels
 on different hierarchy levels. `test_hybrid_smoother.jl` checks it against a

@@ -91,8 +91,13 @@ function probe_ilu_dispatch()
         push!(rows, merge(Dict("bitwise_equal" => true), term_row("minbatch_$size", f)))
     end
     ilu_natural!(x, state, rhs)
-    @assert isequal(x, reference)
-    push!(rows, merge(Dict("bitwise_equal" => true), term_row("natural_serial", () -> ilu_natural!(x, state, rhs))))
+    scalar_type = KP.matrix_scalar_type(T)
+    scalar_x, scalar_ref = reinterpret(scalar_type, x), reinterpret(scalar_type, reference)
+    relative_error = norm(scalar_x - scalar_ref)/norm(scalar_ref)
+    @assert relative_error < 1e-12
+    push!(rows, merge(Dict("bitwise_equal" => isequal(x, reference),
+        "relative_error" => relative_error),
+        term_row("natural_serial", () -> ilu_natural!(x, state, rhs))))
     counts = vcat(diff(state.factor_offsets), diff(state.upper_offsets))
     scratch = zeros(Int, maximum(counts))
     for size in (1, 32, 128, 512)
