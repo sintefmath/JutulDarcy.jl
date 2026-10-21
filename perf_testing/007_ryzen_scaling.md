@@ -747,3 +747,30 @@ A separate waiting controller resumes OPM only if both production-trial complete
 state comparisons are bitwise equal. It runs Norne MPI15, separate double-output
 MPI15 state validation for both cases, then the one-rank references. These
 remain sequential; no numerical benchmark overlaps another numerical run.
+
+The property-tiling trial passed the focused and existing context/reservoir
+checks at both worker counts: 603 / 689 assertions across 32 summaries each.
+Its new test contributes 30 / 90 assertions, covering dependent scalar/matrix
+properties, Float64 forward derivatives, small/mixed-entity fallbacks, actual
+tile dispatch, and context worker limits. The existing SPE1 KA adjoint checks
+also pass. Full refined state/performance validation is now warming; no property
+source commit has been made yet. Tiling stays inside each worker's existing
+batch, so it does not launch a thread batch for each cache tile.
+
+Committed property tiling in Jutul `ddeb7da9` after the full validation. It adds
+30 library lines and no public control knobs, using one existing worker batch
+and multiple local cache tiles. The two three-repeat Float64/Int32 short runs
+finish at medians 18.359 s Olympus / 9.231 s Norne, with zero timed compilation,
+25/157 and 17/82 Newton/linear iterations, no failed work, and bitwise-identical
+complete pressure/saturation arrays. Secondary-update medians are 0.328 / 0.337 s,
+about one third below the earlier paired untiled 0.492 / 0.503 s. Treat whole-run
+comparisons across batches cautiously; the earlier paired tiling-only gain was
+0.65% / 2.73%. These runs demonstrate the implementation and state preservation,
+not final fivefold scaling or OPM parity.
+
+The superseded property override is removed from the performance harness.
+`compare_execution.jl` now compares the current library baseline with raw GS;
+the four-policy historical measurements remain tied to `d313001c` and their
+recorded Jutul source commit. Active-cell order and phase-name metadata were
+saved successfully for both cases. The OPM continuation gate passed and its
+Norne 15-rank reference is running with solver diagnostics redirected to files.

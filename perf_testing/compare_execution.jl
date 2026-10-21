@@ -1,5 +1,4 @@
 # Paired execution changes with identical Float64 algorithms and fresh simulators.
-ENV["PERF_SECONDARY_TILING"] = "true"
 ENV["PERF_GS_LEVELS"] = "true"
 ENV["PERF_GS_RAW"] = "true"
 include("benchmark.jl")
@@ -9,19 +8,20 @@ function compare_execution()
     refinement = parse(Int, get(ARGS, 2, "4"))
     @assert get(ENV, "PERF_SINGLE_PRECISION_LINEAR", "false") == "false"
     case = benchmark_case(name, refinement, 3)
-    policies = (("baseline", false, false), ("tiles", true, false),
-        ("gs_raw", false, true), ("both", true, true))
-    selected = split(get(ENV, "PERF_EXECUTION_POLICIES", "baseline tiles gs_raw both"))
+    # Typed property tiling now belongs to the library. Earlier four-policy
+    # comparisons are recorded at d313001c, against the original library path.
+    policies = (("baseline", false), ("gs_raw", true))
+    selected = split(get(ENV, "PERF_EXECUTION_POLICIES", "baseline gs_raw"))
     policies = filter(p -> first(p) in selected, policies)
+    isempty(policies) && error("Select baseline or gs_raw")
     sources = Dict("jutul" => readchomp(`git -C $(pkgdir(Jutul)) rev-parse HEAD`),
         "darcy" => readchomp(`git -C $(pkgdir(JutulDarcy)) rev-parse HEAD`))
-    function select_policy(tiles, levels)
-        Jutul.perf_secondary_tiles_enabled[] = tiles
+    function select_policy(levels)
         Jutul.KAPreconditioners.perf_gs_use_levels[] = levels
         Jutul.KAPreconditioners.perf_gs_raw[] = true
     end
-    for (label, tiles, levels) in policies
-        select_policy(tiles, levels)
+    for (label, levels) in policies
+        select_policy(levels)
         println("Warming ", label); flush(stdout)
         sim, config = new_simulator(case)
         run_simulation(sim, config, case)
@@ -33,8 +33,8 @@ function compare_execution()
     for repeat in 1:repeats
         # Reverse successive rounds to reduce ordering and thermal bias.
         order = isodd(repeat) ? policies : reverse(policies)
-        for (label, tiles, levels) in order
-            select_policy(tiles, levels)
+        for (label, levels) in order
+            select_policy(levels)
             sim, config = new_simulator(case)
             GC.gc()
             measured = @timed run_simulation(sim, config, case)

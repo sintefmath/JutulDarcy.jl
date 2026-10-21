@@ -170,11 +170,12 @@ manually assembled mixed hierarchy, including numeric and memory resets. The
 prototype is confined to the performance scripts; it is not an application
 default. `test_smoother_reuse.jl` invokes the retained Jutul symbolic-reuse test.
 
-`PERF_SECONDARY_TILING=true` enables `secondary_tiles_candidate.jl` in the
-full-simulation harness. It applies only to large threaded KA CPU models whose
-secondary variables share an entity count; existing serial/GPU/other paths
-remain available through the original method. `PERF_SECONDARY_TILE` selects
-the experimental tile size (default context minbatch). This is a process-local
-experiment. `PERF_SECONDARY_VARIANT=typed_rebuild` checks the cost of constructing
+Large batch-threaded KA CPU property updates now use the library's cache tiles,
+with the existing context minbatch as tile size. Serial, GPU, small and mixed-
+entity updates retain their existing paths. The process-local property override
+and its environment flags have been retired after validation. The historical
+four-policy comparison is recorded at `d313001c`; `compare_execution.jl` now
+compares the current library with the remaining GS prototype.
+`PERF_SECONDARY_VARIANT=typed_rebuild` checks the cost of constructing
 typed definitions on every probe call; `split` compares per-variable ranges
 against per-cell dispatch using existing threading interfaces.
