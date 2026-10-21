@@ -93,9 +93,6 @@ Base.@propagate_inbounds function btes_supply_return_massflux(system::JutulSyste
     else
         state, node = state_return, return_node
     end
-    # The properties can have a different number type than the pressure (e.g.
-    # when tracing sparsity with respect to parameters), so the type of the
-    # fluxes is determined from the computed values.
     q = map(1:nph) do ph
         ρ = state.PhaseMassDensities[ph, node]
         s = state.Saturations[ph, node]
