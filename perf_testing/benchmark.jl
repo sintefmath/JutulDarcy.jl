@@ -77,6 +77,8 @@ function main()
         sample = Dict{String, Any}(
             "repeat" => repeat, "seconds" => measurement.time,
             "gc_seconds" => measurement.gctime, "bytes" => measurement.bytes,
+            "compile_seconds" => measurement.compile_time,
+            "recompile_seconds" => measurement.recompile_time,
             "newtons" => stats.newtons, "linear_iterations" => stats.linear_iterations,
             "ministeps" => stats.ministeps,
             "wasted_newtons" => stats.wasted.newtons,

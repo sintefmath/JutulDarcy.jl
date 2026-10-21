@@ -3,3 +3,4 @@ cache/
 *.state
 *.profile
 *.profile.txt
+setup.log
