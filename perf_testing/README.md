@@ -33,7 +33,9 @@ durations (rounding the report count upward), overriding the positional report
 count. The default one-day cap is then disabled. Use this for final schedule
 validation; the three-day runs are diagnostics. `PERF_JULIA_CHANNEL` chooses
 the Juliaup channel in `run_scaling.sh` (default `1.13`).
-All runs use `mode=:ka`, GMRES, Float64, and single-threaded BLAS.
+Runs use `mode=:ka`, Float64, and GMRES by default; `PERF_LINEAR_SOLVER` selects
+another existing Krylov solver. BLAS defaults to one thread;
+`PERF_BLAS_THREADS` supports a separate dense-vector threading experiment.
 
 TOML results include wall/GC time, allocations, phase timings, iteration counts,
 checksums, cell counts, and source commits. Serialized final pressure/saturation
