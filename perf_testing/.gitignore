@@ -1,0 +1,5 @@
+results/
+cache/
+*.state
+*.profile
+*.profile.txt

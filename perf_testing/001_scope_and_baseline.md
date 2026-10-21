@@ -5,7 +5,7 @@
 - Jutul: `878698fb` on `sol-perf`.
 - JutulDarcy: `a218be86` on `sol-perf`.
 - Apple M4 Pro, 24 GB RAM, 10 performance cores + 4 efficiency cores.
-- Julia 1.12.7; KernelAbstractions 0.9.45; Polyester 0.7.19.
+- Julia 1.13.1 (matching the installed environment); KernelAbstractions 0.9.45; Polyester 0.7.19; Krylov 0.9.10.
 - Target: at least 4x warmed simulation speedup on a sufficiently large case,
   measured at 10 default-pool Julia threads. macOS chooses core placement;
   a Julia worker count does not guarantee pinning to performance cores.
@@ -37,3 +37,17 @@ Commit and push incrementally with explicit `HEAD:refs/heads/sol-perf` refspecs.
   small well blocks; the three-argument CPU path already has a host specialization.
 
 No production changes have been made yet.
+
+## Short cases
+
+Olympus report steps span a year, so simply taking three reports is too long.
+The harness keeps the first three reports and caps each interval at one day
+(`PERF_MAX_DAYS` can override this). Compilation is warmed with a complete run;
+each timed sample uses a fresh simulator and pressure hierarchy. This includes
+initial AMG setup, but excludes mesh and simulator construction.
+
+Layer refinement splits ZCORN by linear interpolation, repeats cell properties
+and regions, remaps fault/well layers, keeps vertical multipliers on original
+interfaces, and divides explicitly supplied completion WI/Kh over children.
+The helper is scoped to these two decks and rejects unsupported connection
+keywords. It is a performance fixture, not a general deck conversion API.
