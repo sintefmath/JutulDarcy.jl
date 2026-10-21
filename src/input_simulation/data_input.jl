@@ -2048,14 +2048,16 @@ function producer_control(sys, flag, ctrl, orat, wrat, grat, lrat, bhp; is_hist 
         else
             error("$ctrl control not supported")
         end
-        if is_rate && abs(self_val) < MIN_ACTIVE_WELL_RATE
-            @debug "Producer with $ctrl disabled due to zero rate." abs(self_val)
-            ctrl = DisabledControl()
-        else
-            ctrl = ProducerControl(t; kwarg...)
-        end
         if is_hist
             self_symbol = translate_target_to_symbol(t, shortname = true)
+        end
+        if is_rate && abs(self_val) < MIN_ACTIVE_WELL_RATE
+            # OPEN with a zero phase/rate request closes surface flow through
+            # the zero-total-rate logic, retaining the producer and completions.
+            t = TotalRateTarget(zero(self_val))
+        end
+        ctrl = ProducerControl(t; kwarg...)
+        if is_hist
             # Put pressure slightly above 1 atm to avoid hard limit.
             if self_symbol == :resv_history
                 lims = (; :bhp => 1.01*si_unit(:atm))
@@ -2107,8 +2109,12 @@ function injector_control(sys, streams, name, flag, type, ctype, surf_rate, res_
             end
         elseif ctype == "RESV"
             is_rate = false
-            if isfinite(res_rate) && res_rate > MIN_ACTIVE_WELL_RATE
-                t = TotalReservoirRateTarget(res_rate)
+            if isfinite(res_rate) && res_rate >= 0
+                if res_rate <= MIN_ACTIVE_WELL_RATE
+                    t = TotalRateTarget(zero(res_rate))
+                else
+                    t = TotalReservoirRateTarget(res_rate)
+                end
             else
                 well_is_disabled = true
             end
@@ -2118,8 +2124,11 @@ function injector_control(sys, streams, name, flag, type, ctype, surf_rate, res_
         end
         rho, mix, phases_mix = select_injector_mixture_spec(sys, name, streams, type)
         if is_rate && surf_rate < MIN_ACTIVE_WELL_RATE
-            @debug "Disabling injector $name with $ctype ctrl due to zero rate" surf_rate
-            well_is_disabled = true
+            if surf_rate < 0
+                well_is_disabled = true
+            else
+                t = TotalRateTarget(zero(surf_rate))
+            end
         end
     end
     if well_is_disabled
@@ -2432,7 +2441,12 @@ function apply_weltarg!(controls, limits, wk)
         limits[well] = convert_to_immutable_storage(limit)
         old_sym = translate_target_to_symbol(ctrl.target, shortname = true)
         new_sym = translate_target_to_symbol(new_target, shortname = true)
-        if old_sym == new_sym
+        if old_sym == new_sym || (is_zero_rate_control(ctrl) && ctype != "bhp")
+            # Zero-rate deck controls use a total-rate equation. A subsequent
+            # rate WELTARG must still be able to reopen them under its new target.
+            if ctype != "bhp" && abs(rate_target) < MIN_ACTIVE_WELL_RATE
+                new_target = TotalRateTarget(zero(rate_target))
+            end
             controls[well] = replace_target(ctrl, new_target)
         end
     end

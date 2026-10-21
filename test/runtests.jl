@@ -4,6 +4,7 @@ using JutulDarcy, TestItems, Test, TestItemRunner
     include("mesh_and_reservoir.jl")
     include("corner_geometry.jl")
     include("schedule_completions.jl")
+    include("zero_rate_deck_controls.jl")
 end
 
 @testitem "Utilities" begin
