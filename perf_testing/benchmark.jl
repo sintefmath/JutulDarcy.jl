@@ -41,11 +41,13 @@ function new_simulator(case; solver_options = NamedTuple())
     linear_solver_arg = merge(linear_solver_arg, solver_options)
     linear_solver = Symbol(get(ENV, "PERF_LINEAR_SOLVER", "gmres"))
     mode = Symbol(get(ENV, "PERF_MODE", "ka"))
+    precond = Symbol(get(ENV, "PERF_PRECONDITIONER", "cpr"))
+    precond in (:cpr, :cprw) || throw(ArgumentError("Select cpr or cprw"))
     single_precision_linear_solver = parse(Bool, get(ENV, "PERF_SINGLE_PRECISION_LINEAR", "false"))
     index_type = Dict("Int" => Int, "Int32" => Int32)[get(ENV, "PERF_INDEX_TYPE", "Int")]
     reduce_memory = parse(Bool, get(ENV, "PERF_REDUCE_MEMORY", "true"))
     return setup_reservoir_simulator(case;
-        mode, linear_solver, info_level = -1,
+        mode, linear_solver, precond, info_level = -1,
         linear_solver_arg, single_precision_linear_solver, index_type, reduce_memory,
         relaxation = false, output_substates = false)
 end
@@ -64,6 +66,7 @@ function solver_metadata(config)
     pressure = preconditioner.pressure_precond
     system = preconditioner.system_precond
     metadata = Dict{String,Any}(
+        "preconditioner_variant" => String(preconditioner.variant),
         "linear_solver" => String(config[:linear_solver].solver),
         "pressure_preconditioner" => string(typeof(pressure)),
         "system_preconditioner" => string(typeof(system)))

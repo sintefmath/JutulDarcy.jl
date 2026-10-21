@@ -62,6 +62,9 @@ thread-dependent application default instead of fixed SPAI0.
 after the worker-metadata fix in the Ryzen continuation);
 `PERF_SYSTEM_SMOOTHER=ka_ilu0` forces level-scheduled ILU0. The benchmark default
 leaves the application choice in place.
+`PERF_PRECONDITIONER=cprw` selects the existing well-aware CPR variant; the
+default is `cpr`. This changes the pressure preconditioner, so retain work counts
+and full state comparisons when comparing it with the MPI reference.
 `PERF_FRACTION=0.2` selects the first 20% of report intervals at their original
 durations (rounding the report count upward), overriding the positional report
 count. The default one-day cap is then disabled. Use this for final schedule
