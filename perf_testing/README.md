@@ -6,6 +6,8 @@ on a Ryzen 7950X using sibling `Jutul.jl`, `JutulDarcy.jl`, and `GeoEnergyIO.jl`
 checkouts in `D:/agent-jd-fixes`. Commit locally; do not push this continuation.
 
 See the numbered Markdown files for experiments, results, and decisions.
+The Ryzen continuation and current fivefold/15-worker target are documented in
+[`007_ryzen_scaling.md`](007_ryzen_scaling.md).
 Benchmark scripts and a small standalone Julia environment will live here.
 Generated case caches and raw profiles should not be committed.
 
@@ -25,7 +27,8 @@ and output label. `case` is `norne` or `olympus`; factor 1 is the original grid.
 `PERF_MAX_DAYS` caps each report interval (default 1). `PERF_PROFILE=true`
 adds one separately profiled run. `PERF_PRESSURE_SMOOTHER=default` measures the
 thread-dependent application default instead of fixed SPAI0.
-`PERF_SYSTEM_SMOOTHER=ilu0` forces serial CSR ILU0;
+`PERF_SYSTEM_SMOOTHER=ilu0` selects CPU CSR ILU0 (partitioned across CPU workers
+after the worker-metadata fix in the Ryzen continuation);
 `PERF_SYSTEM_SMOOTHER=ka_ilu0` forces level-scheduled ILU0. The benchmark default
 leaves the application choice in place.
 `PERF_FRACTION=0.2` selects the first 20% of report intervals at their original

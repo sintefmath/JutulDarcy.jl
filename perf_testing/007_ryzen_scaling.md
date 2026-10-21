@@ -118,7 +118,10 @@ An initial synthetic seven-point matrix retained wraparound edges, producing
 parallel-grid model. The corrected 80x60x40 grid removes those edges and has
 178 levels. One-worker diagonal-bounded traversal improves scalar / 2x2 / 3x3
 apply from 3.637 / 12.126 / 19.251 ms to 3.116 / 10.270 / 17.378 ms, with
-bitwise-equal complete solutions and zero allocation. Fifteen-worker check pending.
+bitwise-equal complete solutions and zero allocation. At 15 workers, however,
+the candidate takes 0.862 / 1.681 / 3.359 ms versus 0.795 / 1.532 / 3.696 ms
+for the original, and allocates 22,528 bytes per application. Reject this version:
+it regresses the scalar and 2x2 cases and is not a consistent threading win.
 
 The first reduction prototype captured a reassigned accumulator in a closure,
 creating allocations and an unsafe reduction. Moving volume reduction to a
@@ -127,6 +130,33 @@ failed because the synthetic dual used a non-Jutul tag, so `Jutul.value`
 correctly retained it and the reduction changed type mid-loop. Use Jutul's
 existing tagged-AD constructor in the fixture and keep this out of production
 until the corrected multiworker comparison passes.
+
+The corrected tagged-AD probe now passes all cases at one and 15 workers.
+At 385,500 cells / 15 workers, the two-phase tagged case improves from
+3.280 to 0.202 ms and the three-phase tagged case from 7.327 to 0.322 ms.
+Temporary allocation falls from 6.17 / 9.25 MB to 240 / 320 bytes per call.
+The serial generic black-oil reduction remains faster on plain Float64 arrays,
+so retain that path for one worker. `cpu_convergence_candidate.jl` contains
+the isolated helper and additional tagged-AD / NaN / shape checks; it is not
+included by package source. Validate complete simulations before integrating it.
+
+## Long schedule screening and CPU backend
+
+Olympus z4's selected 20% prefix is four original annual intervals:
+366 + 365 + 365 + 365 days. It is much more expensive than the three-day
+fixture. At about nine minutes into its warm-up, a single documented Julia
+SIGUSR1 profile peek confirmed active preconditioner updates, BiCGStab, ILU,
+and assembly, rather than compilation or an idle process. Its call stack points
+to the warm-up call. The 1-second peek overflowed its default sample buffer;
+use it qualitatively only. Use fresh uninstrumented repeats for final claims.
+Process CPU use is roughly 10–12 cores, RSS about 6 GB, with no swap use.
+Future long warm-ups log physical progress; measured runs remain quiet.
+
+The installed Linux HYPRE 3.1.0 header defines `HYPRE_USING_OPENMP=1`.
+A separate existing-API CPU-backend screen is queued after the long baseline:
+`PERF_MODE=default`, default HYPRE pressure AMG, default CPU CSR ILU, one/15
+Julia workers and matching one/15 OpenMP workers, one BLAS worker, physical-core
+mask, passive OpenMP wait policy. This tests the standard CPU path alongside KA.
 
 ## Audit status
 

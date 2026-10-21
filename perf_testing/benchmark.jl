@@ -48,6 +48,23 @@ function run_simulation(sim, config, case)
     return result
 end
 
+function solver_metadata(config)
+    preconditioner = config[:linear_solver].preconditioner
+    pressure = preconditioner.pressure_precond
+    system = preconditioner.system_precond
+    metadata = Dict{String,Any}(
+        "pressure_preconditioner" => string(typeof(pressure)),
+        "system_preconditioner" => string(typeof(system)))
+    if hasproperty(system, :factor)
+        metadata["system_factor_type"] = string(typeof(system.factor))
+    end
+    if pressure isa Jutul.AMGPreconditioner
+        metadata["amg_level_rows"] = [size(level.A, 1) for level in pressure.factor.levels]
+        metadata["amg_level_nonzeros"] = [length(level.A.nzval) for level in pressure.factor.levels]
+    end
+    return metadata
+end
+
 function main()
     name = get(ARGS, 1, "olympus")
     refinement = parse(Int, get(ARGS, 2, "1"))
@@ -63,7 +80,14 @@ function main()
     println("Warming up ", nc, " cells; report days = ", case.dt ./ si_unit(:day))
     flush(stdout)
     sim, config = new_simulator(case)
+    # Show physical progress for long warm-ups; timed configurations stay quiet.
+    if parse(Float64, get(ENV, "PERF_FRACTION", "0")) > 0
+        config[:info_level] = parse(Int, get(ENV, "PERF_WARMUP_INFO", "1"))
+    end
     run_simulation(sim, config, case)
+    println("Warm-up complete; starting measured runs")
+    flush(stdout)
+    solver_info = solver_metadata(config)
     sim = config = nothing
     samples = Any[]
     prefix = joinpath(outdir, "$(label)_$(name)_z$(refinement)_t$(Threads.nthreads(:default))")
@@ -108,6 +132,9 @@ function main()
         "cells" => nc, "threads" => Threads.nthreads(:default),
         "blas_threads" => BLAS.get_num_threads(),
         "cpu_set" => get(ENV, "PERF_CPUSET", "unrestricted"),
+        "omp_threads" => get(ENV, "OMP_NUM_THREADS", "runtime default"),
+        "omp_wait_policy" => get(ENV, "OMP_WAIT_POLICY", "runtime default"),
+        "solver_metadata" => solver_info,
         "pressure_smoother" => get(ENV, "PERF_PRESSURE_SMOOTHER", "spai0"),
         "system_smoother" => get(ENV, "PERF_SYSTEM_SMOOTHER", "default"),
         "linear_solver" => get(ENV, "PERF_LINEAR_SOLVER", "gmres"),
