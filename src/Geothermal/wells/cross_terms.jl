@@ -88,18 +88,16 @@ Base.@propagate_inbounds function btes_supply_return_massflux(system::JutulSyste
     Ψ = -T*dp
 
     nph = number_of_phases(system)
-    S = Base.promote_type(typeof(Ψ), typeof(p_s), typeof(p_t))
-    q = zeros(S, nph)
     if dp > 0
         state, node = state_supply, supply_node
     else
         state, node = state_return, return_node
     end
-    for ph in 1:nph
+    q = map(1:nph) do ph
         ρ = state.PhaseMassDensities[ph, node]
         s = state.Saturations[ph, node]
         μ = state.PhaseViscosities[ph, node]
-        q[ph] = (s*ρ/μ)*Ψ
+        (s*ρ/μ)*Ψ
     end
 
     return q
@@ -115,8 +113,6 @@ Base.@propagate_inbounds function btes_supply_return_massflux(system::JutulDarcy
 
     nph = number_of_phases(system)
     ncomp = JutulDarcy.number_of_components(system)
-    S = Base.promote_type(typeof(Ψ), typeof(p_s), typeof(p_t))
-    q = zeros(S, ncomp)
     if dp > 0
         state, node = state_supply, supply_node
     else
@@ -132,9 +128,9 @@ Base.@propagate_inbounds function btes_supply_return_massflux(system::JutulDarcy
     for i = 1:ncomp
         mass_t += state.TotalMasses[i, node]
     end
-    for i = 1:ncomp
+    q = map(1:ncomp) do i
         f = state.TotalMasses[i, node]/mass_t
-        q[i] = f*λ_t*rho_mix*Ψ
+        f*λ_t*rho_mix*Ψ
     end
 
     return q
