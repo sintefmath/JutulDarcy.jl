@@ -826,6 +826,14 @@ function replace_target(f::ProducerControl, target)
     return ProducerControl(target, factor = f.factor, check = false)
 end
 
+# A zero total-rate target closes the surface connection while retaining the
+# producer/injector properties. Runtime closures keep the requested control so
+# it can be retried before the next timestep.
+is_zero_rate_control(::Any) = false
+function is_zero_rate_control(ctrl::Union{ProducerControl{<:TotalRateTarget}, InjectorControl{<:TotalRateTarget}})
+    return iszero(value(ctrl.target.value))
+end
+
 effective_surface_rate(qts, ::DisabledControl) = qts
 effective_surface_rate(qts, c::Union{InjectorControl, ProducerControl}) = qts*c.factor
 

@@ -46,6 +46,10 @@ end
     include("multimodel.jl")
 end
 
+@testitem "Runtime well shutting" begin
+    include("well_shutting.jl")
+end
+
 @testitem "Multisegment wells" begin
     include("mswells.jl")
 end

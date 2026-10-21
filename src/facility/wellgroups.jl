@@ -36,23 +36,32 @@ function Jutul.update_primary_variable!(state, massrate::TotalSurfaceMassRate, s
         return Jutul.update_value(v, dx)
     end
     function do_update!(wcfg, s, v, dx, ctrl::InjectorControl)
+        if is_zero_rate_control(ctrl)
+            return Jutul.update_value(v, -value(v))
+        end
+        # Compare primal rates: AD partials must not affect the shut decision.
+        v_val = value(v)
         limit_rate = MIN_INITIAL_WELL_RATE
-        if v <= limit_rate && v + dx < limit_rate && model.domain.can_shut_injectors
-            @debug "$s Approaching zero rate, disabling injector for current step"
-            wcfg.operating_controls[s] = DisabledControl()
-            next = Jutul.update_value(v, -value(v))
+        if v_val <= limit_rate && v_val + value(dx) < limit_rate && model.domain.can_shut_injectors
+            @debug "$s Approaching zero rate, setting zero-rate injector target for current step"
+            wcfg.operating_controls[s] = replace_target(ctrl, TotalRateTarget(0.0))
+            next = Jutul.update_value(v, -v_val)
         else
             next = Jutul.update_value(v, dx, abs_max, rel_max, limit_rate, nothing)
         end
         return next
     end
     function do_update!(wcfg, s, v, dx, ctrl::ProducerControl)
+        if is_zero_rate_control(ctrl)
+            return Jutul.update_value(v, -value(v))
+        end
         # A significant negative rate is the valid producer control
+        v_val = value(v)
         limit_rate = -MIN_INITIAL_WELL_RATE
-        if v >= limit_rate && v + dx > limit_rate && model.domain.can_shut_producers
-            @debug "$s Approaching zero rate, disabling producer for current step"
-            wcfg.operating_controls[s] = DisabledControl()
-            next = Jutul.update_value(v, -value(v))
+        if v_val >= limit_rate && v_val + value(dx) > limit_rate && model.domain.can_shut_producers
+            @debug "$s Approaching zero rate, setting zero-rate producer target for current step"
+            wcfg.operating_controls[s] = replace_target(ctrl, TotalRateTarget(0.0))
+            next = Jutul.update_value(v, -v_val)
         else
             next = Jutul.update_value(v, dx, abs_max, rel_max, nothing, limit_rate)
         end
