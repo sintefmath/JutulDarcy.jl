@@ -110,6 +110,13 @@ well-reduced operator, CPR transfers and individual AMG numeric-update stages.
 Isolated level timings reuse smaller working sets; their sum does not predict
 a complete cycle's wall time. They do not change simulation timestepping.
 
+`probe_builtin.jl model refinement output.toml` uses Jutul's existing
+`Benchmarking.benchmark_secondary_variables`, `benchmark_assembly` and
+`benchmark_linear_operators` routines on the initial physical state. Secondary
+variables are timed individually, using the production host/kernel choice;
+the production host path batches all variables within each worker. Retain this
+distinction when comparing those timings with a full simulation.
+
 `compare_hybrid_smoothing.jl` experiments with the existing SPAI0 and GS kernels
 on different hierarchy levels. `test_hybrid_smoother.jl` checks it against a
 manually assembled mixed hierarchy, including numeric and memory resets. The

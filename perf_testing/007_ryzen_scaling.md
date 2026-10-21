@@ -411,7 +411,8 @@ Setup now checks the saved index snapshots, with allocation-free host comparison
 The ordinary numeric-update shortcut is unchanged. The regression passes all 40
 checks at both one and 15 workers, alongside 24 native preconditioner checks,
 24 scalar/block CSR precision checks and 48 isolated hybrid-smoother checks at
-each count. Broader KA regressions are running. Earlier pressure ILU/DILU full-
+each count. Broader KA regressions pass 1,271 assertions across 51 summaries,
+including reservoir adjoint checks. Earlier pressure ILU/DILU full-
 simulation screens predate this correction and need rechecking before treating
 their results as definitive rejections. This correctness fix is not a claimed
 speedup of the GS/SPAI baseline paths.
@@ -419,8 +420,10 @@ speedup of the GS/SPAI baseline paths.
 The hybrid experiment uses existing SPAI0 kernels above a row-count threshold
 and existing GS kernels below it, through the existing smoother interface.
 It adds no application default or public option. Its setup, numeric reset and
-memory-rebuild checks pass at one and 15 workers; pressure and full-simulation
-performance still need validation. The separate full-operation probe will
+memory-rebuild checks pass at one and 15 workers. Pressure-only tests at 15
+workers do not establish an advantage over SPAI0: Olympus SPAI0 takes 7.318 ms,
+hybrid 32k takes 7.267 ms; Norne takes 2.002 versus 2.591 ms. Full-simulation
+performance remains unvalidated. The separate full-operation probe measures
 measure saved-hierarchy application, a native serial ILU reference, Schur
 couplings, CPR transfers, Galerkin updates and a fixed-system GMRES solve.
 
@@ -428,6 +431,34 @@ Stopped the last Norne serial four-sweep SPAI screening after it consumed severa
 minutes without completing the comparison. Completed GS/two-sweep samples and
 their full arrays are retained. No four-sweep serial timing is accepted for
 Norne. Remote branches checked again at 19:36 UTC are unchanged.
+
+## Fixed-input locality and existing operation benchmarks
+
+The property-tiling probe uses the same initial state and verifies every
+secondary array bitwise. Olympus z4's original update takes 51.656 ms at one
+worker and 19.313 ms at 15; 2,048-cell tiles take 12.438 ms at 15. Norne z8
+takes 85.933 / 27.393 ms originally and 20.243 ms with tiles at 15. However,
+the generic tiled loop allocates 5.286 / 9.297 MB per call, respectively,
+compared with 0.215 / 0.810 MB originally. Do not adopt that implementation.
+
+At the user's suggestion, inspected the existing `Jutul.Benchmarking` routines
+for individual secondary variables, assembly and linear operators. A thin
+`probe_builtin.jl` wrapper records their timing trees without integrating the
+case. Its host per-variable timings differ from production's outer worker
+batching; report that distinction. These measurements are queued at one and
+15 workers on Olympus z4 and Norne z8.
+
+The full-operation replay initially compared a fresh factor of the saved
+assembly matrix against a saved factor from the last linear solve. Those may
+represent different Newton iterates: the converged Jacobian can be reassembled
+without another linear solve. The comparison now refactors both native and KA
+ILU from exactly the same matrix and passes. Olympus native serial apply takes
+5.294 ms, while KA takes 33.901 ms at one worker and 5.022 ms at 15. Thus the
+apparent 6.75x KA-to-KA application speedup is only 1.05x relative to the fast
+native serial implementation. Whole fixed-system GMRES using the saved CPR
+takes 1.393 s / 0.529 s; this uses the saved SPAI0 hierarchy, not a GS baseline.
+All these measured operations report zero JIT. Index-width and mixed-precision
+screens use existing interfaces with fixed nonlinear/timestep controls.
 
 ## Audit status
 
