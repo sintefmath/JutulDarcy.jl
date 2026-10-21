@@ -49,8 +49,9 @@ Olympus z2, 385,500 active cells, three one-day intervals:
 | 15 | 7.454 | 0.653 | 3.518 | 1.066 | 1.152 |
 
 Scaling is 2.665x. All samples take 22 Newton iterations, 146 linear iterations,
-six ministeps, and zero wasted iterations. Final state checksums match; full
-array comparison remains pending. Measured 15-worker runs report zero JIT time.
+six ministeps, and zero wasted iterations. Complete final pressure and saturation
+arrays match bit-for-bit between one and 15 workers for both cases.
+Measured 15-worker runs report zero JIT time.
 
 The one-worker call tree identifies sparse ILU row scanning as a large cost:
 both triangular solves scan the whole row and test every column despite having
@@ -105,7 +106,7 @@ to the best serial setting. Pressure-smoother strength and Krylov choice change
 Newton counts, so investigate these together rather than extrapolating kernel
 speedups. Norne's recovered cuts remain included (see raw TOML).
 
-Next queued workload: original-duration 20% schedules on Olympus z4 (771,000
+Initial long workload: original-duration 20% schedules on Olympus z4 (771,000
 cells) and Norne z8 (~355,444 cells), one warmed screening sample at 15 workers,
 with `PERF_CPUSET=0-28:2` to use distinct physical cores. Olympus uses BiCGStab;
 Norne uses GMRES. Both retain current level ILU/SPAI0. This establishes the
@@ -140,7 +141,7 @@ so retain that path for one worker. `cpu_convergence_candidate.jl` contains
 the isolated helper and additional tagged-AD / NaN / shape checks; it is not
 included by package source. Validate complete simulations before integrating it.
 
-## Long schedule screening and CPU backend
+## Long schedule screening and pressure smoothers
 
 Olympus z4's selected 20% prefix is four original annual intervals:
 366 + 365 + 365 + 365 days. It is much more expensive than the three-day
@@ -151,12 +152,22 @@ to the warm-up call. The 1-second peek overflowed its default sample buffer;
 use it qualitatively only. Use fresh uninstrumented repeats for final claims.
 Process CPU use is roughly 10–12 cores, RSS about 6 GB, with no swap use.
 Future long warm-ups log physical progress; measured runs remain quiet.
+Stopped this diagnostic while still warming after more than 14 minutes: it
+produced no timed sample. The following Norne run did not start. Preserve the
+peek and log as evidence of active work, not as a scaling measurement.
 
-The installed Linux HYPRE 3.1.0 header defines `HYPRE_USING_OPENMP=1`.
-A separate existing-API CPU-backend screen is queued after the long baseline:
-`PERF_MODE=default`, default HYPRE pressure AMG, default CPU CSR ILU, one/15
-Julia workers and matching one/15 OpenMP workers, one BLAS worker, physical-core
-mask, passive OpenMP wait policy. This tests the standard CPU path alongside KA.
+The user directed this continuation to focus on KA because HYPRE threads poorly.
+Stopped the queued standard-CPU screen; its completed one-worker samples are
+retained for reference only. No HYPRE policy or production change is proposed.
+The active KA screen compares existing `:gauss_seidel`, `:dilu`, and `:ilu0`
+pressure smoothers with both GMRES and BiCGStab, level-scheduled system ILU,
+15 physical cores, one BLAS worker, and the same short refined fixtures.
+Labelled result files prevent overwriting the earlier solver screen.
+
+The isolated fused host convergence helper passes 27 checks at one worker and
+27 at 15, including tagged AD, black-oil and general multiphase equations,
+NaNs, dimensions, and exclusion of external AD. It is still outside package
+source pending full-simulation before/after validation.
 
 ## Audit status
 
@@ -164,10 +175,10 @@ mask, passive OpenMP wait policy. This tests the standard CPU path alongside KA.
 |---|---|
 | Fused assembly and secondary properties | Existing Polyester paths; Olympus assembly scales 4.8x. Retain state comparisons. |
 | Linear algebra and Krylov | Main products already use host batches. Serial BLAS/vector operations scale weakly. Other session rejected a vector wrapper due to allocation growth. |
-| ILU factorization and application | Large profile share; test diagonal-bounded row traversal using existing symbolic data. |
+| ILU factorization and application | Worker metadata fixed; narrowed row traversal rejected after multiworker regression. |
 | Pressure AMG | Host row batches already present; setup and coarse operations remain partly serial. Separate construction from repeated numeric updates in replay probes. |
 | CPR weights and pressure matrix | Remaining KA CPU launches; measure host-loop dispatch without changing GPU dispatch. |
-| Convergence | Multi-array Base mapreduce materializes temporaries; focused fused-reduction probe queued. |
+| Convergence | Fused-reduction probe passes at one/15; integrate and compare complete simulations. |
 | State updates and pressure increments | Existing strided broadcasts; measure only if profiles justify changes. |
 | Wells and Schur complement | Existing per-well blocks and host/device policies; retain complete reservoir KA regression coverage. |
 | Allocation, GC, output | Retain GC/allocation counters and saved-state IO in simulation timing; fixture serialization is optional and outside timed runs. |
@@ -178,3 +189,11 @@ Checked remote `sol-perf` at the user's request. Jutul is unchanged; JutulDarcy
 advanced to `bc8be059`, adding M4 larger-grid results and a rejected dense-vector
 wrapper probe. Its best reported scaling is about 3.22x on Olympus z4 at ten
 workers. Incorporated that commit after the baseline batch. No remote writes.
+
+Subsequently incorporated `8c99c155`, `17658825`, and `ab95c4f1` (documentation).
+The latter records no useful full-run gain from CPR host row loops or narrowed
+ILU scans, a major threaded-BLAS regression, and a planned correct dependency-
+scheduled GS prototype including asymmetric edges. Avoid duplicating that GS
+implementation; test resulting commits on Ryzen when available. This continuation
+focuses meanwhile on host convergence reductions, KA smoother selection,
+original-duration schedules, and physical-core scheduling.

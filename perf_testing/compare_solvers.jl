@@ -10,6 +10,7 @@ function compare_solvers()
     systems = split(get(ENV, "PERF_SYSTEM_SMOOTHERS", "ilu0 ka_ilu0"))
     pressures = split(get(ENV, "PERF_PRESSURE_SMOOTHERS", "spai0 default"))
     repeats = parse(Int, get(ENV, "PERF_REPEATS", "3"))
+    label = get(ENV, "PERF_LABEL", "solver_comparison")
     for linear in solvers, system in systems, pressure in pressures
         ENV["PERF_LINEAR_SOLVER"] = linear
         ENV["PERF_SYSTEM_SMOOTHER"] = system
@@ -43,7 +44,7 @@ function compare_solvers()
         push!(output, row)
         println(row)
         flush(stdout)
-        open(joinpath(@__DIR__, "results", "solver_comparison_$(name)_z$(refinement)_t$(Threads.nthreads()).toml"), "w") do io
+        open(joinpath(@__DIR__, "results", "$(label)_$(name)_z$(refinement)_t$(Threads.nthreads()).toml"), "w") do io
             TOML.print(io, Dict("results" => output,
                 "report_days" => case.dt ./ si_unit(:day),
                 "julia" => string(VERSION), "blas_threads" => BLAS.get_num_threads(),
