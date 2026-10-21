@@ -8,7 +8,7 @@ the `origin` forks do not contain `sol-perf`. No pushes are authorized.
 Earlier numbered results were measured on an Apple M4 Pro; do not combine
 their absolute times with this workstation's results.
 
-Target: at least 4x warmed simulation throughput at 15 Julia workers relative
+Target (updated by the user): at least 5x warmed simulation throughput at 15 Julia workers relative
 to one worker on this Ryzen 9 7950X (16 cores / 32 hardware threads). Use refined
 Olympus and Norne, with the first 20% of report intervals at their original
 durations for final validation. Short three-day fixtures are diagnostic only.

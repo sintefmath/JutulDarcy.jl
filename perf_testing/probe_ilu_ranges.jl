@@ -1,0 +1,86 @@
+# Compare triangular traversal on a seven-point block-CSR matrix using the
+# existing level schedule and stored diagonal. No runtime method replacement.
+using Jutul, Polyester, StaticArrays, SparseArrays, LinearAlgebra, Statistics, TOML, Random
+const KP = Jutul.KAPreconditioners
+Random.seed!(1234)
+
+function triangular_ranges!(x, state, b)
+    factors, diagonal = state.factors, state.diagonal_positions
+    rowptr, colval = state.rowptr, state.colval
+    work = state.work
+    rows, offsets = state.factor_rows, state.factor_offsets
+    for level in 1:(length(offsets) - 1)
+        first = offsets[level]
+        count = offsets[level + 1] - first
+        @batch for q in 1:count
+            @inbounds begin
+                i = rows[first + q - 1]
+                value = b[i]
+                for k in rowptr[i]:(diagonal[i] - 1)
+                    value -= factors[k] * work[colval[k]]
+                end
+                work[i] = value
+            end
+        end
+    end
+    rows, offsets = state.upper_rows, state.upper_offsets
+    damping = KP.smoother_damping(state)
+    inverse_diagonal = state.inverse_diagonal
+    for level in 1:(length(offsets) - 1)
+        first = offsets[level]
+        count = offsets[level + 1] - first
+        @batch for q in 1:count
+            @inbounds begin
+                i = rows[first + q - 1]
+                value = work[i]
+                for k in (diagonal[i] + 1):(rowptr[i + 1] - 1)
+                    value -= factors[k] * x[colval[k]]
+                end
+                x[i] = damping * (inverse_diagonal[i] * value)
+            end
+        end
+    end
+    return x
+end
+
+function trial(f; repeats=10)
+    f()
+    samples = [@timed(for _ in 1:repeats; f(); end) for _ in 1:5]
+    return Dict("seconds" => median(s.time for s in samples)/repeats,
+        "bytes" => median(s.bytes for s in samples)/repeats)
+end
+
+function main()
+    n = 192000
+    scalar = spdiagm(-4800 => fill(-0.8, n-4800), -80 => fill(-0.9, n-80),
+        -1 => fill(-1.1, n-1), 0 => fill(8.0, n),
+        1 => fill(-1.0, n-1), 80 => fill(-0.85, n-80), 4800 => fill(-0.7, n-4800))
+    results = []
+    for block in (1, 2, 3)
+        if block == 1
+            matrix = KP.csr_matrix(scalar)
+            rhs = randn(n)
+        else
+            value_type = SMatrix{block, block, Float64, block*block}
+            blocks = map(v -> value_type(v*I), scalar.nzval)
+            matrix = KP.csr_matrix(SparseMatrixCSC(n, n, scalar.colptr, scalar.rowval, blocks))
+            rhs = randn(SVector{block,Float64}, n)
+        end
+        state = Jutul.setup_ka_smoother(matrix, KP.ILU0())
+        x = similar(rhs)
+        original = () -> KP.ilu_solve_cpu!(x, state, rhs, state.work)
+        ranged = () -> triangular_ranges!(x, state, rhs)
+        reference = copy(original())
+        @assert ranged() == reference
+        row = Dict("block_size" => block, "rows" => n,
+            "threads" => Threads.nthreads(), "levels" => length(state.factor_offsets)-1,
+            "original" => trial(original), "ranged" => trial(ranged))
+        push!(results, row)
+        println(row)
+        flush(stdout)
+    end
+    open(joinpath(@__DIR__, "results", "ilu_ranges_t$(Threads.nthreads()).toml"), "w") do io
+        TOML.print(io, Dict("results" => results))
+    end
+end
+main()
