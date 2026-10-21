@@ -685,3 +685,40 @@ not measure different algorithms at 15 workers. Source was the uncommitted
 natural-traversal patch on c1379eaf, retained with SHA256 in the raw results.
 The application already uses faster native serial ILU by default, so this
 improves explicit KA serial use without claiming a fastest-serial full-run gain.
+
+## OPM Float64 reference preparation
+
+Local software is Flow 2026.04 (`libopm-simulators-bin 2026.04-1~noble`) and
+Open MPI 4.1.6. `prepare_opm.py` reuses OPM's parser for the two targeted decks
+and mirrors the existing Julia refinement. Both exported decks pass OPM parsing
+and the independent GeoEnergyIO cross-check, covering all property/PVT arrays,
+faults, MINPV, completions, well/group controls and dates. The check includes
+314 Olympus and 211 Norne completion records in the selected schedule prefix.
+Norne's fifty reports are the ceiling of 20% of its 247 source reports.
+
+Input-deck integer/property arrays round-trip exactly through OPM. Interpolated
+ZCORN decimal round-trip differences are at most 2.221e-16 / 2.034e-16 relative.
+The Julia helper inserts default MINPV before dividing it among refined layers;
+the exporter now makes this value explicit for Olympus too. It also expands
+saturation/PVT/depth table rows and preserves PVT region terminators, rather
+than relying on a flattened OPM serialization accepted only by OPM.
+
+Flow dry runs report exactly the same active-cell counts as Jutul:
+771,000 Olympus / 355,444 Norne. Norne removes 3,972 of the 359,416 input-active
+cells through MINPV, matching the Julia mesh. Input pore-volume totals reported
+by Flow are 219,856,814 / 673,248,728 m3. Unsupported summary requests produce
+warnings but do not prevent setup. No simulation comparison has been claimed.
+
+Flow normally permits Float32 linear solves up to 20 days and uses CNV 0.01.
+The reference disables single precision with `--max-single-precision-days=0`
+and sets CNV 0.001, MB 1e-7 and linear reduction 0.005, including relaxed values,
+to match the Julia harness. Its existing solver/timestep policies are retained;
+Flow reports that it ignores SCHEDULE TUNING by default. Numerical iteration
+and ministep counts will be reported rather than silently treating controllers
+as identical. Binary output is disabled in the timed reference. Full wall time
+and Flow's solver time must be distinguished from Julia's warmed simulation timer.
+
+The first 15-rank reference is running, pinned to the same physical cores as the
+Julia tests, one OpenMP thread per rank. Setup used about 10 GiB at the first
+check; the fifteen rank CPU IDs were 0,2,...,28. Each command and deck SHA256 is
+retained with Flow's version, stdout, process timing and PRT/INFOSTEP diagnostics.

@@ -16,6 +16,30 @@ and checks complete final states.
 Benchmark scripts and a small standalone Julia environment will live here.
 Generated case caches and raw profiles should not be committed.
 
+## OPM reference on Ryzen/WSL
+
+`prepare_opm.py` uses the installed OPM Python parser and NumPy to export
+the same Olympus z4 and Norne z8 layer refinements, retaining the first 20%
+of the original reports. It mirrors `refine_layers.jl`, including interface
+multipliers, faults, completions, and MINPV. Generated decks belong under
+`results/opm/olympus_z4/OLYMPUS_Z4.DATA` and
+`results/opm/norne_z8/NORNE_Z8.DATA`. Pass source path, target path, and vertical
+factor as its three arguments. PVT/saturation tables retain row formatting
+accepted by both existing parsers. Run `validate_opm_deck.jl` in the benchmark
+environment after preparing both decks; it compares parsed properties, PVT,
+faults, completions, controls, and dates against the Julia refinement.
+
+`bash perf_testing/run_opm.sh olympus 15 1` then measures one 15-rank Flow run;
+the other case name is `norne`. Rank counts from one to 16 are supported on
+this specific Ryzen/WSL mapping. Each rank is pinned to CPU `2*local_rank`,
+with one OpenMP/BLAS thread. Float32 linear solves are disabled. CNV, mass
+balance and linear tolerances match the Julia harness (0.001, 1e-7, 0.005),
+including Flow's relaxed tolerances. Existing solver and timestep policies
+remain in place. Binary result output is disabled for timing. Commands, input
+hash, Flow version, process wall time and Flow's own solve statistics are saved.
+Output directories must be fresh, and validation must be newer than the deck.
+These scripts require the system OPM Python bindings, Flow and Open MPI.
+
 ## Reproduction
 
 Place the checkouts in sibling `Jutul.jl`, `JutulDarcy.jl`, and `GeoEnergyIO.jl`
