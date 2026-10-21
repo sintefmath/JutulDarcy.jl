@@ -110,6 +110,9 @@ function convergence_criterion(model::SimulationModel{D, S}, storage, eq::Conser
 end
 
 function cnv_mb_errors_bo(r, Φ, b, dt, rhoS, ::Val{N}) where N
+    if cpu_convergence_supported(r, Φ, b, dt)
+        return cpu_convergence_errors(r, Φ, b, dt, Val(N), Val(true), rhoS)
+    end
     cell_count = length(Φ)
     total_pore_volume = sum(value, Φ)
     average_inverse_formation_volume_factor = ntuple(Val(N)) do phase

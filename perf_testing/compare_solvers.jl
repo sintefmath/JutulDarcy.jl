@@ -34,6 +34,7 @@ function compare_solvers(; solver_policies = ("default" => NamedTuple(),))
         flush(stdout)
         row = try
             sim, config = screen_simulator(case; solver_options)
+            actual_linear_solver = String(config[:linear_solver].solver)
             config[:info_level] = parse(Int, get(ENV, "PERF_SCREEN_INFO", "-1"))
             run_simulation(sim, config, case)
             samples = Any[]
@@ -55,7 +56,8 @@ function compare_solvers(; solver_policies = ("default" => NamedTuple(),))
                 sim = config = measurement = nothing
             end
             Dict("case" => name, "refinement_z" => refinement,
-                "threads" => Threads.nthreads(), "linear_solver" => linear,
+                "threads" => Threads.nthreads(), "linear_solver" => actual_linear_solver,
+                "requested_linear_solver" => linear, "solver_options" => repr(solver_options),
                 "system_smoother" => system, "pressure_smoother" => pressure, "policy" => policy,
                 "samples" => samples, "median_seconds" => median(s["seconds"] for s in samples))
         catch err

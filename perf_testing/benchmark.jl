@@ -56,6 +56,7 @@ function solver_metadata(config)
     pressure = preconditioner.pressure_precond
     system = preconditioner.system_precond
     metadata = Dict{String,Any}(
+        "linear_solver" => String(config[:linear_solver].solver),
         "pressure_preconditioner" => string(typeof(pressure)),
         "system_preconditioner" => string(typeof(system)))
     if hasproperty(system, :factor)
@@ -83,11 +84,17 @@ function main()
     println("Warming up ", nc, " cells; report days = ", case.dt ./ si_unit(:day))
     flush(stdout)
     sim, config = new_simulator(case)
+    warm_case = case
+    if haskey(ENV, "PERF_WARMUP_MAX_DAYS")
+        warm_steps = parse(Int, get(ENV, "PERF_WARMUP_STEPS", "3"))
+        warm_case = case[1:min(warm_steps, length(case.dt))]
+        warm_case.dt .= min.(warm_case.dt, parse(Float64, ENV["PERF_WARMUP_MAX_DAYS"])*si_unit(:day))
+    end
     # Show physical progress for long warm-ups; timed configurations stay quiet.
     if parse(Float64, get(ENV, "PERF_FRACTION", "0")) > 0
         config[:info_level] = parse(Int, get(ENV, "PERF_WARMUP_INFO", "1"))
     end
-    run_simulation(sim, config, case)
+    run_simulation(sim, config, warm_case)
     println("Warm-up complete; starting measured runs")
     flush(stdout)
     solver_info = solver_metadata(config)
@@ -97,6 +104,7 @@ function main()
     for repeat in 1:repeats
         # Fresh hierarchy for every sample: warm code, same initial physical state.
         sim, config = new_simulator(case)
+        config[:info_level] = parse(Int, get(ENV, "PERF_RUN_INFO", "-1"))
         GC.gc()
         measurement = @timed run_simulation(sim, config, case)
         stats = report_stats(measurement.value.reports)
@@ -130,6 +138,8 @@ function main()
     end
     result = Dict(
         "report_days" => case.dt ./ si_unit(:day),
+        "warmup_report_days" => warm_case.dt ./ si_unit(:day),
+        "run_info_level" => get(ENV, "PERF_RUN_INFO", "-1"),
         "case" => name, "refinement_z" => refinement, "report_steps" => length(case.dt),
         "schedule_fraction" => parse(Float64, get(ENV, "PERF_FRACTION", "0")),
         "cells" => nc, "threads" => Threads.nthreads(:default),

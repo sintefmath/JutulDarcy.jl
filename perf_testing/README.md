@@ -77,3 +77,11 @@ interface (Float64 simulation, Float32 linear algebra, FGMRES). Keep its results
 separately labelled and compare complete states before selecting it.
 `PERF_INDEX_TYPE=Int32` uses the existing narrower-index interface; default is
 `Int`. Record this separately from floating-point precision.
+
+For exploratory long runs, `PERF_WARMUP_MAX_DAYS=1` caps a separate warm-up
+prefix (`PERF_WARMUP_STEPS=3` by default) while preserving the measured schedule.
+The output records both schedules and compilation time; repeat any sample with
+material JIT time. Default warm-up still uses the entire measured case.
+`PERF_RUN_INFO` enables progress during diagnostic measurements; final timings
+default to quiet output. `probe_pressure.jl` replays saved pressure matrices
+through the existing smoothers to separate kernel cost from convergence.

@@ -185,10 +185,11 @@ claims. No defaults have changed.
 | Norne z4 | BiCGStab | ILU0 | 15.599 | 48 / 130 | 15 / 29 |
 | Norne z4 | GMRES | GS | 9.635 | 41 / 163 | 15 / 70 |
 | Norne z4 | GMRES | ILU0 | 8.419 | 29 / 97 | 0 / 0 |
+| Norne z4 | GMRES | DILU | 58.655 | 57 / 1328 | 30 / 973 |
 
 Olympus DILU exceeds the 120-second per-run screening budget with both Krylov
 methods, with repeated cuts and poor linear convergence. Norne BiCGStab/DILU
-also exceeds that budget; GMRES/DILU is still running. The first exploratory
+also exceeds that budget. The first exploratory
 Olympus DILU warm-up was stopped manually before adding this bound. A single
 SIGUSR1 peek during that warm-up confirmed active solver work. No timing from
 the instrumented warm-up is used above.
@@ -206,6 +207,36 @@ while CSC SPAI0 fails to clear its normalization buffer on numeric updates.
 Focused regression tests are prepared. These are outside the current KA hot
 path and do not explain the smoother timings above. Keep their fix separate
 from performance claims.
+
+## Retained host convergence reduction
+
+Fused reductions are now integrated into the existing multiphase and black-oil
+functions for large strided Float64 host arrays at multiple workers. Other
+arrays, external/nested AD, non-Float64 values and serial runs retain the
+generic code. No exported API is added. The prototype was removed, and its
+tests now exercise both the private reduction and the production entry points
+against independent serial references: 46 checks at one worker, 54 at 15.
+
+Three fresh warmed simulations with the original controlled SPAI0/GMRES/level-
+ILU configuration and unrestricted affinity give 6.945 s for Olympus z2 and
+7.937 s for Norne z4, versus 7.454 / 8.627 s previously. All six measurements
+report zero compilation time. Complete final arrays remain bit-for-bit equal
+to the original 15-worker baseline, with unchanged accepted/wasted counts.
+These are observed improvements of about 6.8% / 8.0%, not fivefold scaling.
+Frozen pressure/system fixtures are saved outside timed simulation work for
+focused preconditioner replays; their IO is excluded from the timing.
+
+Jutul `3baad4b2` fixes the two native CPU preconditioner bugs independently.
+New tests reproduce nine failures before the fix and pass all 24 checks after
+it at both one and 15 workers. Existing scalar/block CSR ILU tests also pass
+all 24 checks at both worker counts. The alpha=1, beta=0 fast path is retained.
+
+Incorporated Jutul's portable batching-test commit `b648458c` and the other
+session's final M4 report (`2d5ee982`, local `332f1a72`). Its GS prototypes
+preserve states but provide small end-to-end gains. The M4 system-ILU crossover
+commit `c03425a8` is deferred here: after the worker-metadata fix, native `:ilu0`
+at two workers is partitioned rather than serial. Validate that policy on Ryzen
+before importing a threshold whose stated serial behavior no longer applies.
 
 ## Audit status
 
