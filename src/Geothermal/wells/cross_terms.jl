@@ -128,7 +128,6 @@ Base.@propagate_inbounds function btes_supply_return_massflux(system::JutulDarcy
     for i = 1:ncomp
         mass_t += state.TotalMasses[i, node]
     end
-    # Flux type determined from the computed values (see above)
     q = map(1:ncomp) do i
         f = state.TotalMasses[i, node]/mass_t
         f*λ_t*rho_mix*Ψ
