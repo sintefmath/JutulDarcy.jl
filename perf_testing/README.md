@@ -113,9 +113,18 @@ a complete cycle's wall time. They do not change simulation timestepping.
 `probe_builtin.jl model refinement output.toml` uses Jutul's existing
 `Benchmarking.benchmark_secondary_variables`, `benchmark_assembly` and
 `benchmark_linear_operators` routines on the initial physical state. Secondary
-variables are timed individually, using the production host/kernel choice;
-the production host path batches all variables within each worker. Retain this
-distinction when comparing those timings with a full simulation.
+variables are timed individually. On the host, record both the built-in serial
+variable evaluation and its threaded per-cell loop. Production gives each
+worker a range of cells for all variables. Retain this distinction when
+comparing those timings with a full simulation.
+
+`probe_ilu_dispatch.jl fixture output.toml` sweeps Polyester minimum batch
+sizes on the saved system ILU, preserving its exact row arithmetic and checking
+bitwise equality. It records both triangular schedules, a natural-order serial
+traversal, and a store-only loop with the same dispatch shapes. The last loop
+includes stores and scheduling; it is not a measurement of pure launch latency.
+`PERF_SECONDARY_VARIANT=typed` selects a tuple/`foreach` specialization experiment
+in `probe_secondary.jl`; it checks every secondary array before timing.
 
 `compare_hybrid_smoothing.jl` experiments with the existing SPAI0 and GS kernels
 on different hierarchy levels. `test_hybrid_smoother.jl` checks it against a

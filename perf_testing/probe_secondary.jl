@@ -29,6 +29,29 @@ function secondary_measure(f::F) where F
         "compile_seconds" => sum(s.compile_time for s in samples))
 end
 
+@inline function update_typed_secondary!(state, model, ::Val{K}, variable, tile, tiles) where K
+    values = state[K]
+    indices = Jutul.entity_eachindex(values, tile, tiles)
+    Jutul.update_secondary_variable!(values, variable, model, state, indices)
+    return nothing
+end
+
+function typed_tiled_secondary!(state, model, definitions::Tuple, cells, tile_size)
+    context = model.context
+    workers = clamp(cells ÷ Jutul.minbatch(context), 1,
+        min(Jutul.nthreads(context), Threads.nthreads(:default)))
+    tiles = max(workers, cld(cells, tile_size))
+    function update_worker(worker)
+        for tile in Jutul.load_balanced_interval(worker, tiles, workers)
+            foreach(definitions) do (symbol, variable)
+                update_typed_secondary!(state, model, symbol, variable, tile, tiles)
+            end
+        end
+    end
+    Jutul.threaded_loop(update_worker, workers, Jutul.thread_type(context))
+    return nothing
+end
+
 function probe_secondary()
     name, refinement = ARGS[1], parse(Int, ARGS[2])
     case = benchmark_case(name, refinement, 3)
@@ -44,9 +67,17 @@ function probe_secondary()
     reference = Dict(symbol => copy(state[symbol]) for (symbol, _) in pairs(variables))
     @assert all(p -> isfinite(p) && Jutul.value(p) > 0, state[:Pressure])
     rows = Any[merge(Dict("tile" => "original"), secondary_measure(original))]
-    for size in (256, 512, 1024, 2048, 4096, 8192)
-        candidate = let tile_size = size
-            () -> tiled_secondary!(state, model, variables, tile_size)
+    typed = get(ENV, "PERF_SECONDARY_VARIANT", "generic") == "typed"
+    definitions = map((symbol, var) -> (Val(symbol), var), Tuple(keys(variables)), Tuple(values(variables)))
+    for size in (256, 512, 1024, 2048, 4096, 8192, cells)
+        candidate = if typed
+            let tile_size = size
+                () -> typed_tiled_secondary!(state, model, definitions, cells, tile_size)
+            end
+        else
+            let tile_size = size
+                () -> tiled_secondary!(state, model, variables, tile_size)
+            end
         end
         candidate()
         @assert all(isequal(state[symbol], expected) for (symbol, expected) in reference)
@@ -58,6 +89,8 @@ function probe_secondary()
     result = Dict("case" => name, "refinement_z" => refinement, "cells" => cells,
         "threads" => Threads.nthreads(:default), "context_workers" => Jutul.nthreads(model.context),
         "state" => "initial condition, no timestep integration", "variables" => string.(keys(reference)),
+        "variant" => typed ? "typed foreach" : "generic pairs loop",
+        "variable_container" => string(typeof(variables)),
         "rows" => rows, "jutul_commit" => readchomp(`git -C $(pkgdir(Jutul)) rev-parse HEAD`),
         "darcy_commit" => readchomp(`git -C $(pkgdir(JutulDarcy)) rev-parse HEAD`))
     open(ARGS[3], "w") do io
