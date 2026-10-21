@@ -3,7 +3,7 @@ using Jutul, JutulDarcy, LinearAlgebra, Statistics, TOML, Serialization, Profile
 
 include("refine_layers.jl")
 
-BLAS.set_num_threads(1)
+BLAS.set_num_threads(parse(Int, get(ENV, "PERF_BLAS_THREADS", "1")))
 
 function benchmark_case(name, refinement, steps)
     dataset = Dict("norne" => "NORNE_NOHYST", "olympus" => "OLYMPUS_1")[name]
@@ -91,6 +91,7 @@ function main()
         "report_days" => case.dt ./ si_unit(:day),
         "case" => name, "refinement_z" => refinement, "report_steps" => steps,
         "cells" => nc, "threads" => Threads.nthreads(:default),
+        "blas_threads" => BLAS.get_num_threads(),
         "pressure_smoother" => get(ENV, "PERF_PRESSURE_SMOOTHER", "spai0"),
         "system_smoother" => get(ENV, "PERF_SYSTEM_SMOOTHER", "default"),
         "julia" => string(VERSION), "label" => label,

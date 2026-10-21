@@ -28,7 +28,8 @@ thread-dependent application default instead of fixed SPAI0.
 `PERF_SYSTEM_SMOOTHER=ilu0` forces serial CSR ILU0;
 `PERF_SYSTEM_SMOOTHER=ka_ilu0` forces level-scheduled ILU0. The benchmark default
 leaves the application choice in place.
-All runs use `mode=:ka`, GMRES, Float64, and single-threaded BLAS.
+All runs use `mode=:ka`, GMRES, and Float64. BLAS defaults to one thread;
+`PERF_BLAS_THREADS` supports a separate dense-vector threading experiment.
 
 TOML results include wall/GC time, allocations, phase timings, iteration counts,
 checksums, cell counts, and source commits. Serialized final pressure/saturation
