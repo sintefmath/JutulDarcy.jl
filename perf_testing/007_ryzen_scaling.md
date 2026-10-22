@@ -24,6 +24,33 @@ nonlinear/timestep controls fixed. Int32 sparse indices still store Float64
 coefficients and are a separate memory-traffic optimization. The fivefold goal
 has not been achieved, and short screens do not establish OPM parity.
 
+## Current status — 2026-10-22 05:48 UTC
+
+Latest retained Jutul source is `da418265`, following `aada70d5` (successful
+single-step history reuse) and `5677c91a` (native ILU sorted-row lookup).
+The latest change batches independent Float64 GS diagonal updates. All three
+have complete short-case comparisons and existing CPU/KA regression coverage.
+The latest suites pass 1,629 assertions serial and 1,621 at 15 workers.
+
+The most recent complete original-20% references predate these three increments:
+
+| Case | Best available serial, s | 15-worker median, s | Ratio | OPM MPI15 simulation, s |
+|---|---:|---:|---:|---:|
+| Norne z8 | 2,579.467 | 1,099.124 | 2.347x | 847.11 |
+| Olympus z4 | 1,430.615 | 688.603 | 2.078x | 667.26 |
+
+Norne uses GS at both worker counts; Olympus compares serial GS with parallel
+SPAI0/four sweeps and different work counts. Thus the Olympus ratio is a
+configuration comparison, not fixed-smoother strong scaling. Cross-engine
+fields differ; OPM and Jutul also use different Krylov methods. Fivefold scaling
+and OPM parity remain unmet.
+
+A fresh Norne 20% run with `da418265` is in progress, followed automatically by
+a complete-state comparison with the preceding reference. One bounded block-GS
+prototype waits behind it; all coloring, CPR-order and exact-dependency trials
+remain outside production. See the later sections for complete measurements,
+limitations and rejected experiments. Nothing has been pushed.
+
 `PERF_FRACTION=0.2` selects the first ceil(20% * report count) intervals and
 disables the one-day cap unless `PERF_MAX_DAYS` is explicitly supplied.
 The benchmark environment now points at the sibling `.jl` checkouts used here;
