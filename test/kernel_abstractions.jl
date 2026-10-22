@@ -3,6 +3,7 @@ using JLArrays
 using MultiComponentFlash
 using ForwardDiff
 using SparseArrays
+using LinearAlgebra
 using Test
 using HYPRE, MPI
 
@@ -41,11 +42,10 @@ using HYPRE, MPI
     end
 end
 
-@testset "Float32 CPR inner pressure solve" begin
-    T = Float32
-    matrix = spdiagm(-1 => fill(-1.0f0, 3),
-        0 => fill(4.0f0, 4),
-        1 => fill(-1.0f0, 3))
+@testset "CPR inner pressure solve ($T)" for T in (Float32, Float64)
+    matrix = spdiagm(-1 => fill(T(-1), 3),
+        0 => fill(T(4), 4),
+        1 => fill(T(-1), 3))
     pressure_matrix = Jutul.KAPreconditioners.csr_matrix(matrix)
     rhs = ones(T, 4)
     increment = zeros(T, 4)
@@ -57,14 +57,23 @@ end
     Jutul.update_preconditioner!(pressure, pressure_matrix, rhs,
         context, Jutul.default_executor())
     cpr = CPRPreconditioner(pressure,
-        KASmootherPreconditioner(:spai0); p_rtol = 0.1)
+        KASmootherPreconditioner(:spai0); p_rtol = 1e-4)
     cpr.storage = JutulDarcy.CPRStorage(4, 1, nothing,
         (pressure_matrix, similar(rhs), similar(rhs)),
         similar(rhs), similar(rhs), T)
 
     JutulDarcy.cpr_p_apply!(increment, cpr, pressure, rhs, cpr.p_rtol)
-    @test eltype(cpr.psolver.x) === Float32
+    @test eltype(cpr.psolver.x) === T
     @test all(isfinite, increment)
+    @test cpr.psolver.stats.solved
+    @test norm(matrix*increment - rhs) <= 10*cpr.p_rtol*norm(rhs)
+
+    workspace = cpr.psolver
+    rhs .= 1:length(rhs)
+    JutulDarcy.cpr_p_apply!(increment, cpr, pressure, rhs, cpr.p_rtol)
+    @test cpr.psolver === workspace
+    @test cpr.psolver.stats.solved
+    @test norm(matrix*increment - rhs) <= 10*cpr.p_rtol*norm(rhs)
 end
 
 function setup_spe1_ka_case(; block_backend = false)
