@@ -990,3 +990,20 @@ any measured sample or metadata was saved. The cancelled warm-up and discarded
 replay files are explicitly archived. The new handoff runs a fresh quiet replay
 and then starts the original-20% benchmark directly, sequentially, with no
 PID-based pause/resume between these two programs.
+
+The valid quiet replay uses the 355,444-cell Norne z8 Float64/Int32 pressure
+matrix. Natural GS versus the column-colored draft takes 16.932 / 10.970 ms
+per AMG application, and 124.426 / 90.658 ms for pressure GMRES. Both take
+five iterations, with true relative residuals 0.001474 / 0.002140 at the
+0.005 tolerance. Numeric update regresses from 16.756 to 20.176 ms, including
+pattern-cache checks. Application allocation rises from 3,296 to 7,904 bytes.
+These are pressure-only results, without a validated whole-simulation gain.
+
+The finest column-colored schedule has 107 groups. This interface separates
+rows sharing any column, a stronger condition than GS needs. A second isolated
+draft uses the existing Graphs dependency's deterministic degree-ordered
+`greedy_color` on the undirected direct-edge graph, checking every original
+structural edge afterward. It requires no new coloring implementation or
+dependency. Its one/15-worker row-order tests, quiet pressure replay and paired
+three-day Norne simulations are queued after both current original-20% cases.
+Neither draft is included in the production code or current long benchmarks.
