@@ -1169,3 +1169,54 @@ uses the existing interface, with a 240 s process bound and retained fixtures.
 The old column-colored draft then receives one whole-case screening pair,
 after the factorization validation. No additional solver families are selected;
 the earlier BiCGStab screen and long warm-up rejection remain documented above.
+
+## Completed current serial references and bookkeeping validation
+
+Both native serial Float64/Int32 GMRES original-20% references have finished,
+with BLAS=1 and CPU 0 pinned. Norne takes **2,579.467 s**, with 2,854 Newton /
+8,517 linear iterations, 11,371 preconditioner applications and 366 ministeps.
+Against the current 15-worker median of 1,099.124 s, the ratio is **2.347x**.
+The three additional serial linear iterations prevent a bitwise scaling claim;
+complete final fields differ by at most 17.462 Pa / 0.000376088 saturation,
+with relative norms 9.1843e-9 / 1.08025e-6. Wasted work is a subset of totals.
+
+| Norne phase | Serial, s | 15 workers median, s | Ratio |
+|---|---:|---:|---:|
+| Assembly | 861.195 | 194.989 | 4.417 |
+| Secondary properties | 254.332 | 56.769 | 4.480 |
+| Preconditioner application | 658.063 | 463.726 | 1.419 |
+| Linear setup | 456.691 | 191.670 | 2.383 |
+| Krylov excluding preconditioning | 225.067 | 111.790 | 2.013 |
+
+Olympus serial takes **1,430.615 s**, with 1,517 Newton / 5,829 linear
+iterations, 7,346 preconditioner applications and 178 ministeps. Its ratio to
+the current 688.603 s parallel median is **2.078x**. This compares the best
+available configurations: serial GS versus parallel SPAI0 with four sweeps,
+and different iteration counts, so it is not fixed-smoother strong scaling.
+Final maximum differences are 9,075.77 Pa / 0.0336186 saturation; relative
+norms are 5.39815e-5 / 0.000272798. Serial phase times are assembly 375.955 s,
+secondary 81.246 s, preconditioner 537.575 s, setup 220.951 s and Krylov
+147.643 s. Both serial references are one measured sample after separate
+three-day warm-up. Actual final hierarchy metadata and full fixtures are saved.
+Neither 5x nor OPM parity has been achieved.
+
+The successful-one-iteration history draft passes the counted-product checks:
+one fewer matrix product for a successful single step, unchanged failed and
+zero-iteration paths, identical solution/update vectors. Three alternating
+fresh simulation pairs at each worker count preserve complete final fields
+bitwise, all work counts, and have zero timed compilation:
+
+| Case | Workers | Baseline median, s | History reuse median, s |
+|---|---:|---:|---:|
+| Norne z8 | 1 | 20.0704 | 19.9888 |
+| Norne z8 | 15 | 9.46105 | 9.11804 |
+| Olympus z4 | 1 | 35.9580 | 36.1370 |
+| Olympus z4 | 15 | 15.7660 | 15.8227 |
+
+Norne has five successful single-step solves per short run and saves about
+85.31 MB; Olympus has one and saves about 24.67 MB. Olympus timing is flat
+within the observed spread; this is principally a small allocation/bookkeeping
+improvement. These Olympus pairs use SPAI0/four sweeps at both worker counts,
+unlike the native-GS serial original-20% reference above. No numerical source
+has yet changed for this draft; factorization comparisons still use the frozen
+reference source.
