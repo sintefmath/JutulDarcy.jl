@@ -1007,3 +1007,32 @@ structural edge afterward. It requires no new coloring implementation or
 dependency. Its one/15-worker row-order tests, quiet pressure replay and paired
 three-day Norne simulations are queued after both current original-20% cases.
 Neither draft is included in the production code or current long benchmarks.
+
+## Current Float64 original-20% Olympus validation
+
+Olympus z4, 771,000 cells, four original reports / 1,461 days, pinned 15 workers:
+the known four-sweep SPAI0 pressure configuration takes 685.947, 688.731 and
+688.603 s, median **688.603 s**. All samples take 1,446 Newton / 5,045 linear
+iterations, 6,491 preconditioner applications and 172 ministeps. Wasted work is
+825 Newton / 2,041 linear iterations. Scalar state summaries agree exactly.
+Measured compilation is 2.061 s in the first sample and zero in both repeats.
+The latter samples allocate 37.190 GB; median GC is 1.388 s.
+
+| Phase | Median seconds |
+|---|---:|
+| Preconditioner application | 350.499 |
+| Linear setup | 99.497 |
+| Krylov excluding preconditioning | 93.663 |
+| Linear-system assembly | 84.839 |
+| Secondary properties | 19.063 |
+| State updates | 15.734 |
+| Convergence | 7.589 |
+| Equation work | 6.630 |
+
+This is 19.7% below the earlier 857.859 s GS measurement, with different
+smoothing, index width, library improvements and nonlinear/linear work; it is
+not a thread-scaling ratio. It remains 3.2% above OPM MPI15's 667.26 s simulation
+time. OPM's pressure strategy and field results differ, so this timing comparison
+does not establish numerical equivalence. The matched current serial original-
+20% baseline is still outstanding; neither 5x scaling nor OPM parity is claimed.
+Norne's original-20% three-sample validation follows sequentially.
