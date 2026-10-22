@@ -157,7 +157,9 @@ function main(; solver_options = NamedTuple())
             if get(ENV, "PERF_SAVE_FIXTURE", "false") == "true"
                 serialize(prefix * ".fixture", (
                     preconditioner = config[:linear_solver].preconditioner,
-                    linear_system = sim.storage.LinearizedSystem))
+                    linear_system = sim.storage.LinearizedSystem,
+                    state = last(measurement.value.states),
+                    reports = measurement.value.reports))
             end
         end
         sim = config = measurement = nothing
