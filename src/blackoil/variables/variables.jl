@@ -201,6 +201,9 @@ function Base.convert(::Type{BlackOilX{T}}, x::BlackOilX) where {T<:Real}
 end
 
 linearized_blackoil_increment(dX) = vec(dX)
+# A scalar cell-major variable is a one-row matrix. Keep its strided view
+# instead of reshaping it into a wrapper unsupported by Polyester.
+linearized_blackoil_increment(dX::StridedMatrix{Float64}) = size(dX, 1) == 1 ? view(dX, 1, :) : vec(dX)
 linearized_blackoil_increment(dX::LinearAlgebra.Adjoint) = vec(parent(dX))
 linearized_blackoil_increment(dX::LinearAlgebra.Transpose) = vec(parent(dX))
 
@@ -222,6 +225,13 @@ function blackoil_increment_norm(dX, X, phase)
 end
 
 function Jutul.increment_norm(dX, state, model, X, pvar::BlackOilUnknown)
+    increments = linearized_blackoil_increment(dX)
+    if increments isa StridedVector{Float64} && X isa Vector{<:BlackOilX} &&
+            length(increments) == length(X) && length(X) >= 16_384 &&
+            hasproperty(model, :context) &&
+            Jutul.nthreads(model.context) == Threads.nthreads(:default)
+        return cpu_blackoil_increment_norms(increments, X)
+    end
     sg = blackoil_increment_norm(dX, X, OilAndGas)
     rs = blackoil_increment_norm(dX, X, OilOnly)
     rv = blackoil_increment_norm(dX, X, GasOnly)
@@ -230,6 +240,30 @@ function Jutul.increment_norm(dX, state, model, X, pvar::BlackOilUnknown)
         rs_sum = rs.sum, rs_max = rs.max,
         rv_sum = rv.sum, rv_max = rv.max,
     )
+end
+
+function cpu_blackoil_increment_norms(increments, X)
+    # Multi-array mapreduce materializes a full temporary for every reduction.
+    # Read each phase flag once for all three sums and exact phase maxima.
+    sg_sum = rs_sum = rv_sum = 0.0
+    sg_max = rs_max = rv_max = 0.0
+    length(increments) == length(X) || throw(DimensionMismatch())
+    @batch minbatch=8192 reduction=((+, sg_sum), (+, rs_sum), (+, rv_sum), (max, sg_max), (max, rs_max), (max, rv_max)) for i in 1:length(increments)
+        @inbounds begin
+            phase = X[i].phases_present
+            dx = abs(increments[i])
+        end
+        sg = ifelse(phase == OilAndGas, dx, 0.0)
+        rs = ifelse(phase == OilOnly, dx, 0.0)
+        rv = ifelse(phase == GasOnly, dx, 0.0)
+        sg_sum += sg
+        rs_sum += rs
+        rv_sum += rv
+        sg_max = max(sg_max, sg)
+        rs_max = max(rs_max, rs)
+        rv_max = max(rv_max, rv)
+    end
+    return (; sg_sum, sg_max, rs_sum, rs_max, rv_sum, rv_max)
 end
 
 include("shrinkage.jl")

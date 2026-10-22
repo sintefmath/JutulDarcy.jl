@@ -188,3 +188,9 @@ For a long validation with an already measured configuration, include
 existing setup options to warm-up, fresh measured simulators and profiling,
 and records both requested options and actual preconditioner metadata. This
 avoids introducing additional environment controls for individual solver knobs.
+
+Large Float64 CPU black-oil increment diagnostics now fuse the three phase
+sums/maxima into one batch. The existing CPU one-row increment view is retained
+as a strided vector for Polyester. Other storage types and worker limits keep
+the generic path. `test/blackoil_increment_norm.jl` covers values, layouts,
+nonfinite inputs, allocation, precision fallback and limited contexts.

@@ -39,6 +39,7 @@ end
 
 @testitem "Multi-phase" begin
     include("convergence.jl")
+    include("blackoil_increment_norm.jl")
     include("multiphase.jl")
     include("source_terms.jl")
 end

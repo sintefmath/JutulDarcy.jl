@@ -910,3 +910,39 @@ are bitwise equal to that configuration's earlier saved state. `main` now accept
 `solver_options`, passes them to warm/measured/profile simulator construction,
 and records their representation and actual smoother metadata. No new library
 or environment option is added.
+
+## Retained Float64 increment reduction
+
+The final implementation uses the existing CPU linearization interface to
+return a strided row view for a one-row Float64 matrix. Passing the generic
+reshaped wrapper directly to Polyester had failed its 15-worker regression
+in StrideArraysCore; the row view avoids that unsupported representation.
+The library change is 34 lines, with no state fields, public option or new
+solver. Large Float64 host increments with the full configured worker count
+use one six-accumulator batch; small, other-precision/backend and limited-worker
+inputs retain the existing reductions. Dimensions are checked before batching.
+
+The actual cell-major regression now compares independently against `vec`
+values, and passes its allocation assertion. Focused checks pass 8,646 / 8,648
+at one / 15 workers, plus 46 / 54 convergence checks. A final current-source
+15-worker KA run also passes its reservoir, precision/backend, hybrid and
+26 adjoint assertions. Complete short Norne states are bitwise equal to the
+immediately preceding same-index baseline at both one and 15 workers. The older
+Int64 serial reference differs only by 9.38e-6 Pa / 7.69e-12 saturation.
+
+Fresh three-sample runs retain 17 Newton / 82 linear iterations, no waste,
+and zero timed compilation. Allocation falls 2.765→2.475 GB at one worker and
+2.705→2.415 GB at 15, about 290 MB per simulation. Serial median is 20.063 s,
+essentially unchanged. Its state-update median falls 0.328→0.257 s; threaded
+updates fall 0.198→0.118 s. Across-batch threaded whole-run medians are noisy
+(9.424 / 9.641 s before/after), so they do not establish an overall gain.
+
+A same-process paired comparison alternates the original six-pass/vec path and
+the final fused path for three rounds, with fresh simulators and BLAS=1. All
+six complete states are bitwise identical, work counts agree, and compilation
+is zero. Whole-run medians are 9.40435→9.34935 s, a modest 0.6% gain. Update
+medians are 0.210633→0.118894 s, about 44% lower; allocations fall by about
+290 MB. This justifies retaining the small allocation/update improvement,
+without attributing a large application speedup to the isolated reduction.
+The paired driver is a process-local adaptation of `compare_execution.jl`;
+it is kept with raw results and does not alter library defaults.
