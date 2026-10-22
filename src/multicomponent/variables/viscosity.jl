@@ -1,11 +1,29 @@
 abstract type AbstractCompositionalViscosities <: PhaseVariables end
 
-struct LBCViscosities <: AbstractCompositionalViscosities end
-
-struct ThreePhaseLBCViscositiesLV{T} <: AbstractCompositionalViscosities
-    immiscible_pvt::T
+struct LBCViscosities{C} <: AbstractCompositionalViscosities
+    coefficients::C
 end
 
+LBCViscosities(; coefficients = nothing) = LBCViscosities(coefficients)
+
+struct ThreePhaseLBCViscositiesLV{T, C} <: AbstractCompositionalViscosities
+    immiscible_pvt::T
+    coefficients::C
+end
+
+ThreePhaseLBCViscositiesLV(pvt; coefficients = nothing) = ThreePhaseLBCViscositiesLV(pvt, coefficients)
+
+compositional_lbc_viscosities(eos, p, T, flash, ::Nothing) = lbc_viscosities(eos, p, T, flash)
+
+function compositional_lbc_viscosities(eos, p, T, flash, coefficients)
+    has_liquid = MultiComponentFlash.liquid_phase_present(flash.state)
+    has_vapor = MultiComponentFlash.vapor_phase_present(flash.state)
+    liquid = has_liquid ? flash.liquid : flash.vapor
+    vapor = has_vapor ? flash.vapor : flash.liquid
+    mu_l = lbc_viscosity(eos, p, T, liquid; coeff = coefficients)
+    mu_v = lbc_viscosity(eos, p, T, vapor; coeff = coefficients)
+    return (μ_l = mu_l, μ_v = mu_v)
+end
 
 @jutul_secondary function update_viscosity!(mu, m::LBCViscosities, model::SimulationModel{D, S}, Pressure, Temperature, FlashResults, ix) where {D, S<:CompositionalSystem}
     sys = model.system
@@ -14,7 +32,7 @@ end
     @inbounds for i in ix
         p = Pressure[i]
         T = Temperature[i]
-        mu[l, i], mu[v, i] = lbc_viscosities(eos, p, T, FlashResults[i])
+        mu[l, i], mu[v, i] = compositional_lbc_viscosities(eos, p, T, FlashResults[i], m.coefficients)
     end
 end
 
@@ -26,7 +44,7 @@ end
     @inbounds for i in ix
         p = Pressure[i]
         T = Temperature[i]
-        mu[l, i], mu[v, i] = lbc_viscosities(eos, p, T, FlashResults[i])
+        mu[l, i], mu[v, i] = compositional_lbc_viscosities(eos, p, T, FlashResults[i], m.coefficients)
         mu[a, i] = viscosity(pvt, p)
     end
 end

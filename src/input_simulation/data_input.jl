@@ -215,6 +215,15 @@ function setup_case_from_parsed_data(datafile;
                     PhaseViscosities = mu,
                     PhaseMassDensities = rho
                 )
+            elseif haskey(props, "LBCCOEF")
+                coefficients = Tuple(props["LBCCOEF"])
+                viscosity = submodel.secondary_variables[:PhaseViscosities]
+                if viscosity isa ThreePhaseLBCViscositiesLV
+                    viscosity = ThreePhaseLBCViscositiesLV(viscosity.immiscible_pvt; coefficients = coefficients)
+                else
+                    viscosity = LBCViscosities(; coefficients = coefficients)
+                end
+                set_secondary_variables!(submodel, PhaseViscosities = viscosity)
             end
             if is_thermal
                 set_thermal_deck_specialization!(submodel, props, domain[:pvtnum], oil, water, gas)
@@ -1567,7 +1576,7 @@ function parse_physics_types(datafile; pvt_region = missing)
         if haskey(props, "EOS")
             eos_str = uppercase(first(props["EOS"]))
             if eos_str == "PR"
-                eos_type = PengRobinson()
+                eos_type = haskey(props, "PRCORR") || haskey(runspec, "PRCORR") ? PengRobinsonCorrected() : PengRobinson()
             elseif eos_str == "SRK"
                 eos_type = SoaveRedlichKwong()
             elseif eos_str == "RK"
@@ -1577,13 +1586,14 @@ function parse_physics_types(datafile; pvt_region = missing)
                 eos_type = ZudkevitchJoffe()
             end
         else
-            eos_type = PengRobinson()
+            eos_type = haskey(props, "PRCORR") || haskey(runspec, "PRCORR") ? PengRobinsonCorrected() : PengRobinson()
         end
         if is_gaswat
-            eos_type isa PengRobinson || throw(ArgumentError("GASWAT requires the Peng-Robinson EOS."))
+            eos_type isa MultiComponentFlash.AbstractPengRobinson || throw(ArgumentError("GASWAT requires the Peng-Robinson EOS."))
             eos_type = MultiComponentFlash.SoreideWhitson(mixture;
                 molality = get(props, "SALINITY", 0.0))
         end
+        eos_type = deck_cubic_coefficients(eos_type, props, length(mp))
         if haskey(props, "SSHIFT")
             vshift = Tuple(first(props["SSHIFT"]))
         else
@@ -1733,13 +1743,17 @@ function parse_control_steps(runspec, props, schedule, sys)
         push!(cstep, ctrl_ix)
     end
 
-    skip = ("WELLSTRE", "WINJGAS", "GINJGAS", "GRUPINJE", "WELLINJE", "WEFAC", "WTEMP", "WPOLYMER", "FBHPDEF")
+    skip = ("WELSPECS", "GRUPTREE", "WELLSTRE", "WINJGAS", "GINJGAS", "GRUPINJE", "WELLINJE", "WEFAC", "WTEMP", "WPOLYMER", "FBHPDEF")
     bad_kw = Dict{String, Bool}()
-    streams = setup_well_streams()
+    streams = setup_well_streams(wells)
     default_bhp = nothing
     for (ctrl_ix, step) in enumerate(steps)
         found_time = false
         streams = parse_well_streams_for_step!(streams, step, props)
+        if sys isa CompositionalSystem && any(k -> haskey(step, k), ("WELSPECS", "GRUPTREE", "WELLSTRE", "WINJGAS", "GINJGAS"))
+            refresh_injection_streams!(controls, sys, streams)
+            refresh_injection_streams!(active_controls, sys, streams)
+        end
         default_bhp = get(step, "FBHPDEF", default_bhp)
         if haskey(step, "WEFAC")
             for wk in step["WEFAC"]
@@ -1904,13 +1918,16 @@ function set_active_controls!(active_controls, controls)
     return active_controls
 end
 
-function setup_well_streams()
-    return (streams = Dict{String, Any}(), wells = Dict{String, String}())
+function setup_well_streams(wells = Dict())
+    well_groups = Dict{String, String}(name => get(spec, :group, "FIELD") for (name, spec) in pairs(wells))
+    return (streams = Dict{String, Any}(), wells = Dict{String, String}(),
+        well_sources = Dict{String, String}(), groups = Dict{String, String}(),
+        well_groups = well_groups, parents = Dict{String, String}())
 end
 
-function parse_well_streams_for_step!(streams, step, props)
-    well_streams = streams.wells
-    streams = streams.streams
+function parse_well_streams_for_step!(state, step, props)
+    well_streams = state.wells
+    streams = state.streams
     if haskey(props, "STCOND")
         std = props["STCOND"]
         T = convert_to_si(std[1], :Celsius)
@@ -1927,19 +1944,86 @@ function parse_well_streams_for_step!(streams, step, props)
         end
     end
     if haskey(step, "WINJGAS")
-        winjgas = step["WINJGAS"]
         for winjgas in step["WINJGAS"]
-            @assert uppercase(winjgas[2]) == "STREAM"
-            well_streams[winjgas[1]] = winjgas[3]
+            mode = uppercase(winjgas[2])
+            is_stream = startswith(mode, "ST")
+            is_stream || startswith(mode, "GR") || throw(ArgumentError("WINJGAS mode $mode is not supported."))
+            winjgas[4] == "Default" && winjgas[5] == 0 || throw(ArgumentError("WINJGAS make-up gas and separator stages are not supported."))
+            if is_stream
+                state.well_sources[winjgas[1]] = winjgas[3]
+            else
+                delete!(state.well_sources, winjgas[1])
+            end
         end
     end
-    for kw in ["GINJGAS", "GRUPINJE", "WELLINJE"]
+    for ws in get(step, "WELSPECS", [])
+        state.well_groups[ws[1]] = ws[2]
+    end
+    for (child, parent) in get(step, "GRUPTREE", [])
+        state.parents[child] = parent
+    end
+    for record in get(step, "GINJGAS", [])
+        group, mode, source, makeup, stage = record
+        mode = uppercase(mode)
+        is_stream = startswith(mode, "ST")
+        is_stream || startswith(mode, "GR") || throw(ArgumentError("GINJGAS mode $mode is not supported."))
+        makeup == "Default" && stage == 0 || throw(ArgumentError("GINJGAS make-up gas and separator stages are not supported."))
+        if endswith(group, '*')
+            known_groups = union(Set(values(state.well_groups)), keys(state.parents), values(state.parents), keys(state.groups))
+            groups = filter(g -> startswith(g, group[1:end-1]), collect(known_groups))
+        else
+            groups = [group]
+        end
+        for group in groups
+            if is_stream
+                state.groups[group] = source
+            else
+                delete!(state.groups, group)
+            end
+        end
+    end
+    empty!(well_streams)
+    for (well, group) in state.well_groups
+        source = get(state.well_sources, well, nothing)
+        visited = Set{String}()
+        while isnothing(source)
+            group in visited && throw(ArgumentError("Cycle in GRUPTREE at group $group."))
+            push!(visited, group)
+            source = get(state.groups, group, nothing)
+            !isnothing(source) && break
+            group == "FIELD" && break
+            group = get(state.parents, group, "FIELD")
+        end
+        if !isnothing(source) && !isempty(source)
+            haskey(streams, source) || throw(ArgumentError("Injection stream $source for well $well has no WELLSTRE definition."))
+            well_streams[well] = source
+        end
+    end
+    # Keep support for stand-alone WINJGAS parsing without WELSPECS metadata.
+    merge!(well_streams, state.well_sources)
+    for kw in ["GRUPINJE", "WELLINJE"]
         if haskey(step, kw)
             @warn "Stream keyword $kw was found but is not supported."
         end
     end
 
-    return (streams = streams, wells = well_streams)
+    return state
+end
+
+function refresh_injection_streams!(controls, sys, streams)
+    for (name, ctrl) in controls
+        ctrl isa InjectorControl || continue
+        has_water = has_other_phase(sys)
+        has_water && ctrl.injection_mixture[end] == 1.0 && continue
+        l, v = has_water ? phase_indices(sys)[2:3] : phase_indices(sys)
+        gas_fraction = sum(fraction for (phase, fraction) in ctrl.phases if phase == v)
+        type = gas_fraction > 0 ? "GAS" : "OIL"
+        rho, mix, phases = select_injector_mixture_spec(sys, name, streams, type)
+        controls[name] = InjectorControl(ctrl.target, mix;
+            density = rho, phases = phases, temperature = ctrl.temperature,
+            enthalpy = ctrl.enthalpy, factor = ctrl.factor, tracers = ctrl.tracers)
+    end
+    return controls
 end
 
 function keyword_to_control(sys, streams, kw, k::String; default_bhp = nothing, kwarg...)
@@ -2187,7 +2271,7 @@ function select_injector_mixture_spec(sys::Union{ImmiscibleSystem, StandardBlack
 end
 
 function select_injector_mixture_spec(sys::CompositionalSystem, name, streams, type)
-    eos = sys.equation_of_state
+    eos = surface_equation_of_state(sys)
     props = eos.mixture.properties
     rho_s = reference_densities(sys)
     phases = get_phases(sys)
@@ -2224,7 +2308,7 @@ function select_injector_mixture_spec(sys::CompositionalSystem, name, streams, t
         @assert sum(mix) ≈ 1.0 "Sum of mixture was $(sum(mix)) != 1 for mole mixture $(z) as mass $z_mass"
 
         flash_cond = (p = cond.p, T = cond.T, z = z)
-        flash = MultiComponentFlash.flashed_mixture_2ph(eos, flash_cond)
+        flash = MultiComponentFlash.flashed_mixture_2ph(eos, flash_cond, check = false)
         rho_l, rho_v = MultiComponentFlash.mass_densities(eos, cond.p, cond.T, flash)
         S_l, S_v = MultiComponentFlash.phase_saturations(eos, cond.p, cond.T, flash)
         rho = S_l*rho_l + S_v*rho_v

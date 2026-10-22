@@ -115,6 +115,11 @@ TSTEP
         @test number_of_phases(sys) == 2
         @test JutulDarcy.number_of_components(sys) == 3
         @test sys.equation_of_state.type isa SoreideWhitson
+        compvd_data = deepcopy(data)
+        zmfvd = pop!(compvd_data["PROPS"], "ZMFVD")
+        compvd_data["PROPS"]["COMPVD"] = [hcat(t, zeros(size(t, 1), 2)) for t in zmfvd]
+        compvd_case = setup_case_from_data_file(compvd_data)
+        @test compvd_case.state0[:Reservoir][:OverallMoleFractions] ≈ case.state0[:Reservoir][:OverallMoleFractions]
         @test !haskey(model.primary_variables, :ImmiscibleSaturation)
         @test haskey(case.parameters[:Reservoir], :VaporDiffusivities)
         @test haskey(model.data_domain, :vapor_diffusion, Cells())

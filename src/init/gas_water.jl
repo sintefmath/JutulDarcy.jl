@@ -1,4 +1,7 @@
 function gas_water_component_index(eos)
+    if eos.type isa DeckCubicParameters
+        eos = underlying_deck_eos(eos)
+    end
     w = findfirst(isequal(MultiComponentFlash.COMPONENT_H2O), eos.type.component_types)
     isnothing(w) && throw(ArgumentError("GASWAT requires a water component."))
     return w
@@ -116,7 +119,13 @@ function parse_state0_gas_water_equil(model, datafile; cell_nz = 1)
         eq[10] == 2 || throw(ArgumentError("GASWAT EQUIL currently requires vapor composition at the contact (item 10 = 2)."))
         datum_depth, datum_pressure, contact, contact_pc = eq[1:4]
         datum_depth == contact || throw(ArgumentError("GASWAT EQUIL item 10 = 2 requires the datum at the gas-water contact."))
-        composition = gas_water_composition_function(props["ZMFVD"][ereg], n)
+        if haskey(props, "COMPVD")
+            table = props["COMPVD"][ereg]
+            all(iszero, table[:, end-1]) || throw(ArgumentError("GASWAT EQUIL mode 2 requires vapor rows in COMPVD."))
+            composition = gas_water_composition_function(table[:, 1:n+1], n)
+        else
+            composition = gas_water_composition_function(props["ZMFVD"][ereg], n)
+        end
         T_z = equil_temperature_function(datafile, ereg)
         if ismissing(T_z)
             throw(ArgumentError("GASWAT EQUIL needs TEMPVD or RTEMP."))
