@@ -1243,3 +1243,19 @@ Allocation is unchanged. The isolated factorization improvement therefore
 does not establish a consistent whole-run gain, in addition to the star-pattern
 regression above. Keep production unchanged pending the separate fallback and
 other component checks; do not label this a general performance improvement.
+
+The original 107-color GS draft's one whole-case screening pair also loses:
+9.170011 s natural / 9.456812 s colored, 17 Newton iterations each but
+82 / 87 linear iterations and 99 / 104 preconditioner applications. Allocation
+increases from 2.415 to 3.194 GB. Final maximum differences are 146.264 Pa /
+0.000271929 saturation, with no wasted work or timed compilation. Neither
+coloring draft is selected for production.
+
+The native serial ILU cursor draft reuses the source-row scan position across
+sorted targets, retaining first-match duplicates and multiplication by absent
+entry zeros. On the evolved original-20% serial fixtures, three alternating
+rounds give **101.287755 -> 86.687418 ms Norne**, **62.837816 -> 54.231275 ms
+Olympus**, with bitwise factors/inverse diagonals/solves, zero timed allocation
+and compilation. Existing Float32/Float64, Int32/Int64 scalar/block tests and
+20 direct duplicate/nonfinite/signed-zero checks pass in each process. Full
+paired native-serial simulations are queued before adopting this draft.
