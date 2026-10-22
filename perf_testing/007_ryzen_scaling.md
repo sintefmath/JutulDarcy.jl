@@ -1303,3 +1303,39 @@ pairs now run directly after the GS comparison. A subsequent narrow measurement
 isolates the existing serial GS diagonal-update loop on the evolved fixtures,
 using the existing CPU row-batching interface and preserving row-sum order.
 No additional smoother family or solver is selected.
+
+## Native sorted-row lookup retained
+
+Jutul `5677c91a` adds the cursor as a private sorted-target helper at the two
+native ILU factorization call sites. The existing general helper is unchanged.
+Duplicate first-match behavior and missing-entry multiplication are retained.
+There are 81 new scalar/block, Float32/Float64, Int32/Int64, duplicate,
+signed-zero/nonfinite and general-fallback assertions. Existing CPU/KA suites
+also pass: **1,614 assertions serial / 1,606 at 15 workers**, 52 summaries each.
+
+Three alternating full short native-serial pairs per model, Float64/Int32,
+fixed GMRES/GS, CPU 0 and BLAS=1, preserve complete fields bitwise and all
+work counts, with zero timed compilation:
+
+| Case | Baseline median, s | Cursor median, s | Reduction |
+|---|---:|---:|---:|
+| Norne z8 | 19.938646 | 19.674022 | 1.33% |
+| Olympus z4 | 32.213457 | 31.925718 | 0.89% |
+
+Norne takes 17 Newton / 82 linear iterations and 99 preconditioner applications;
+Olympus 25 / 157 and 182. Allocation is unchanged. Median setup time is
+3.531027 -> 3.315287 s Norne, 4.591886 -> 4.572462 s Olympus; the latter is
+nearly flat. The isolated evolved-fixture numeric factorization gains above
+are larger than the whole-run effect. These are modest serial improvements,
+not new original-20% or thread-scaling measurements.
+
+The independent GS diagonal-update draft passes 14 precision/edge-case checks
+and preserves all evolved hierarchy inverse diagonals bitwise. Three paired
+fixed-input rounds at 15 workers give 5.434343 -> 2.345606 ms Norne and
+8.770581 -> 5.213417 ms Olympus. It uses the existing CPU row batching, one
+diagonal-sum pass, a first-zero check outside worker tasks, then reciprocal
+normalization; no extra storage. Measured allocation is 2,304 -> 2,752 bytes
+Norne and 2,496 -> 3,056 bytes Olympus per complete hierarchy update. Full
+paired Norne simulations are now running before any adoption. Olympus's best
+parallel reference uses SPAI0, whereas these isolated matrices use serial GS
+hierarchies. No original-20% speedup is inferred from this microbenchmark.
