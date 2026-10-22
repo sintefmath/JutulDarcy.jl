@@ -703,14 +703,13 @@ function cpr_p_apply!(Δp, cpr, p_precond, r_p, p_rtol)
     if !isnothing(p_rtol)
         A_p = cpr.storage.A_p
         if isnothing(cpr.psolver)
-            cpr.psolver = FgmresSolver(A_p, r_p)
+            cpr.psolver = FgmresWorkspace(A_p, r_p)
         end
         psolve = cpr.psolver
-        warm_start!(psolve, Δp)
         T = eltype(r_p)
         M = Jutul.PrecondWrapper(linear_operator(p_precond, T,
             nothing, nothing, nothing, nothing, nothing))
-        fgmres!(psolve, A_p, r_p, M = M,
+        fgmres!(psolve, A_p, r_p, Δp, M = M,
             rtol = convert(T, p_rtol), atol = convert(T, 1e-12),
             itmax = 20)
         @. Δp = psolve.x
