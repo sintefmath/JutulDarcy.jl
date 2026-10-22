@@ -169,6 +169,21 @@ end
             end
         end
     end
+    @testset "Tolerances reach the subdomains" begin
+        case = setup_well_case(10, :csr)
+        sim, cfg = setup_reservoir_simulator(case;
+            mode = :parray, parray_arg = (np = 2,), info_level = -1,
+            tol_cnv = 0.5, tol_mb = 0.25, tol_cnv_well = 0.125
+        )
+        map(cfg[:configs]) do subcfg
+            tol = subcfg[:tolerances]
+            @test tol[:Reservoir][:mass_conservation].CNV == 0.5
+            @test tol[:Reservoir][:mass_conservation].MB == 0.25
+            for w in (:Injector, :Producer)
+                haskey(tol, w) && @test tol[w][:mass_conservation].CNV == 0.125
+            end
+        end
+    end
     @testset "MRST case" begin
         r = simulate_mrst_case("spe1";
             output_path = joinpath(tempdir(), "parray_test"),
