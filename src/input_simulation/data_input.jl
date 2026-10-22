@@ -868,8 +868,14 @@ function initialize_numerical_aquifers!(init, rmodel, aquifers)
             z = init[:OverallMoleFractions]
             for (id, aquifer) in pairs(aquifers)
                 cells = map(x -> x.cell, aquifer.aquifer_cells)
-                @. z[:, cells] = 0.0
-                @. z[pos, cells] = 1.0
+                n_hc = size(z, 1)
+                if pos <= n_hc
+                    @. z[:, cells] = 0.0
+                    @. z[pos, cells] = 1.0
+                else
+                    # Water is a separate phase, just put some species.
+                    @. z[:, cells] = 1.0/n_hc
+                end
             end
         end
     elseif haskey(init, :ImmiscibleSaturation)
