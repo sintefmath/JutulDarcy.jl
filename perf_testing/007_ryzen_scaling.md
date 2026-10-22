@@ -1063,3 +1063,56 @@ retain their existing checks. An older Norne serial profile samples this line.
 Tiny counted-product checks and paired complete-state comparisons at one/15
 workers are queued after the serial references. No solver arithmetic, tolerance
 or library source is changed by this unvalidated draft.
+
+## Current Float64 original-20% Norne validation
+
+Norne z8, 355,444 cells, 50 original reports / 572 days, pinned 15 workers,
+GS pressure and KA system ILU: **1,099.117 / 1,142.913 / 1,099.124 s**, median
+**1,099.124 s**. All samples take 2,854 Newton / 8,514 linear iterations,
+11,368 preconditioner applications, 3,220 linearizations and 366 ministeps.
+Wasted subsets are 1,185 Newton / 3,123 linear iterations and 4,308
+preconditioner applications. State summaries agree exactly. Compilation is
+0.646 s in the first sample and zero in both repeats. Median allocation is
+77.039 GB, 51.582 GB below the earlier measurement; median GC is 3.491 s.
+
+| Phase | Median seconds |
+|---|---:|
+| Preconditioner application | 463.726 |
+| Linear-system assembly | 194.989 |
+| Linear setup | 191.670 |
+| Krylov excluding preconditioning | 111.790 |
+| Secondary properties | 56.769 |
+| State updates | 20.299 |
+| Equation work | 16.783 |
+| Convergence | 11.866 |
+
+The slower second sample spends 231.060 s in setup, versus 190.584 / 191.670 s;
+the other major phases are much steadier. Its cause remains unexplained. Static
+inspection found no growing global production schedule cache. Do not attribute
+that outlier to a specific mechanism without further measurements.
+
+The median is 6.2% below the earlier 1,171.912 s result, with slightly different
+work counts; this is not an isolated code-speedup or thread-scaling ratio. It is
+still 29.7% above OPM MPI15's 847.11 s simulation time. The best-current serial
+references and complete current-state cross-engine comparisons are queued.
+Final arrays are Float64 and finite for both cases. Saturation bounds are
+[-1.67e-16, 1] Olympus and [0, 1] Norne; maximum phase-sum error is 4.45e-15 /
+1.01e-10, respectively. These checks do not establish cross-engine equivalence.
+
+The direct-edge GS draft passes all 96 serial-color-order assertions at each
+of one and 15 workers. Its finest schedule has **10 colors**, versus the
+column-colored draft's 107. In a fresh quiet Norne pressure replay, natural /
+direct-edge GS application takes 17.098 / 9.203 ms, and pressure GMRES takes
+121.744 / 86.142 ms at five iterations each. True relative residuals are
+0.001474 / 0.001414. Numeric update regresses 17.459→19.090 ms; application
+allocation remains 3,296 / 7,904 bytes. The full paired simulation is next;
+there is still no production hook or validated whole-run gain.
+
+OPM's outer CPR stage order is pressure then system ILU (`pre_smooth=0`,
+`post_smooth=1`); Jutul's current default is the reverse (1/0). A single bounded
+paired comparison uses existing `cpr_arg=(npre=0,npost=1)` versus (1/0), with
+one application of each stage, unchanged Float64 GMRES, and the known pressure
+choices. These outer CPR counts are separate from the pressure AMG smoother's
+steps. No default is changed. The idle ILU-probe controller is held until this
+comparison finishes, then resumes automatically; all numerical work remains
+sequential. Remote sol-perf branches checked at 02:29 UTC are unchanged.
