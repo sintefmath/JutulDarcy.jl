@@ -25,6 +25,8 @@ module JutulDarcyPartitionedArraysExt
             case::JutulCase,
             backend::PArrayBackend;
             conn = :logtrans,
+            # Fault faces are real connections: cutting them creates ghost cells like any other face.
+            preserve_faults = false,
             np = missing,
             kwarg...
         )
@@ -32,7 +34,7 @@ module JutulDarcyPartitionedArraysExt
             np = MPI.Comm_size(MPI.COMM_WORLD)
         end
         np::Int
-        N, T, groups = partitioner_input(case.model, case.parameters, conn = conn)
+        N, T, groups = partitioner_input(case.model, case.parameters, conn = conn, preserve_faults = preserve_faults)
         rmodel = reservoir_model(case.model)
         nc = number_of_cells(rmodel.domain)
         p_num = partition_distributed(N, T, nc = nc, np = np, groups = groups)

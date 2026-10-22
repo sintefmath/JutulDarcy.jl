@@ -2208,7 +2208,7 @@ function partitioner_input(model_or_domain::Union{JutulModel, DataDomain}, param
         end
     end
     if conn == :unit
-        T = ones(Int, nf)
+        T = ones(Int, size(N, 2))
     else
         trans = max.(trans, 1e-20)
         if conn == :trans
