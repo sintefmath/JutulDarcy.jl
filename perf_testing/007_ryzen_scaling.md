@@ -1259,3 +1259,16 @@ Olympus**, with bitwise factors/inverse diagonals/solves, zero timed allocation
 and compilation. Existing Float32/Float64, Int32/Int64 scalar/block tests and
 20 direct duplicate/nonfinite/signed-zero checks pass in each process. Full
 paired native-serial simulations are queued before adopting this draft.
+
+Jutul `aada70d5` adopts the small successful-single-step history guard. It also
+excludes manual minimum-iteration checks from the shortcut, so initial
+convergence, unsuccessful single steps and manual-limit verification retain
+their true-residual product. Fourteen counted-product/solution assertions pass
+at both worker counts, including an exact single-step solve that reaches a
+manual iteration limit. Existing CPU ILU, symbolic reuse, smoother schedules,
+KA preconditioner and kernel/context suites pass: 1,533 assertions at one
+worker, 1,525 at 15, with no failures. The different totals reflect the existing
+worker-dependent tests. The four earlier complete-state paired comparisons
+used the same shortcut for their ordinary (non-manual) configuration. This
+commit has no new solver arithmetic or tolerance changes. Original-20% times
+above still refer to the preceding numerical source, not this commit.
