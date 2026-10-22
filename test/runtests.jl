@@ -75,6 +75,10 @@ end
     include("systems.jl")
 end
 
+@testitem "Black-oil variables" begin
+    include("blackoil_variables.jl")
+end
+
 @testitem "Thermal" begin
     include("thermal.jl")
 end

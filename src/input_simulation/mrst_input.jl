@@ -1398,7 +1398,11 @@ function setup_case_from_mrst(casename;
         replace_variables!(model, OverallMoleFractions = OverallMoleFractions(dz_max = dz_max), throw = false)
         replace_variables!(model, Saturations = Saturations(ds_max = ds_max), throw = false)
         replace_variables!(model, ImmiscibleSaturation = ImmiscibleSaturation(ds_max = ds_max), throw = false)
-        replace_variables!(model, BlackOilUnknown = BlackOilUnknown(ds_max = ds_max, dr_max = dr_max), throw = false)
+        if reservoir_model(model).system isa BlackOilVariableSwitchingSystem
+            bo = BlackOilUnknown(reservoir_model(model).system;
+                ds_max = ds_max, dr_max = dr_max)
+            replace_variables!(model, BlackOilUnknown = bo, throw = false)
+        end
 
         p_def = Pressure(max_abs = dp_max_abs, max_rel = dp_max_rel, minimum = p_min, maximum = p_max)
         replace_variables!(model, Pressure = p_def, throw = false)
