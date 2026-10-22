@@ -188,6 +188,10 @@ For a long validation with an already measured configuration, include
 existing setup options to warm-up, fresh measured simulators and profiling,
 and records both requested options and actual preconditioner metadata. This
 avoids introducing additional environment controls for individual solver knobs.
+`solver_metadata` describes the final measured hierarchy; warm-up sizes are
+recorded separately in `warmup_solver_metadata`. Older results without the
+latter field recorded warm-up sizes only. `PERF_SAVE_FIXTURE=true` saves the
+evolved preconditioner and linear system after the last timer for term replays.
 
 Large Float64 CPU black-oil increment diagnostics now fuse the three phase
 sums/maxima into one batch. The existing CPU one-row increment view is retained

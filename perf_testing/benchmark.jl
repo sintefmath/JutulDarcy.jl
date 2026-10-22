@@ -113,7 +113,8 @@ function main(; solver_options = NamedTuple())
     run_simulation(sim, config, warm_case)
     println("Warm-up complete; starting measured runs")
     flush(stdout)
-    solver_info = solver_metadata(config)
+    warmup_solver_info = solver_metadata(config)
+    solver_info = warmup_solver_info
     sim = config = nothing
     samples = Any[]
     prefix = joinpath(outdir, "$(label)_$(name)_z$(refinement)_t$(Threads.nthreads(:default))")
@@ -147,6 +148,7 @@ function main(; solver_options = NamedTuple())
         println(sample)
         flush(stdout)
         if repeat == repeats
+            solver_info = solver_metadata(config)
             serialize(prefix * ".state", (pressure = copy(pressure), saturations = copy(saturations)))
             mesh = Jutul.physical_representation(reservoir_model(case.model).data_domain)
             if hasproperty(mesh, :cell_map)
@@ -173,6 +175,7 @@ function main(; solver_options = NamedTuple())
         "omp_threads" => get(ENV, "OMP_NUM_THREADS", "runtime default"),
         "omp_wait_policy" => get(ENV, "OMP_WAIT_POLICY", "runtime default"),
         "solver_metadata" => solver_info,
+        "warmup_solver_metadata" => warmup_solver_info,
         "solver_options" => repr(solver_options),
         "pressure_smoother" => get(ENV, "PERF_PRESSURE_SMOOTHER", "spai0"),
         "system_smoother" => get(ENV, "PERF_SYSTEM_SMOOTHER", "default"),

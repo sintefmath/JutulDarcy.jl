@@ -1036,3 +1036,14 @@ time. OPM's pressure strategy and field results differ, so this timing compariso
 does not establish numerical equivalence. The matched current serial original-
 20% baseline is still outstanding; neither 5x scaling nor OPM parity is claimed.
 Norne's original-20% three-sample validation follows sequentially.
+
+The harness now records the final measured hierarchy in `solver_metadata`,
+with the warm-up hierarchy separately in `warmup_solver_metadata`. Both reads
+are outside the timers. Earlier results, including the running original-20%
+batch, have only warm-up metadata; do not interpret their level sizes as final.
+Future long references will retain an evolved fixture using the existing flag.
+The updated harness and queued drafts pass parser checks. A second queued
+fixed-matrix ILU experiment replaces repeated column searches with an intersection
+of sorted row suffixes, preserving numeric factor order without a symbolic cache.
+It has no production hook and awaits one/15-worker scalar/block tests and paired
+fixture measurements after the coloring experiment.
