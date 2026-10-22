@@ -81,7 +81,7 @@ function solver_metadata(config)
     return metadata
 end
 
-function main()
+function main(; solver_options = NamedTuple())
     name = get(ARGS, 1, "olympus")
     refinement = parse(Int, get(ARGS, 2, "1"))
     steps = parse(Int, get(ARGS, 3, "3"))
@@ -99,7 +99,7 @@ function main()
     nc = number_of_cells(reservoir_model(case.model).data_domain)
     println("Warming up ", nc, " cells; report days = ", case.dt ./ si_unit(:day))
     flush(stdout)
-    sim, config = new_simulator(case)
+    sim, config = new_simulator(case; solver_options)
     warm_case = case
     if haskey(ENV, "PERF_WARMUP_MAX_DAYS")
         warm_steps = parse(Int, get(ENV, "PERF_WARMUP_STEPS", "3"))
@@ -119,7 +119,7 @@ function main()
     prefix = joinpath(outdir, "$(label)_$(name)_z$(refinement)_t$(Threads.nthreads(:default))")
     for repeat in 1:repeats
         # Fresh hierarchy for every sample: warm code, same initial physical state.
-        sim, config = new_simulator(case)
+        sim, config = new_simulator(case; solver_options)
         config[:info_level] = parse(Int, get(ENV, "PERF_RUN_INFO", "-1"))
         GC.gc()
         measurement = @timed run_simulation(sim, config, case)
@@ -173,6 +173,7 @@ function main()
         "omp_threads" => get(ENV, "OMP_NUM_THREADS", "runtime default"),
         "omp_wait_policy" => get(ENV, "OMP_WAIT_POLICY", "runtime default"),
         "solver_metadata" => solver_info,
+        "solver_options" => repr(solver_options),
         "pressure_smoother" => get(ENV, "PERF_PRESSURE_SMOOTHER", "spai0"),
         "system_smoother" => get(ENV, "PERF_SYSTEM_SMOOTHER", "default"),
         "linear_solver" => get(ENV, "PERF_LINEAR_SOLVER", "gmres"),
@@ -199,7 +200,7 @@ function main()
         TOML.print(io, result)
     end
     if get(ENV, "PERF_PROFILE", "false") == "true"
-        sim, config = new_simulator(case)
+        sim, config = new_simulator(case; solver_options)
         GC.gc()
         Profile.clear()
         @profile run_simulation(sim, config, case)

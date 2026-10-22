@@ -851,3 +851,62 @@ irrelevant entries during factorization. The previously rejected triangle-bound
 *solve* optimization is excluded; no repeat of that configuration is needed.
 The factor-only patch awaits paired measurements and correctness checks.
 Remote `sol-perf` was checked again: Jutul c1379eaf / Darcy 2d5ee982 unchanged.
+
+A second fixed-array probe targets black-oil increment diagnostics: the current
+CPU implementation reads the same increment/state arrays six times for three
+phase sums and maxima. A fused Float64 host trial is confined to `results/`,
+with empty/strided/phase/NaN/Inf checks and matching exact maxima; it is not a
+nonlinear or timestep-control change. Queue order is OPM fields, ILU-factor
+replay, then increment replay. The original OPM parent remains held until these
+short investigations finish, so no one-rank reference overlaps Julia work.
+
+The factor-only diagonal-bound trial is rejected and its library patch reverted.
+Three paired fixed-matrix rounds preserve factors/diagonals/solutions bitwise,
+with zero timed compilation/allocation. Serial medians improve 37.208→33.822 ms
+Olympus and 71.456→66.027 ms Norne, but the active 15-worker path is 22.933→23.114
+ms / 30.718→30.122 ms. This does not justify another library change for the
+current performance target. Raw results and the rejected patch remain in results.
+
+The increment diagnostic probe passes 624 checks at each worker count. On
+355,444 strided Float64 increments with dual-valued black-oil state, the original
+six reductions allocate 17,062,000 bytes per call. Medians are 4.811→1.195 ms at
+one worker and 5.899→0.085900 ms at 15. The trial reports 64 bytes per call and
+zero timed compilation. A guarded 30-line library implementation now awaits
+focused/layout/backend-fallback tests and complete one/15-worker state runs.
+Maxima are compared exactly; sums are compared with floating-point tolerance.
+No timestep or nonlinear controls are changed.
+
+Norne's output-validation run completes in 854.48 s simulation, 12.33 s setup,
+867.77 s process wall; output is 6.14 s. Work counts match the output-disabled
+run exactly: 2,620 linearizations, 2,383 Newton, 2,097 linear iterations, 267
+steps. All 355,444 active-cell identities are present, but the latest restart
+is report 44 / day 541, while the simulation finishes report 50 / day 572.
+The field comparator correctly rejects that endpoint. A final-restart output
+request is needed before making a Norne cross-engine field comparison.
+
+The first guarded increment implementation passes 8,913 / 8,923 assertions
+(19 summaries at one / 15 workers), including 8,643 / 8,645 focused checks and
+the existing KA adjoint simulation. Its short full-run medians are 20.079 / 9.424 s,
+17 Newton / 82 linear iterations, no wasted work or timed compilation. The
+15-worker complete state is bitwise equal; the serial state differs from the
+parallel reference only by 4.01e-6 Pa / 3.69e-12 saturation. However, allocations
+remain about 2.765 / 2.705 GB: this reveals that the real simulator misses its
+`StridedVector` guard. These timings do not validate a production speedup.
+
+The actual cell-major view is a one-row `SubArray` selected with a range, whose
+`vec` is a noncontiguous `ReshapedArray`. A new regression reproduces the missed
+path: 8,645 checks pass and its allocation assertion fails (960,656 bytes at
+20,000 cells). The guard now also recognizes a reshaped vector's strided host
+parent; the reduction uses checked dimensions and explicit linear indices.
+Focused/convergence one/15-worker tests and fresh Norne simulations are being
+repeated under the distinct `production_increment_views` label. Both OPM
+controllers are held while this correction is validated; no numerical overlap.
+
+The harness's existing solver-option forwarding is independently validated:
+three Float64/Int32 Olympus z4 samples with the previously measured four-sweep
+SPAI configuration give median 15.876 s, 23 Newton / 135 linear iterations,
+zero wasted work and zero timed compilation. Complete pressure/saturation fields
+are bitwise equal to that configuration's earlier saved state. `main` now accepts
+`solver_options`, passes them to warm/measured/profile simulator construction,
+and records their representation and actual smoother metadata. No new library
+or environment option is added.

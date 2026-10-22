@@ -182,3 +182,9 @@ compares the current library with the remaining GS prototype.
 `PERF_SECONDARY_VARIANT=typed_rebuild` checks the cost of constructing
 typed definitions on every probe call; `split` compares per-variable ranges
 against per-cell dispatch using existing threading interfaces.
+
+For a long validation with an already measured configuration, include
+`benchmark.jl` and call `main(; solver_options = options)`. It forwards the same
+existing setup options to warm-up, fresh measured simulators and profiling,
+and records both requested options and actual preconditioner metadata. This
+avoids introducing additional environment controls for individual solver knobs.
