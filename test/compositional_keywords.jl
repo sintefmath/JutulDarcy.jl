@@ -106,7 +106,8 @@ end
         data = JutulDarcy.GeoEnergyIO.parse_data_file(path; silent = true)
         sys, = JutulDarcy.parse_physics_types(data)
         eos = sys.equation_of_state
-        surface = JutulDarcy.surface_equation_of_state(sys)
+        facility_sys, = JutulDarcy.parse_physics_types(data; for_facility = true)
+        facility_eos = facility_sys.equation_of_state
         base = GenericCubicEOS(eos.mixture, PengRobinson())
         cond = (p = 7.5e6, T = 423.15, z = [0.6, 0.1, 0.3])
         for i in 1:3
@@ -114,8 +115,8 @@ end
             @test MCF.B_i(eos, cond, i)/MCF.B_i(base, cond, i) ≈ data["PROPS"]["OMEGAB"][1][i]/base.ω_b
         end
         @test eos.volume_shift == (0.01, 0.02, 0.03)
-        @test surface.volume_shift == (0.04, 0.05, 0.06)
-        for keyword in ("OMEGAA", "OMEGAB", "SSHIFTS")
+        @test facility_eos.volume_shift == (0.04, 0.05, 0.06)
+        for keyword in ("OMEGAA", "OMEGAB")
             props = Dict(keyword => data["PROPS"][keyword])
             parameters = JutulDarcy.deck_cubic_coefficients(PengRobinson(), props, 3)
             if keyword != "OMEGAA"
@@ -132,7 +133,7 @@ end
             @test MCF.force_coefficients(static, cond).A_i ≈ MCF.force_coefficients(eos, cond).A_i rtol = 1e-6
         end
         flash = MCF.flashed_mixture_2ph(eos, cond)
-        @test MCF.molar_volume(eos, cond.p, cond.T, flash.liquid) != MCF.molar_volume(surface, cond.p, cond.T, flash.liquid)
+        @test MCF.molar_volume(eos, cond.p, cond.T, flash.liquid) != MCF.molar_volume(facility_eos, cond.p, cond.T, flash.liquid)
         coefficients = Tuple(data["PROPS"]["LBCCOEF"])
         mu = JutulDarcy.compositional_lbc_viscosities(eos, cond.p, cond.T, flash, coefficients)
         @test mu.μ_l ≈ MCF.lbc_viscosity(eos, cond.p, cond.T, flash.liquid; coeff = coefficients)
@@ -163,6 +164,11 @@ end
             write(path, compositional_keyword_deck(; water = water))
             case = setup_case_from_data_file(path)
             model = reservoir_model(case)
+            well_system = case.model[:I].system
+            facility_system = case.model[:Facility].system.multiphase
+            @test model.system.equation_of_state.volume_shift == (0.01, 0.02, 0.03)
+            @test well_system.equation_of_state.volume_shift == (0.01, 0.02, 0.03)
+            @test facility_system.equation_of_state.volume_shift == (0.04, 0.05, 0.06)
             @test model.secondary_variables[:PhaseViscosities].coefficients == coefficients
             @test case.model[:I].secondary_variables[:PhaseViscosities].coefficients == coefficients
             controls = [f[:Facility].control[:I] for f in case.forces]
@@ -170,8 +176,14 @@ end
             expected = [0.0, 0.1*0.044, 0.9*0.01604]
             expected /= sum(expected)
             @test controls[2].injection_mixture[1:3] ≈ expected atol = 1e-8
-            adapted = JutulDarcy.Adapt.adapt(Jutul.DefaultContext(), model.system)
-            @test collect(JutulDarcy.surface_equation_of_state(adapted).volume_shift) ≈ [0.04, 0.05, 0.06]
+            surface_density, = JutulDarcy.select_injector_mixture_spec(facility_system, "I", streams, "GAS")
+            well_density, = JutulDarcy.select_injector_mixture_spec(well_system, "I", streams, "GAS")
+            @test controls[1].mixture_density ≈ surface_density
+            @test surface_density != well_density
+            adapted = JutulDarcy.Adapt.adapt(Jutul.DefaultContext(), well_system)
+            @test collect(adapted.equation_of_state.volume_shift) ≈ [0.01, 0.02, 0.03]
+            adapted_facility = JutulDarcy.Adapt.adapt(Jutul.DefaultContext(), case.model[:Facility].system)
+            @test collect(adapted_facility.multiphase.equation_of_state.volume_shift) ≈ [0.04, 0.05, 0.06]
             reference = simulate_reservoir(case; info_level = -1, linear_solver = nothing)
             kernel = simulate_reservoir(case; mode = :ka, info_level = -1, linear_solver = nothing)
             @test length(reference.states) == length(kernel.states) == 2
@@ -186,9 +198,25 @@ end
         @test case.state0[:Reservoir][:OverallMoleFractions] ≈ repeat([0.6, 0.1, 0.3], 1, 2)
         @test all(isfinite, case.state0[:Reservoir][:Pressure])
 
+        # Surface shifts alone use the ordinary cubic EOS, with no wrapper.
+        shift_only = deepcopy(data)
+        delete!(shift_only["PROPS"], "OMEGAA")
+        delete!(shift_only["PROPS"], "OMEGAB")
+        delete!(shift_only["PROPS"], "SSHIFT")
+        shift_only_reservoir, = JutulDarcy.parse_physics_types(shift_only)
+        shift_only_facility, = JutulDarcy.parse_physics_types(shift_only; for_facility = true)
+        @test shift_only_reservoir.equation_of_state.type isa PengRobinson
+        @test shift_only_reservoir.equation_of_state.volume_shift === nothing
+        @test shift_only_facility.equation_of_state.type isa PengRobinson
+        @test shift_only_facility.equation_of_state.volume_shift == (0.04, 0.05, 0.06)
+
         delete!(data["PROPS"], "SSHIFTS")
         unchanged, = JutulDarcy.parse_physics_types(data)
-        @test JutulDarcy.surface_equation_of_state(unchanged) === unchanged.equation_of_state
+        inherited, = JutulDarcy.parse_physics_types(data; for_facility = true)
+        @test inherited.equation_of_state.volume_shift == unchanged.equation_of_state.volume_shift
+        inherited_case = setup_case_from_data_file(data)
+        @test inherited_case.model[:I].system.equation_of_state.volume_shift == (0.01, 0.02, 0.03)
+        @test inherited_case.model[:Facility].system.multiphase.equation_of_state.volume_shift == (0.01, 0.02, 0.03)
         data["PROPS"]["PRCORR"] = true
         corrected, = JutulDarcy.parse_physics_types(data)
         @test corrected.equation_of_state.type.type isa PengRobinsonCorrected

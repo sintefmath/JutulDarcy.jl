@@ -119,7 +119,10 @@ function setup_case_from_parsed_data(datafile;
     end
     msg("Complete in $(round(t_domain, sigdigits = 3)) seconds.")
     pvt_reg = reservoir_regions(domain, :pvtnum)
-    has_pvt = isnothing(pvt_reg)
+    sys_facility = sys
+    if sys isa CompositionalSystem && haskey(props, "SSHIFTS")
+        sys_facility, = parse_physics_types(datafile; pvt_region = 1, for_facility = true)
+    end
     # Parse wells
     msg("Parsing schedule.")
     t_schedule = @elapsed if skip_forces
@@ -127,7 +130,7 @@ function setup_case_from_parsed_data(datafile;
         controls = limits = cstep = well_forces = missing
         dt = [1.0]
     else
-        wells, controls, limits, cstep, dt, well_forces = parse_schedule(domain, sys, datafile; simple_well = simple_well)
+        wells, controls, limits, cstep, dt, well_forces = parse_schedule(domain, sys_facility, datafile; simple_well = simple_well)
         if skip_wells
             empty!(wells)
         end
@@ -138,10 +141,10 @@ function setup_case_from_parsed_data(datafile;
     wells_systems = []
     for wdomain in wells
         w = physical_representation(wdomain)
-        if has_pvt
-            c = first(w.perforations.reservoir)
-            reg_w = pvt_reg[c]
-            sys, pvt = parse_physics_types(datafile, pvt_region = reg_w)
+        c = first(w.perforations.reservoir)
+        reg_w = isnothing(pvt_reg) ? 1 : pvt_reg[c]
+        if reg_w != 1
+            sys_w, pvt_w = parse_physics_types(datafile; pvt_region = reg_w)
         else
             sys_w, pvt_w = sys, pvt
         end
@@ -150,6 +153,9 @@ function setup_case_from_parsed_data(datafile;
     end
 
     extra_arg = Dict{Symbol, Any}()
+    if sys isa CompositionalSystem && haskey(props, "SSHIFTS")
+        extra_arg[:facility_system] = FacilitySystem(sys_facility)
+    end
     if haskey(rs, "SALTS")
         extra_arg[:salt_mole_fractions] = rs["SALT_MOLE_FRACTIONS"]
         extra_arg[:salt_names] = rs["SALTS"]
@@ -1462,7 +1468,7 @@ function set_deck_diffusivities!(domain, props, sys, is_gaswat)
     return domain
 end
 
-function parse_physics_types(datafile; pvt_region = missing)
+function parse_physics_types(datafile; pvt_region = missing, for_facility = false)
     runspec = datafile["RUNSPEC"]
     props = datafile["PROPS"]
     has(name) = haskey(runspec, name) && runspec[name] == true
@@ -1600,8 +1606,10 @@ function parse_physics_types(datafile; pvt_region = missing)
                 molality = get(props, "SALINITY", 0.0))
         end
         eos_type = deck_cubic_coefficients(eos_type, props, length(mp))
-        if haskey(props, "SSHIFT")
-            vshift = Tuple(first(props["SSHIFT"]))
+        shift_key = for_facility && haskey(props, "SSHIFTS") ? "SSHIFTS" : "SSHIFT"
+        if haskey(props, shift_key)
+            vshift = Tuple(first(props[shift_key]))
+            all(isfinite, vshift) || throw(ArgumentError("$shift_key volume shifts must be finite."))
         else
             vshift = nothing
         end
@@ -2277,7 +2285,7 @@ function select_injector_mixture_spec(sys::Union{ImmiscibleSystem, StandardBlack
 end
 
 function select_injector_mixture_spec(sys::CompositionalSystem, name, streams, type)
-    eos = surface_equation_of_state(sys)
+    eos = sys.equation_of_state
     props = eos.mixture.properties
     rho_s = reference_densities(sys)
     phases = get_phases(sys)

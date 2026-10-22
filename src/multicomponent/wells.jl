@@ -1,5 +1,5 @@
 function flash_wellstream_at_surface(var, well_model, system::S, state, rhoS, cond = default_surface_cond()) where S<:MultiComponentSystem
-    eos = surface_equation_of_state(system)
+    eos = system.equation_of_state
     nc = MultiComponentFlash.number_of_components(eos)
     z = SVector{nc}(state.OverallMoleFractions[:, 1])
     flash, _, surface_moles = get_separator_intermediate_storage(var, system, z, 2, 1)
@@ -107,7 +107,7 @@ end
 
 function separator_hydrocarbon_surface_flash!(var, system::MultiPhaseCompositionalSystemLV, z0, well)
     # For each stage we need to keep track of total moles and composition.
-    eos = surface_equation_of_state(system)
+    eos = system.equation_of_state
     F, moles, surface_moles = get_separator_intermediate_storage(var, system, z0, 2, well)
     moles[1] = z0
     separator_conditions = var.separator_conditions[well]
@@ -223,7 +223,7 @@ function get_separator_intermediate_storage(var, system::MultiPhaseCompositional
 end
 
 function surface_density_and_volume_fractions(var, model, system::MultiPhaseCompositionalSystemLV, state, well)
-    eos = surface_equation_of_state(system)
+    eos = system.equation_of_state
     n_hc = MultiComponentFlash.number_of_components(eos)
     mw = MultiComponentFlash.molar_masses(eos)
     rates = state.SurfaceComponentRates
