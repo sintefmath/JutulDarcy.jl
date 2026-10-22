@@ -1272,3 +1272,34 @@ worker-dependent tests. The four earlier complete-state paired comparisons
 used the same shortcut for their ordinary (non-manual) configuration. This
 commit has no new solver arithmetic or tolerance changes. Original-20% times
 above still refer to the preceding numerical source, not this commit.
+
+## Natural-order GS reformulation: no convincing gain
+
+The triangular-correction draft passes 198 assertions at each worker count,
+including both directions, damping, multiple sweeps, supplied residuals,
+asymmetric patterns, graph replacement and the nonfinite fallback. It keeps
+the natural row order but changes Float64 association. On the fixed Norne z8
+pressure replay, GS / triangular application is 21.007 / 21.614 ms and pressure
+GMRES is 132.587 / 147.520 ms, five iterations each, true relative residual
+0.00147409491807 / 0.00147409491810. Allocation increases 3,296 -> 202,720 bytes
+per pressure application; numeric update increases 18.174 -> 21.485 ms.
+
+Three full alternating Norne pairs give baseline 10.017698 / 10.055098 /
+35.928537 s and triangular 9.849656 / 10.248056 / 9.859843 s. All take 17 Newton /
+82 linear iterations and 99 preconditioner applications, with no wasted work
+or compilation. Maximum final differences are 2.638e-6 Pa / 2.073e-12 saturation.
+The median is about 2% lower, but individual pairs are mixed and the third
+baseline has a large unexplained preconditioner-time outlier (26.836 s versus
+about 4.4 s). Keep the full dataset and do not claim a robust gain. Whole-run
+allocation increases about 82.3 MB. The slower replay and added scheduling code
+do not justify adopting this draft. Pressure CSR wrappers report one worker,
+while existing KA CPU row loops use the runtime pool; any future production
+scheduling must also resolve the intended worker-limit policy.
+
+The adaptive ILU fallback timing queue is deferred without running: pure
+intersection did not show a consistent whole-case win, so that refinement has
+lower priority. Its ignored source remains available. Full native serial cursor
+pairs now run directly after the GS comparison. A subsequent narrow measurement
+isolates the existing serial GS diagonal-update loop on the evolved fixtures,
+using the existing CPU row-batching interface and preserving row-sum order.
+No additional smoother family or solver is selected.
