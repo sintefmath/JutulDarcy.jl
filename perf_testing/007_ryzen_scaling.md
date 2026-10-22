@@ -1234,3 +1234,12 @@ The post-symbolic-fix pressure-ILU recheck reaches the 240 s process limit
 during warm-up (status 124), without a measured sample or saved fixture.
 This supplies no comparable timing and does not justify adopting that option.
 The shared sol-perf branches checked again at 04:26 UTC remain unchanged.
+
+The pure-intersection whole-case pairs are now complete at 15 workers, with
+three alternating rounds per model, zero compilation, bitwise complete fields
+and unchanged work counts. Norne is 9.425413 s binary / 9.340691 s merge
+(about 0.9% lower); Olympus is 15.989047 / 16.200176 s (about 1.3% higher).
+Allocation is unchanged. The isolated factorization improvement therefore
+does not establish a consistent whole-run gain, in addition to the star-pattern
+regression above. Keep production unchanged pending the separate fallback and
+other component checks; do not label this a general performance improvement.
