@@ -429,7 +429,7 @@ end
         end
         # Temperature limit is lowered so that sub-zero iterates are allowed
         model = setup_reservoir_model(reservoir_domain(CartesianMesh((2, 1, 1))), :geothermal)
-        @test Jutul.get_primary_variables(model[:Reservoir])[:Temperature].min == 200.0
+        @test Jutul.get_primary_variables(model[:Reservoir])[:Temperature].min == 0.0
     end
     @testset "co2-brine $physics" for physics in (:kvalue, :immiscible)
         T0 = 320.0
