@@ -16,6 +16,7 @@ and checks complete final states.
 Benchmark scripts and a small standalone Julia environment will live here.
 Generated case caches and raw profiles should not be committed.
 
+
 ## OPM reference on Ryzen/WSL
 
 `prepare_opm.py` uses the installed OPM Python parser and NumPy to export
@@ -41,6 +42,10 @@ Output directories must be fresh, and validation must be newer than the deck.
 These scripts require the system OPM Python bindings, Flow and Open MPI.
 `PERF_OPM_SAVE_STATES=true` enables separate double-precision binary output
 runs for cross-simulator state checks, with `_states` output directories.
+The main fixed-SPAI0 results are 3.22x scaling for Olympus z4 (771,000 cells)
+and 3.01x for Norne z8 (355,444 cells), from one to ten Julia workers. The clean
+whole-simulation 4x target was not reached. Ten workers is better than fourteen
+on this M4 Pro. See 006–009 for the complete sweeps and solver-policy effects.
 
 ## Reproduction
 
@@ -209,3 +214,24 @@ reference's adjacent `.toml` supplies the requested final report/durations;
 `phase_metadata.toml` supplies `phase_names` (new full runs already contain it).
 Recorded source array dtypes distinguish restart-file precision from solver
 precision. Output goes beside the restart as `final_aligned.*`.
+## Choosing the pressure smoother
+
+The controlled sweep fixes pressure SPAI0 at every worker count. The application
+instead defaults to GS at one CPU worker and SPAI0 at multiple workers. These
+are different algorithms, so default-to-default timing can differ substantially
+from the controlled scaling table.
+
+For the short refined Norne fixture, GS avoids recovered cuts and is faster at
+ten workers: 5.215 s versus 13.024 s with SPAI0. For Olympus z4, SPAI0 is faster:
+7.143 s versus 10.175 s with serial GS sweeps. Reproduce the favored Norne setup
+without changing the library's general pressure-smoother default:
+
+```sh
+PERF_PRESSURE_SMOOTHER=gauss_seidel PERF_THREADS="1 2 4 6 8 10" bash perf_testing/run_scaling.sh norne 8 norne_gs
+```
+
+Keep BLAS=1. Ten BLAS workers regressed a full Olympus sample from roughly 7 to
+68 s despite faster isolated vector operations. The system ILU choice remains
+automatic: serial below four workers or 100,000 cells, level-scheduled otherwise,
+with explicit smoother/options taking precedence. The supplied environment and
+scripts are performance fixtures; the layer refinement is scoped to these decks.
