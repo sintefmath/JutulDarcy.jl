@@ -45,7 +45,7 @@ module JutulDarcyPartitionedArraysExt
     function set_default_cnv_mb!(config::JutulConfig, sim::PArraySimulator; kwarg...)
         simulators = sim.storage[:simulators]
         map(simulators, config[:configs]) do sim, cfg
-            set_default_cnv_mb!(cfg, sim)
+            set_default_cnv_mb!(cfg, sim; kwarg...)
         end
         return config
     end
