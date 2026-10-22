@@ -97,7 +97,7 @@ function main(; solver_options = NamedTuple())
     flush(stdout)
     case = benchmark_case(name, refinement, steps)
     nc = number_of_cells(reservoir_model(case.model).data_domain)
-    println("Warming up ", nc, " cells; report days = ", case.dt ./ si_unit(:day))
+    println("Prepared ", nc, " cells; measured report days = ", case.dt ./ si_unit(:day))
     flush(stdout)
     sim, config = new_simulator(case; solver_options)
     warm_case = case
@@ -106,6 +106,8 @@ function main(; solver_options = NamedTuple())
         warm_case = case[1:min(warm_steps, length(case.dt))]
         warm_case.dt .= min.(warm_case.dt, parse(Float64, ENV["PERF_WARMUP_MAX_DAYS"])*si_unit(:day))
     end
+    println("Warming up; report days = ", warm_case.dt ./ si_unit(:day))
+    flush(stdout)
     # Show physical progress for long warm-ups; timed configurations stay quiet.
     if parse(Float64, get(ENV, "PERF_FRACTION", "0")) > 0
         config[:info_level] = parse(Int, get(ENV, "PERF_WARMUP_INFO", "1"))
