@@ -194,3 +194,12 @@ sums/maxima into one batch. The existing CPU one-row increment view is retained
 as a strided vector for Polyester. Other storage types and worker limits keep
 the generic path. `test/blackoil_increment_norm.jl` covers values, layouts,
 nonfinite inputs, allocation, precision fallback and limited contexts.
+
+`compare_opm_state.jl reference.state phase_metadata.toml reference.cells CASE.UNRST`
+uses the installed official `opm.io` Python reader to extract final fields.
+It checks metric units, the final report/time, exact global active-cell identity,
+and phase names before calling the existing complete-state comparison. The
+reference's adjacent `.toml` supplies the requested final report/durations;
+`phase_metadata.toml` supplies `phase_names` (new full runs already contain it).
+Recorded source array dtypes distinguish restart-file precision from solver
+precision. Output goes beside the restart as `final_aligned.*`.

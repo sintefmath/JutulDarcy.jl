@@ -946,3 +946,47 @@ medians are 0.210633→0.118894 s, about 44% lower; allocations fall by about
 without attributing a large application speedup to the isolated reduction.
 The paired driver is a process-local adaptation of `compare_execution.jl`;
 it is kept with raw results and does not alter library defaults.
+
+While the OPM final-report validation runs, numerical sources remain frozen.
+The original-20% three-repeat Float64/Int32 continuation is queued behind its
+complete-field check: Olympus uses the already validated four-sweep SPAI choice,
+Norne retains GS. The measured report durations remain original; only the
+separate warm-up is three days. Timed compilation is recorded per sample.
+
+A later, unexecuted scheduling draft reuses the existing raw GS replay kernels
+and Jutul's installed SparseMatrixColorings interface. Column coloring of the
+CSR-transpose pattern (including diagonals) yields independent row groups,
+verified against every structural edge, including asymmetric ones. Unlike the
+retained exact dependency-order prototype, multicolor GS changes relaxation
+order; it needs its own serial-permutation reference and nonlinear-work/state
+validation. This draft has no production hook and no performance claim. No
+numerical replay will overlap the current reference/20% benchmark queue.
+
+## Complete Norne OPM field reference
+
+An output-only deck copy inserts `RPTRST BASIC=2` immediately before the last
+DATES. The OPM parser confirms that every non-RPTRST keyword is identical to
+the validated original refined deck; both source/target SHA256 hashes are
+recorded. This run writes the actual final report 50 at day 572. All 355,444
+active-cell identities match before fields are reordered into the Jutul mesh.
+Flow reports 847.11 s simulation, 12.19 s setup and 860.44 s process wall;
+output is 6.25 s. The 267 timesteps and 2,620 / 2,383 / 2,097 linearization /
+Newton / linear counts exactly match the previous reference. Assembly is
+254.43 s and linear solve 501.85 s, including 272.98 s setup.
+
+Against the earlier original-20% Jutul state, pressure relative norm difference
+is 5.72296e-4, maximum 122,981 Pa. Saturation relative norm difference is
+7.03021e-3, maximum 0.373186. Restart arrays are Float32, independently of the
+Float64 solve setting. These are complete cross-engine field differences;
+the performance reference does not establish numerical equivalence. Same-code
+bitwise state preservation is the regression check for the retained changes.
+
+The multicolor GS draft passes 96 serial-color-order assertions at each of
+one and 15 workers, including asymmetric edges and recycled graph buffers.
+A controller handoff race then overlapped its first pressure replay with an
+Olympus warm-up that had already started in a child process. Those replay
+timings are discarded; Olympus was stopped before warm-up completed and before
+any measured sample or metadata was saved. The cancelled warm-up and discarded
+replay files are explicitly archived. The new handoff runs a fresh quiet replay
+and then starts the original-20% benchmark directly, sequentially, with no
+PID-based pause/resume between these two programs.
