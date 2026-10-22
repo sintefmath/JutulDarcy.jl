@@ -1047,3 +1047,19 @@ fixed-matrix ILU experiment replaces repeated column searches with an intersecti
 of sorted row suffixes, preserving numeric factor order without a symbolic cache.
 It has no production hook and awaits one/15-worker scalar/block tests and paired
 fixture measurements after the coloring experiment.
+
+OPM's saved linear-solver property tree explicitly selects `bicgstab`, while
+the current Jutul benchmark keeps GMRES. Raw linear-iteration counts are not
+equivalent units of operator/preconditioner work across those methods; do not
+infer a preconditioner-quality ratio from their quotient. Wall and phase times
+remain the reference comparison. Both programs' wasted-work counters are
+subsets of their reported totals, not additional iterations to add again.
+
+A separate process-local bookkeeping draft targets successful one-iteration
+GenericKrylov solves: their two residual-history endpoints already exist, but
+the current `n > 1` condition forms another full `op*x-r` and takes two norms.
+The trial skips this only for `solved && n == 1`; failed/zero-iteration paths
+retain their existing checks. An older Norne serial profile samples this line.
+Tiny counted-product checks and paired complete-state comparisons at one/15
+workers are queued after the serial references. No solver arithmetic, tolerance
+or library source is changed by this unvalidated draft.
