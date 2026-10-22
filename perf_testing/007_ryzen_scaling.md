@@ -1359,3 +1359,21 @@ saves the final hierarchy fixture, and then compares complete fields against
 the earlier current20 reference, asserting bitwise equality. It is one fresh
 validation sample; the earlier three-sample baseline remains available. No
 timing or scaling gain is claimed before this run completes.
+
+The harness log now distinguishes measured schedule durations from the actual
+warm-up durations (`9d80bb78`); the current full validation demonstrably warmed
+three one-day reports, then began the measured original schedule. This logging
+edit changes no simulation configuration or timed numerical source.
+
+One further process-local CPU GS trial is queued behind that full validation.
+It solves contiguous blocks with one batch per triangular sweep, preserving
+lexicographic order inside each block and dropping cross-block triangular
+dependencies. Residual formation still uses the full matrix. Unlike the exact
+dependency-level draft, this changes the approximate relaxation operator; it
+must be judged by coupled work counts and full fields as well as apply cost.
+It uses the existing correction/residual buffers, with no graph/color schedule.
+The queued checks use an independent serial block-diagonal triangular reference
+at one/15 workers, finite-fallback refresh checks, the same pressure replay, then
+one short Norne pair with unchanged Float64 GMRES/settings and a 360 s process
+bound. No production hook, new solver family or default is selected. All files
+remain ignored, and no numerical prototype runs during the current 20% timing.
