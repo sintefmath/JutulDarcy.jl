@@ -1339,3 +1339,23 @@ Norne and 2,496 -> 3,056 bytes Olympus per complete hierarchy update. Full
 paired Norne simulations are now running before any adoption. Olympus's best
 parallel reference uses SPAI0, whereas these isolated matrices use serial GS
 hierarchies. No original-20% speedup is inferred from this microbenchmark.
+
+Jutul `da418265` retains the independent Float64 GS diagonal update in 29
+production lines. Small matrices, one worker and other precisions retain the
+original method. Three full short Norne pairs at 15 workers preserve complete
+fields bitwise, 17 Newton / 82 linear iterations / 99 preconditioner applications,
+with no wasted work or timed compilation. Baseline / batched medians are
+9.265270 / 9.216430 s (0.53% lower); setup medians are 1.663140 / 1.598822 s.
+Individual whole-run pairs are mixed, so this is a small setup improvement,
+not evidence of a large end-to-end gain. Fifteen targeted assertions compare
+against the original serial method, including first-zero error ownership and
+recovery. Existing CPU/KA suites pass **1,629 assertions serial / 1,621 at 15
+workers**, 53 summaries each.
+
+A fresh original-20% Norne z8 validation is running with this committed source,
+Float64/Int32, fixed GMRES/GS, KA system ILU and the same pinned 15 CPUs/BLAS=1.
+It retains all 50 original reports / 572 days and a separate three-day warm-up,
+saves the final hierarchy fixture, and then compares complete fields against
+the earlier current20 reference, asserting bitwise equality. It is one fresh
+validation sample; the earlier three-sample baseline remains available. No
+timing or scaling gain is claimed before this run completes.
