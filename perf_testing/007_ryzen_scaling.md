@@ -1116,3 +1116,56 @@ choices. These outer CPR counts are separate from the pressure AMG smoother's
 steps. No default is changed. The idle ILU-probe controller is held until this
 comparison finishes, then resumes automatically; all numerical work remains
 sequential. Remote sol-perf branches checked at 02:29 UTC are unchanged.
+
+## Whole-case rejections and numeric factorization progress
+
+The direct-edge colored GS draft is rejected for the current configuration.
+Three alternating pairs on short Norne z8 give medians 9.263 s natural /
+38.219 s colored, with zero compilation. Natural GS takes 17 Newton / 82
+linear iterations and 99 preconditioner applications; colored takes 91 / 377
+and 468, including 60 / 247 wasted. Final pressure/saturation maximum
+differences are 23,324 Pa / 0.003832. Complete arrays are saved. The pressure-
+only improvement does not carry through the coupled simulation.
+
+Pressure-first CPR also loses in three paired rounds, with actual outer stage
+counts recorded: Norne 9.312→16.369 s (17 / 82→36 / 131, wasted 0 / 0→15 / 47),
+Olympus 15.778→16.489 s (23 / 135→25 / 135, no waste). Both retain one ILU and
+one pressure stage, Float64, fixed GMRES and the same pressure smoother per
+case. Final maximum differences are 14,715 Pa / 0.001886 Norne and 1,326 Pa /
+0.000120 Olympus. Keep the existing 1/0 outer CPR order.
+
+The sorted-row intersection factorization draft passes 76 assertions at one
+and 15 workers, including scalar, 2x2/3x3 Float64 blocks, Int32/Int64 and
+repeated sorted CSR columns. It preserves the original first-match behavior
+for duplicate columns. Three alternating fixed-input rounds on both large
+fixtures preserve factors, inverse diagonals and solved vectors bitwise,
+with zero timed allocation and compilation:
+
+| Case | Workers | Binary lookup, ms | Row intersection, ms |
+|---|---:|---:|---:|
+| Olympus z4 | 1 | 36.715 | 30.510 |
+| Olympus z4 | 15 | 23.878 | 22.007 |
+| Norne z8 | 1 | 71.786 | 50.961 |
+| Norne z8 | 15 | 31.667 | 28.700 |
+
+The one-worker rows are explicit KA factorization, not a speedup claim for the
+default native serial preconditioner. Complete paired simulation validation
+and a star-graph row-length extreme are queued before any library adoption.
+The latter checks whether intersecting a very long destination row with a
+short source row needs a binary-search fallback. No numerical source changed.
+
+Complete current 20% states now pass the OPM cell/unit/report/time alignment:
+Olympus pressure relative norm 1.508702e-4, maximum 246,805 Pa; saturation
+relative norm 3.786041e-4, maximum 0.0380791. Norne pressure relative norm
+5.731777e-4, maximum 122,796 Pa; saturation relative norm 7.021966e-3, maximum
+0.374336. Restart arrays remain Float32; these differences do not establish
+cross-engine numerical equivalence.
+
+Original-20% native serial GS/GMRES references are running sequentially. The
+post-solve history checks follow. A single bounded Float64 Norne pressure-ILU
+recheck is then warranted because the earlier measurements predate `c1379eaf`'s
+symbolic-reuse correction. GMRES and all controls remain fixed. This recheck
+uses the existing interface, with a 240 s process bound and retained fixtures.
+The old column-colored draft then receives one whole-case screening pair,
+after the factorization validation. No additional solver families are selected;
+the earlier BiCGStab screen and long warm-up rejection remain documented above.
