@@ -1220,3 +1220,17 @@ improvement. These Olympus pairs use SPAI0/four sweeps at both worker counts,
 unlike the native-GS serial original-20% reference above. No numerical source
 has yet changed for this draft; factorization comparisons still use the frozen
 reference source.
+
+The 4,096-row star check exposes a generic regression in pure intersection:
+0.034776 ms binary versus 3.229141 ms merge, bitwise factors and no allocation.
+A short source row can otherwise force a scan through a long destination row
+for every lower entry. The pure draft is therefore unsuitable as a general
+replacement. A separate fallback draft retains binary lookup when remaining
+destination length divided by eight exceeds source length. Its correctness,
+star and reservoir-fixture checks are queued after the frozen-source work;
+the current whole-case pairs still measure the original pure draft.
+
+The post-symbolic-fix pressure-ILU recheck reaches the 240 s process limit
+during warm-up (status 124), without a measured sample or saved fixture.
+This supplies no comparable timing and does not justify adopting that option.
+The shared sol-perf branches checked again at 04:26 UTC remain unchanged.
