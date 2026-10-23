@@ -20,6 +20,68 @@ You must then run the file using the appropriate `mpiexec` as described in the M
 JutulDarcy.simulate_reservoir_parray
 ```
 
+## CPRW with the CSR backend
+
+Select `precond = :cprw` with `backend = :csr` and `split_wells = true` to
+include wells in the distributed pressure solve:
+
+```julia
+model = setup_reservoir_model(domain, system;
+    wells = wells, backend = :csr, split_wells = true)
+# Set up parameters, state and forces as usual, then:
+result = simulate_reservoir(case;
+    mode = :mpi, precond = :cprw, output_path = "output")
+```
+
+The coarse system contains reservoir pressures and one auxiliary pressure per
+physical well, including multisegment wells and independently controlled wells
+inside a merged model. The Krylov vectors still contain only reservoir unknowns;
+the existing Schur operator handles the remaining well variables.
+
+Initialization gathers each rank's pressure row count, including its well rows.
+These counts define contiguous HYPRE ownership ranges and the new numbering of
+both owned and ghost reservoir columns. Only owned reservoir rows and local
+well rows are assembled. Restriction gives the auxiliary well rows a zero right
+hand side, and prolongation returns only reservoir pressure corrections.
+
+### Relation to CPRW in the literature and OPM
+
+[Nilsen et al. (2023)](https://doi.org/10.2118/212172-MS) introduce the
+reservoir-only Krylov formulation with an extended pressure solve. The
+[2026 discussion](https://doi.org/10.3997/2214-4609.202637147) distinguishes it
+from formulations that also retain well variables in the Krylov space.
+JutulDarcy uses the former formulation. Its pressure operator is the block
+restriction and prolongation of the coupled reservoir/well Jacobian:
+
+```math
+A_c = \begin{bmatrix}
+R_r A_{rr} P_r & R_r A_{rw} P_b \\
+R_w A_{wr} P_r & R_w A_{ww} P_b
+\end{bmatrix}, \qquad
+r_c = \begin{bmatrix}R_r r \\ 0\end{bmatrix}.
+```
+
+For a multisegment well, `P_b` shifts all its segment pressures equally.
+`R_w` uses the average perforation-cell reservoir weights on every segment's
+mass balances, so internal segment fluxes cancel. The diagonal contracts the
+actual well block, including accumulation. This corresponds to OPM's
+`well_coarse_diagonal = "contract_d"` option; its historical multisegment
+default instead uses the negative sum of the well-to-reservoir row.
+Prescribed BHP produces a trivial coarse well equation with zero correction.
+
+The comparison against `main` at `53544802` identified missing multisegment
+coarse rows, assumptions that all wells share one linear-system group,
+shared-Facility-only BHP handling, and a reservoir-domain lookup used for
+well-local analytical weights. These are handled for both serial and MPI CSR.
+Previously MPI silently used CPR after warning that CPRW was unavailable.
+The serial SimpleWell weighting policy remains analytical or accumulation based;
+OPM's default well weights instead average the perforation-cell weights.
+
+The OPM source comparison used commit `e55ee32c811ae099db12555438d153f77cde75de`:
+[transfer policy](https://github.com/OPM/opm-simulators/blob/e55ee32c811ae099db12555438d153f77cde75de/opm/simulators/linalg/PressureBhpTransferPolicy.hpp),
+[standard-well reduction](https://github.com/OPM/opm-simulators/blob/e55ee32c811ae099db12555438d153f77cde75de/opm/simulators/wells/StandardWellEquations.cpp),
+and [multisegment reduction](https://github.com/OPM/opm-simulators/blob/e55ee32c811ae099db12555438d153f77cde75de/opm/simulators/wells/MultisegmentWellEquations.cpp).
+
 ## Checklist for running in MPI
 
 - Install and load the following packages at the top of your script: `PartitionedArrays, MPI, HYPRE`

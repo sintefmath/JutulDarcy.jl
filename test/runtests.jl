@@ -33,6 +33,7 @@ end
 
 @testitem "CPRW BHP controls" begin
     include("cprw_bhp.jl")
+    include("cprw_multisegment.jl")
 end
 
 @testitem "Float32 reservoir models" begin

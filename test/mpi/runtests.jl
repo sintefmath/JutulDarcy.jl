@@ -1,16 +1,19 @@
-using Test, Jutul, JutulDarcy, MPI, PartitionedArrays, HYPRE
+using Test, Jutul, JutulDarcy, MPI, PartitionedArrays, HYPRE, SparseArrays
 
 MPI.Init()
 @assert MPI.Comm_size(MPI.COMM_WORLD) == 2 "Run this test with test/mpi/run.jl (two MPI ranks)."
 
-function setup_mpi_case()
+function setup_mpi_case(; clustered = false, multisegment = false)
     bar, day = si_units(:bar, :day)
     domain = reservoir_domain(CartesianMesh((16, 1, 1), (160.0, 10.0, 10.0)),
         permeability = 1e-12, porosity = 0.2)
     rho = [1000.0, 100.0]
     system = ImmiscibleSystem((LiquidPhase(), VaporPhase()), reference_densities = rho)
-    injector = setup_well(domain, [1], name = :Injector)
-    producer = setup_well(domain, [16], name = :Producer)
+    injector = setup_well(domain, multisegment ? [1, 2] : [1];
+        name = :Injector, simple_well = !multisegment)
+    producer_cells = multisegment ? (clustered ? [3, 4] : [15, 16]) : [clustered ? 2 : 16]
+    producer = setup_well(domain, producer_cells;
+        name = :Producer, simple_well = !multisegment)
     model = setup_reservoir_model(domain, system;
         wells = [injector, producer], split_wells = true, backend = :csr)
     densities = ConstantCompressibilityDensities(
@@ -23,16 +26,37 @@ function setup_mpi_case()
         :Producer => ProducerControl(BottomHolePressureTarget(90bar))
     )
     forces = setup_reservoir_forces(model; control = control)
+    if clustered
+        next_control = Dict(
+            :Injector => InjectorControl(BottomHolePressureTarget(110bar), [0.0, 1.0], density = rho[2]),
+            :Producer => ProducerControl(TotalRateTarget(-0.001)),
+        )
+        forces = [forces, setup_reservoir_forces(model; control = next_control)]
+    end
     return JutulCase(model, [day, day], forces; state0 = state0, parameters = parameters)
 end
 
-@testset "MPI CPR owned CSR rows" begin
-    case = setup_mpi_case()
+@testset "MPI $precond owned CSR rows (clustered=$clustered, multisegment=$multisegment)" for (precond, clustered, multisegment) in ((:cpr, false, false), (:cprw, false, false), (:cprw, true, false), (:cprw, false, true), (:cprw, true, true))
+    case = setup_mpi_case(; clustered, multisegment)
     options = (info_level = -1, timesteps = :none, failure_cuts_timestep = false,
-        error_on_incomplete = true, precond = :cpr, rtol = 1e-8,
+        error_on_incomplete = true, precond = precond, rtol = 1e-8,
         linear_solver_arg = (amg_type = :hypre,))
-    sim, config = setup_reservoir_simulator(case; mode = :mpi,
-        output_path = only(ARGS), options...)
+    output_path = joinpath(only(ARGS), "$(precond)_$(clustered)_$(multisegment)")
+    if clustered
+        # Deliberately unequal cell counts and two wells on rank zero. Rank one
+        # owns no wells and must still shift its rows and remote column indices.
+        partition = JutulDarcy.reservoir_partition(case.model, [fill(1, 6); fill(2, 10)])
+        sim = Jutul.PArraySimulator(case, partition; backend = Jutul.MPI_PArrayBackend())
+        solver = select_reservoir_linear_solver(case.model, precond;
+            rtol = options.rtol, options.linear_solver_arg...,
+            cpr_arg = (npre = 0, npost = 1))
+        config = simulator_config(sim; linear_solver = solver, output_path,
+            info_level = -1, failure_cuts_timestep = false, error_on_incomplete = true,
+            timestep_selectors = Any[])
+        JutulDarcy.set_default_cnv_mb!(config, sim; tol_cnv = 1e-7, tol_mb = 1e-10)
+    else
+        sim, config = setup_reservoir_simulator(case; mode = :mpi, output_path, options...)
+    end
 
     # Ensure this really exercises a distributed CSR matrix with ghost rows.
     local_sim = PartitionedArrays.getany(sim.storage.simulators)
@@ -50,11 +74,63 @@ end
     @test local_cpr.storage.A_p isa HYPRE.HYPREMatrix
     @test local_cpr.amg_rebuild_tolerance > 0
     @test isnothing(local_cpr.amg_rebuild_storage)
+    if precond == :cprw
+        helper = local_cpr.pressure_precond.data[:assembly_helper]
+        nwell = size(helper.pressure_matrix, 1) - size(A, 1)
+        counts = MPI.Allgather(sim.storage.nc_process + nwell, MPI.COMM_WORLD)
+        rank = MPI.Comm_rank(MPI.COMM_WORLD)
+        expected_offset = sum(counts[1:rank])
+        @test local_cpr.storage.A_p.ilower == expected_offset + 1
+        @test local_cpr.storage.A_p.iupper == expected_offset + counts[rank + 1]
+        @test sum(counts) == 18
+        @test helper.nreservoir == sim.storage.nc_process
+        if clustered
+            @test counts == [8, 10]
+            @test nwell == (rank == 0 ? 2 : 0)
+            # Compare actual HYPRE entries with the staged operator using the
+            # known partition's numbering, including the two rank-zero wells.
+            nrows = counts[rank + 1]
+            rows = helper.indices
+            ncols = fill(HYPRE.HYPRE_Int(18), nrows)
+            columns = repeat(HYPRE.HYPRE_BigInt.(1:18), nrows)
+            values = zeros(HYPRE.HYPRE_Complex, 18*nrows)
+            HYPRE.@check HYPRE.HYPRE_IJMatrixGetValues(
+                local_cpr.storage.A_p, HYPRE.HYPRE_Int(nrows), ncols, rows, columns, values)
+            actual = permutedims(reshape(values, 18, nrows))
+            expected = zeros(nrows, 18)
+            local_pressure = Matrix(helper.pressure_matrix)
+            if isnothing(helper.well_reservoir_map)
+                for row in 1:helper.nreservoir, position in SparseArrays.nzrange(A, row)
+                    col = Jutul.colvals(A)[position]
+                    block = SparseArrays.nonzeros(A)[position]
+                    local_pressure[row, col] = sum(block[b, 1]*local_cpr.storage.w_p[b, row]
+                        for b in 1:local_cpr.storage.number_of_components)
+                end
+            end
+            ncell = size(A, 1)
+            global_columns = [Jutul.executor_index_to_global(local_sim.executor, cell, :column) for cell in 1:ncell]
+            global_columns = [cell <= 6 ? cell : cell + 2 for cell in global_columns]
+            append!(global_columns, 7:(6 + nwell))
+            local_rows = [1:helper.nreservoir; (ncell + 1):(ncell + nwell)]
+            expected[:, global_columns] = local_pressure[local_rows, :]
+            @test actual ≈ expected
+        end
+        # Restriction must zero well entries even with nonzero ghost residuals.
+        fine_rhs = ones(size(A, 1)*local_cpr.storage.block_size)
+        JutulDarcy.update_p_rhs!(local_cpr.storage.r_p, fine_rhs,
+            local_cpr.storage.number_of_components, local_cpr.storage.block_size,
+            local_cpr.storage.w_p, local_cpr.storage.A_p, :forward,
+            local_cpr.pressure_precond)
+        coarse_rhs = zeros(length(helper.indices))
+        copy!(coarse_rhs, local_cpr.storage.r_p)
+        @test all(iszero, coarse_rhs[(helper.nreservoir + 1):end])
+        @test coarse_rhs[1:helper.nreservoir] ≈ vec(sum(local_cpr.storage.w_p[:, 1:helper.nreservoir]; dims = 1))
+    end
     if MPI.Comm_rank(MPI.COMM_WORLD) == 0
         # Distributed output is consolidated on rank zero. Compare all report
         # steps, checking the counts first so an empty result cannot pass.
         result = JutulDarcy.ReservoirSimResult(case, raw_result)
-        reference = simulate_reservoir(setup_mpi_case(); options...,
+        reference = simulate_reservoir(setup_mpi_case(; clustered, multisegment); options...,
             tol_cnv = 1e-7, tol_mb = 1e-10)
         @test length(result.states) == length(reference.states) == length(case.dt)
         @test length(result.time) == length(case.dt)
