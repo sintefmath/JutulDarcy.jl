@@ -16,8 +16,8 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel;
     wells = get_model_wells(model)
     for (wname, w) in pairs(wells)
         w_dd = model[wname].data_domain
-        orig_perf = w_dd[:original_perforation_indices, JutulDarcy.Perforations()]
-        remap = Dict{Int, Int}()
+        orig_perf = w_dd[:perforation_connection_ids, JutulDarcy.Perforations()]
+        remap = Dict{Any, Int}()
         for (i, p) in enumerate(orig_perf)
             remap[p] = i
         end
@@ -100,7 +100,11 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel;
                     if ismissing(ws)
                         continue
                     end
-                    pmap = ws["PerforationMap"]
+                    # Match this record's rows by identity, independent of ordering.
+                    cells = get(w2c, "Cell", [])
+                    completion = get(w2c, "Completion", map(i -> "Completion$i", 1:length(cells)))
+                    connection_ids = map(tuple, cells, completion)
+                    pmap = Dict(i => ws["PerforationMap"][uid] for (i, uid) in enumerate(connection_ids) if haskey(ws["PerforationMap"], uid))
                     eff_mult = ws["EffectivePiMultiplier"]
                     mult = ws["PiMultiplier"]
                     base_mult = ws["BaseMultiplier"]
@@ -120,7 +124,7 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel;
                         if ismissing(i_mapped)
                             continue
                         end
-                        status[pmap[i]] = v
+                        status[i_mapped] = v
                     end
                     # TODO: Figure out what to do with Transmissibility changes outside of multiplier
                     # for (i, v) in enumerate(get(w2c, "Transmissibility", []))
