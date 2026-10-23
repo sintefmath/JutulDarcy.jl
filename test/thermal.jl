@@ -1,4 +1,28 @@
 using Jutul, JutulDarcy, Test, LinearAlgebra
+
+@testset "Thermal well enthalpy uses mass fractions" begin
+    state = (Saturations = reshape([0.5, 0.5], 2, 1),
+        PhaseMassDensities = reshape([1000.0, 1.0], 2, 1),
+        FluidEnthalpy = reshape([1e5, 1e6], 2, 1),
+        ComponentHeatCapacity = reshape([1500.0, 500.0], 2, 1))
+    @test JutulDarcy.well_top_node_enthalpy(nothing, state, 1) ≈ (1000e5 + 1e6)/1001
+    system = ImmiscibleSystem((AqueousPhase(), VaporPhase()))
+    ctrl = InjectorControl(TotalRateTarget(1.0), [1.0, 0.0])
+    evaluator = JutulDarcy.InjectionEnthalpyEvaluator(nothing)
+    H = JutulDarcy.injected_fluid_enthalpy(ctrl, evaluator,
+        (system = system,), state, 1e5, 300.0, 1)
+    @test H ≈ 1500*300 + 1e5/1000
+end
+
+@testset "Integrate temperature-dependent heat capacities" begin
+    table = JutulDarcy.IntegratedHeatCapacity([280.0, 300.0, 340.0], [1000.0, 2000.0, 3000.0])
+    @test table(300.0) ≈ 310000.0
+    @test table(320.0) ≈ 355000.0
+    for (T, capacity) in [(270.0, 1000.0), (290.0, 1500.0), (320.0, 2500.0), (350.0, 3000.0)]
+        @test Jutul.ForwardDiff.derivative(table, T) ≈ capacity
+    end
+end
+
 function solve_thermal(;
         nc = 10,
         time = 1000.0,
@@ -405,7 +429,7 @@ end
         end
         # Temperature limit is lowered so that sub-zero iterates are allowed
         model = setup_reservoir_model(reservoir_domain(CartesianMesh((2, 1, 1))), :geothermal)
-        @test Jutul.get_primary_variables(model[:Reservoir])[:Temperature].min == 200.0
+        @test Jutul.get_primary_variables(model[:Reservoir])[:Temperature].min == 0.0
     end
     @testset "co2-brine $physics" for physics in (:kvalue, :immiscible)
         T0 = 320.0

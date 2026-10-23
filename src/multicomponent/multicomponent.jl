@@ -117,7 +117,7 @@ function compositional_criterion_backend(dt, residual, sl, liquid_density,
         sv, vapor_density, ::Nothing, ::Nothing, volume, total_mass,
         ::Val{N}) where N
     cnv = ntuple(Val(N)) do component
-        residual_component = view(residual, component, :)
+        residual_component = Jutul.matrix_row_view(residual, component)
         function scaled_residual(r, s_l, rho_l, s_v, rho_v, pv)
             total_density = value(rho_l)*value(s_l) +
                 value(rho_v)*value(s_v)
@@ -128,7 +128,7 @@ function compositional_criterion_backend(dt, residual, sl, liquid_density,
             liquid_density, sv, vapor_density, volume)
     end
     mb = ntuple(Val(N)) do component
-        residual_sum = sum(value, view(residual, component, :))
+        residual_sum = sum(value, Jutul.matrix_row_view(residual, component))
         dt*abs(residual_sum)/total_mass
     end
     return cnv, mb
@@ -139,7 +139,7 @@ function compositional_criterion_backend(dt, residual, sl, liquid_density,
         ::Val{N}) where N
     eos_components = N - 1
     cnv_eos = ntuple(Val(eos_components)) do component
-        residual_component = view(residual, component, :)
+        residual_component = Jutul.matrix_row_view(residual, component)
         function scaled_residual(r, s_l, rho_l, s_v, rho_v, s_w, pv)
             s_w_value = value(s_w)
             if s_w_value > 1.0 - MINIMUM_COMPOSITIONAL_SATURATION
@@ -158,7 +158,7 @@ function compositional_criterion_backend(dt, residual, sl, liquid_density,
         mapreduce(scaled_residual, max, residual_component, sl,
             liquid_density, sv, vapor_density, sw, volume)
     end
-    water_residual = view(residual, N, :)
+    water_residual = Jutul.matrix_row_view(residual, N)
     function scaled_water_residual(r, rho_w, pv)
         scaled = dt*value(r)/(value(rho_w)*value(pv))
         return max(zero(scaled), scaled)
@@ -172,9 +172,9 @@ function compositional_criterion_backend(dt, residual, sl, liquid_density,
                 return dt*value(r)/(value(rho_w)*value(pv))
             end
             residual_sum = mapreduce(scaled_water_residual_sum, +,
-                view(residual, component, :), water_density, volume)
+                Jutul.matrix_row_view(residual, component), water_density, volume)
         else
-            residual_sum = sum(value, view(residual, component, :))
+            residual_sum = sum(value, Jutul.matrix_row_view(residual, component))
         end
         dt*abs(residual_sum)/total_mass
     end

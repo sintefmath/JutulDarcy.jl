@@ -32,19 +32,16 @@ function tracer_scale(model, tracer::AbstractTracer)
 end
 
 function Jutul.convergence_criterion(model, storage, eq::ConservationLaw{:TracerMasses}, eq_s, r; dt = 1.0, update_report = missing)
-    a = active_entities(model.domain, Cells())
-    V = storage.state0.FluidVolume
-    nt = size(r, 1)
-    e = zeros(nt)
+    M = global_map(model.domain)
+    V = Jutul.active_view(storage.state0.FluidVolume, M; for_variables = false)
     tracers = eq.flux_type.tracers
-    tscale = map(t -> tracer_scale(model, t), tracers)
-    for c in a
-        scale = dt/V[c]
-        for t in 1:nt
-            v = abs(r[t, c])*scale/tscale[t]
-            e[t] = max(e[t], v)
+    errors = map(eachindex(tracers)) do t
+        scale = tracer_scale(model, tracers[t])
+        residual = Jutul.matrix_row_view(r, t)
+        function normalized_residual(residual, volume)
+            return dt*abs(value(residual))/(value(volume)*scale)
         end
+        return mapreduce(normalized_residual, max, residual, V)
     end
-    cnames = model.equations[:tracers].flux_type.names
-    return (Max = (errors = e, names = cnames), )
+    return (Max = (errors = errors, names = eq.flux_type.names), )
 end
