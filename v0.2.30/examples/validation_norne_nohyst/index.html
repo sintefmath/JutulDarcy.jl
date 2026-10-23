@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Validation: Norne · JutulDarcy.jl</title><meta name="title" content="Validation: Norne · JutulDarcy.jl"/><meta property="og:title" content="Validation: Norne · JutulDarcy.jl"/><meta property="twitter:title" content="Validation: Norne · JutulDarcy.jl"/><meta name="description" content="Documentation for JutulDarcy.jl."/><meta property="og:description" content="Documentation for JutulDarcy.jl."/><meta property="twitter:description" content="Documentation for JutulDarcy.jl."/><meta property="og:url" content="https://sintefmath.github.io/JutulDarcy.jl/examples/validation_norne_nohyst/"/><meta property="twitter:url" content="https://sintefmath.github.io/JutulDarcy.jl/examples/validation_norne_nohyst/"/><link rel="canonical" href="https://sintefmath.github.io/JutulDarcy.jl/examples/validation_norne_nohyst/"/><script data-outdated-warner src="../../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../search_index.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script><link href="../../assets/citations.css" rel="stylesheet" type="text/css"/></head><body><div id="documenter"><nav class="docs-sidebar"><a class="docs-logo" href="../../"><img src="../../assets/logo.png" alt="JutulDarcy.jl logo"/></a><div class="docs-package-name"><span class="docs-autofit"><a href="../../">JutulDarcy.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><span class="tocitem">Introduction</span><ul><li><a class="tocitem" href="../../">JutulDarcy.jl</a></li><li><a class="tocitem" href="../../man/intro/">Getting started</a></li></ul></li><li><span class="tocitem">Examples</span><ul><li><a class="tocitem" href="../two_phase_gravity_segregation/">Gravity segregation</a></li><li><a class="tocitem" href="../two_phase_buckley_leverett/">Two-phase Buckley-Leverett</a></li><li><a class="tocitem" href="../two_phase_unstable_gravity/">Gravity circulation with CPR preconditioner</a></li><li><a class="tocitem" href="../wells_intro/">Intro to wells</a></li><li><a class="tocitem" href="../intro_sensitivities/">Intro to sensitivities in JutulDarcy</a></li><li><a class="tocitem" href="../co2_sloped/">CO2 injection in saline aquifer</a></li><li><a class="tocitem" href="../data_input_file/">Simulating Eclipse/DATA input files</a></li><li><a class="tocitem" href="../five_spot_ensemble/">Quarter-five-spot with variation</a></li><li><a class="tocitem" href="../co2_brine_2d_vertical/">Intro to compositional flow</a></li><li><a class="tocitem" href="../compositional_5components/">Compositional with five components</a></li><li><a class="tocitem" href="../optimize_simple_bl/">Parameter optimization of Buckley-Leverett</a></li><li><a class="tocitem" href="../validation_spe1/">Validation: SPE1</a></li><li><a class="tocitem" href="../validation_spe9/">Validation: SPE9</a></li><li><a class="tocitem" href="../validation_compositional/">Validation: Compositional</a></li><li><a class="tocitem" href="../validation_egg/">Validation: Egg</a></li><li><a class="tocitem" href="../validation_olympus_1/">Validation: OLYMPUS 1</a></li><li class="is-active"><a class="tocitem" href>Validation: Norne</a><ul class="internal"><li><a class="tocitem" href="#Unpack-the-case-to-see-basic-data-structures"><span>Unpack the case to see basic data structures</span></a></li><li><a class="tocitem" href="#Plot-the-reservoir-mesh,-wells-and-faults"><span>Plot the reservoir mesh, wells and faults</span></a></li><li><a class="tocitem" href="#Plot-the-reservoir-static-properties-in-interactive-viewer"><span>Plot the reservoir static properties in interactive viewer</span></a></li><li><a class="tocitem" href="#Simulate-the-model"><span>Simulate the model</span></a></li><li><a class="tocitem" href="#Plot-the-reservoir-solution"><span>Plot the reservoir solution</span></a></li><li><a class="tocitem" href="#Load-reference-and-set-up-plotting"><span>Load reference and set up plotting</span></a></li><li><a class="tocitem" href="#Injector-bhp"><span>Injector bhp</span></a></li><li><a class="tocitem" href="#Gas-injection-rates"><span>Gas injection rates</span></a></li><li><a class="tocitem" href="#Water-injection-rates"><span>Water injection rates</span></a></li><li><a class="tocitem" href="#Producer-bhp"><span>Producer bhp</span></a></li><li><a class="tocitem" href="#Oil-production-rates"><span>Oil production rates</span></a></li><li><a class="tocitem" href="#Gas-production-rates"><span>Gas production rates</span></a></li><li><a class="tocitem" href="#Example-on-GitHub"><span>Example on GitHub</span></a></li></ul></li><li><a class="tocitem" href="../validation_mrst/">Validation: MRST input files</a></li></ul></li><li><span class="tocitem">Manual</span><ul><li><a class="tocitem" href="../../man/highlevel/">High-level API</a></li><li><a class="tocitem" href="../../man/basics/input_files/">Input formats</a></li><li><a class="tocitem" href="../../man/basics/forces/">Driving forces</a></li><li><a class="tocitem" href="../../man/basics/systems/">Supported physical systems</a></li><li><a class="tocitem" href="../../man/basics/wells/">Wells and controls</a></li><li><a class="tocitem" href="../../man/basics/solution/">Solving the equations</a></li><li><a class="tocitem" href="../../man/basics/primary/">Primary variables</a></li><li><a class="tocitem" href="../../man/basics/secondary/">Secondary variables (properties)</a></li><li><a class="tocitem" href="../../man/basics/parameters/">Parameters</a></li><li><a class="tocitem" href="../../man/basics/plotting/">Plotting and visualization</a></li></ul></li><li><span class="tocitem">Advanced usage</span><ul><li><a class="tocitem" href="../../man/advanced/mpi/">Multi-threading and MPI support</a></li><li><a class="tocitem" href="../../man/advanced/compiled/">Standalone reservoir simulator</a></li></ul></li><li><span class="tocitem">Reference</span><ul><li><a class="tocitem" href="../../ref/jutul/">Jutul functions</a></li></ul></li><li><span class="tocitem">Additional information </span><ul><li><a class="tocitem" href="../../extras/refs/">References</a></li><li><a class="tocitem" href="../../extras/faq/">FAQ</a></li></ul></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Examples</a></li><li class="is-active"><a href>Validation: Norne</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Validation: Norne</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/sintefmath/JutulDarcy.jl/blob/main/examples/validation_norne_nohyst.jl#" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="Norne:-Real-field-black-oil-model"><a class="docs-heading-anchor" href="#Norne:-Real-field-black-oil-model">Norne: Real field black-oil model</a><a id="Norne:-Real-field-black-oil-model-1"></a><a class="docs-heading-anchor-permalink" href="#Norne:-Real-field-black-oil-model" title="Permalink"></a></h1><p>The Norne model is a real field model. The model has been adapted so that the input file only contains features present in JutulDarcy, with the most notable omissions being removal of hysteresis and threshold pressures between equilibriation reqgions. For more details, see the <a href="https://opm-project.org/?page_id=559">OPM data webpage</a></p><pre><code class="language-julia hljs">using Jutul, JutulDarcy, GLMakie, DelimitedFiles, HYPRE, GeoEnergyIO
+norne_dir = GeoEnergyIO.test_input_file_path(&quot;NORNE_NOHYST&quot;)
+data_pth = joinpath(norne_dir, &quot;NORNE_NOHYST.DATA&quot;)
+data = parse_data_file(data_pth)
+case = setup_case_from_data_file(data)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">Jutul case with 247 time-steps (9 years, 3 weeks, 3.817 days) and forces for each step.
+
+Model:
+
+MultiModel with 38 models and 108 cross-terms. 133395 equations, 133395 degrees of freedom and 1073668 parameters.
+
+  models:
+    1) Reservoir (133251x133251)
+       StandardBlackOilSystem with (AqueousPhase(), LiquidPhase(), VaporPhase())
+       ∈ MinimalTPFATopology (44417 cells, 136560 faces)
+    2) B-4AH (3x3)
+       StandardBlackOilSystem with (AqueousPhase(), LiquidPhase(), VaporPhase())
+       ∈ SimpleWell [B-4AH] (1 nodes, 0 segments, 29 perforations)
+    3) B-2H (3x3)
+       StandardBlackOilSystem with (AqueousPhase(), LiquidPhase(), VaporPhase())
+       ∈ SimpleWell [B-2H] (1 nodes, 0 segments, 8 perforations)
+    4) E-3H (3x3)
+       StandardBlackOilSystem with (AqueousPhase(), LiquidPhase(), VaporPhase())
+       ∈ SimpleWell [E-3H] (1 nodes, 0 segments, 21 perforations)
+    5) D-3BH (3x3)
+       StandardBlackOilSystem with (AqueousPhase(), LiquidPhase(), VaporPhase())
+       ∈ SimpleWell [D-3BH] (1 nodes, 0 segments, 13 perforations)
+    6) E-3BH (3x3)
+       StandardBlackOilSystem with (AqueousPhase(), LiquidPhase(), VaporPhase())
+       ∈ SimpleWell [E-3BH] (1 nodes, 0 segments, 26 perforations)
+    7) B-1BH (3x3)
+       StandardBlackOilSystem with (AqueousPhase(), LiquidPhase(), VaporPhase())
+       ∈ SimpleWell [B-1BH] (1 nodes, 0 segments, 6 perforations)
+    8) D-4AH (3x3)
+       StandardBlackOilSystem with (AqueousPhase(), LiquidPhase(), VaporPhase())
+       ∈ SimpleWell [D-4AH] (1 nodes, 0 segments, 6 perforations)
+    9) B-4BH (3x3)
+       StandardBlackOilSystem with (AqueousPhase(), LiquidPhase(), VaporPhase())
+       ∈ SimpleWell [B-4BH] (1 nodes, 0 segments, 10 perforations)
+    10) C-4AH (3x3)
+       StandardBlackOilSystem with (AqueousPhase(), LiquidPhase(), VaporPhase())
+       ∈ SimpleWell [C-4AH] (1 nodes, 0 segments, 15 perforations)
+    11) E-3CH (3x3)
+       StandardBlackOilSystem with (AqueousPhase(), LiquidPhase(), VaporPhase())
+       ∈ SimpleWell [E-3CH] (1 nodes, 0 segments, 8 perforations)
+    12) B-1AH (3x3)
+       StandardBlackOilSystem with (AqueousPhase(), LiquidPhase(), VaporPhase())
+       ∈ SimpleWell [B-1AH] (1 nodes, 0 segments, 5 perforations)
+    13) D-4H (3x3)
+       StandardBlackOilSystem with (AqueousPhase(), LiquidPhase(), VaporPhase())
+       ∈ SimpleWell [D-4H] (1 nodes, 0 segments, 26 perforations)
+    14) E-1H (3x3)
+       StandardBlackOilSystem with (AqueousPhase(), LiquidPhase(), VaporPhase())
+       ∈ SimpleWell [E-1H] (1 nodes, 0 segments, 10 perforations)
+    15) B-4H (3x3)
+       StandardBlackOilSystem with (AqueousPhase(), LiquidPhase(), VaporPhase())
+       ∈ SimpleWell [B-4H] (1 nodes, 0 segments, 20 perforations)
+    16) E-4H (3x3)
+       StandardBlackOilSystem with (AqueousPhase(), LiquidPhase(), VaporPhase())
+       ∈ SimpleWell [E-4H] (1 nodes, 0 segments, 10 perforations)
+    17) K-3H (3x3)
+       StandardBlackOilSystem with (AqueousPhase(), LiquidPhase(), VaporPhase())
+       ∈ SimpleWell [K-3H] (1 nodes, 0 segments, 11 perforations)
+    18) C-2H (3x3)
+       StandardBlackOilSystem with (AqueousPhase(), LiquidPhase(), VaporPhase())
+       ∈ SimpleWell [C-2H] (1 nodes, 0 segments, 8 perforations)
+    19) F-1H (3x3)
+       StandardBlackOilSystem with (AqueousPhase(), LiquidPhase(), VaporPhase())
+       ∈ SimpleWell [F-1H] (1 nodes, 0 segments, 18 perforations)
+    20) E-2H (3x3)
+       StandardBlackOilSystem with (AqueousPhase(), LiquidPhase(), VaporPhase())
+       ∈ SimpleWell [E-2H] (1 nodes, 0 segments, 9 perforations)
+    21) B-3H (3x3)
+       StandardBlackOilSystem with (AqueousPhase(), LiquidPhase(), VaporPhase())
+       ∈ SimpleWell [B-3H] (1 nodes, 0 segments, 14 perforations)
+    22) F-4H (3x3)
+       StandardBlackOilSystem with (AqueousPhase(), LiquidPhase(), VaporPhase())
+       ∈ SimpleWell [F-4H] (1 nodes, 0 segments, 17 perforations)
+    23) D-1H (3x3)
+       StandardBlackOilSystem with (AqueousPhase(), LiquidPhase(), VaporPhase())
+       ∈ SimpleWell [D-1H] (1 nodes, 0 segments, 8 perforations)
+    24) F-3H (3x3)
+       StandardBlackOilSystem with (AqueousPhase(), LiquidPhase(), VaporPhase())
+       ∈ SimpleWell [F-3H] (1 nodes, 0 segments, 23 perforations)
+    25) F-2H (3x3)
+       StandardBlackOilSystem with (AqueousPhase(), LiquidPhase(), VaporPhase())
+       ∈ SimpleWell [F-2H] (1 nodes, 0 segments, 20 perforations)
+    26) C-3H (3x3)
+       StandardBlackOilSystem with (AqueousPhase(), LiquidPhase(), VaporPhase())
+       ∈ SimpleWell [C-3H] (1 nodes, 0 segments, 21 perforations)
+    27) D-2H (3x3)
+       StandardBlackOilSystem with (AqueousPhase(), LiquidPhase(), VaporPhase())
+       ∈ SimpleWell [D-2H] (1 nodes, 0 segments, 9 perforations)
+    28) B-1H (3x3)
+       StandardBlackOilSystem with (AqueousPhase(), LiquidPhase(), VaporPhase())
+       ∈ SimpleWell [B-1H] (1 nodes, 0 segments, 16 perforations)
+    29) D-3H (3x3)
+       StandardBlackOilSystem with (AqueousPhase(), LiquidPhase(), VaporPhase())
+       ∈ SimpleWell [D-3H] (1 nodes, 0 segments, 24 perforations)
+    30) D-3AH (3x3)
+       StandardBlackOilSystem with (AqueousPhase(), LiquidPhase(), VaporPhase())
+       ∈ SimpleWell [D-3AH] (1 nodes, 0 segments, 12 perforations)
+    31) D-1CH (3x3)
+       StandardBlackOilSystem with (AqueousPhase(), LiquidPhase(), VaporPhase())
+       ∈ SimpleWell [D-1CH] (1 nodes, 0 segments, 15 perforations)
+    32) B-4DH (3x3)
+       StandardBlackOilSystem with (AqueousPhase(), LiquidPhase(), VaporPhase())
+       ∈ SimpleWell [B-4DH] (1 nodes, 0 segments, 11 perforations)
+    33) E-4AH (3x3)
+       StandardBlackOilSystem with (AqueousPhase(), LiquidPhase(), VaporPhase())
+       ∈ SimpleWell [E-4AH] (1 nodes, 0 segments, 12 perforations)
+    34) C-4H (3x3)
+       StandardBlackOilSystem with (AqueousPhase(), LiquidPhase(), VaporPhase())
+       ∈ SimpleWell [C-4H] (1 nodes, 0 segments, 7 perforations)
+    35) E-3AH (3x3)
+       StandardBlackOilSystem with (AqueousPhase(), LiquidPhase(), VaporPhase())
+       ∈ SimpleWell [E-3AH] (1 nodes, 0 segments, 7 perforations)
+    36) C-1H (3x3)
+       StandardBlackOilSystem with (AqueousPhase(), LiquidPhase(), VaporPhase())
+       ∈ SimpleWell [C-1H] (1 nodes, 0 segments, 21 perforations)
+    37) E-2AH (3x3)
+       StandardBlackOilSystem with (AqueousPhase(), LiquidPhase(), VaporPhase())
+       ∈ SimpleWell [E-2AH] (1 nodes, 0 segments, 7 perforations)
+    38) Facility (36x36)
+       JutulDarcy.PredictionMode()
+       ∈ WellGroup([Symbol(&quot;B-4AH&quot;), Symbol(&quot;B-2H&quot;), Symbol(&quot;E-3H&quot;), Symbol(&quot;D-3BH&quot;), Symbol(&quot;E-3BH&quot;), Symbol(&quot;B-1BH&quot;), Symbol(&quot;D-4AH&quot;), Symbol(&quot;B-4BH&quot;), Symbol(&quot;C-4AH&quot;), Symbol(&quot;E-3CH&quot;), Symbol(&quot;B-1AH&quot;), Symbol(&quot;D-4H&quot;), Symbol(&quot;E-1H&quot;), Symbol(&quot;B-4H&quot;), Symbol(&quot;E-4H&quot;), Symbol(&quot;K-3H&quot;), Symbol(&quot;C-2H&quot;), Symbol(&quot;F-1H&quot;), Symbol(&quot;E-2H&quot;), Symbol(&quot;B-3H&quot;), Symbol(&quot;F-4H&quot;), Symbol(&quot;D-1H&quot;), Symbol(&quot;F-3H&quot;), Symbol(&quot;F-2H&quot;), Symbol(&quot;C-3H&quot;), Symbol(&quot;D-2H&quot;), Symbol(&quot;B-1H&quot;), Symbol(&quot;D-3H&quot;), Symbol(&quot;D-3AH&quot;), Symbol(&quot;D-1CH&quot;), Symbol(&quot;B-4DH&quot;), Symbol(&quot;E-4AH&quot;), Symbol(&quot;C-4H&quot;), Symbol(&quot;E-3AH&quot;), Symbol(&quot;C-1H&quot;), Symbol(&quot;E-2AH&quot;)], true, true)
+
+  cross_terms:
+    1) B-4AH &lt;-&gt; Reservoir (Eq: mass_conservation)
+       JutulDarcy.ReservoirFromWellFlowCT
+    2) B-2H &lt;-&gt; Reservoir (Eq: mass_conservation)
+       JutulDarcy.ReservoirFromWellFlowCT
+    3) E-3H &lt;-&gt; Reservoir (Eq: mass_conservation)
+       JutulDarcy.ReservoirFromWellFlowCT
+    4) D-3BH &lt;-&gt; Reservoir (Eq: mass_conservation)
+       JutulDarcy.ReservoirFromWellFlowCT
+    5) E-3BH &lt;-&gt; Reservoir (Eq: mass_conservation)
+       JutulDarcy.ReservoirFromWellFlowCT
+    6) B-1BH &lt;-&gt; Reservoir (Eq: mass_conservation)
+       JutulDarcy.ReservoirFromWellFlowCT
+    7) D-4AH &lt;-&gt; Reservoir (Eq: mass_conservation)
+       JutulDarcy.ReservoirFromWellFlowCT
+    8) B-4BH &lt;-&gt; Reservoir (Eq: mass_conservation)
+       JutulDarcy.ReservoirFromWellFlowCT
+    9) C-4AH &lt;-&gt; Reservoir (Eq: mass_conservation)
+       JutulDarcy.ReservoirFromWellFlowCT
+    10) E-3CH &lt;-&gt; Reservoir (Eq: mass_conservation)
+       JutulDarcy.ReservoirFromWellFlowCT
+    11) B-1AH &lt;-&gt; Reservoir (Eq: mass_conservation)
+       JutulDarcy.ReservoirFromWellFlowCT
+    12) D-4H &lt;-&gt; Reservoir (Eq: mass_conservation)
+       JutulDarcy.ReservoirFromWellFlowCT
+    13) E-1H &lt;-&gt; Reservoir (Eq: mass_conservation)
+       JutulDarcy.ReservoirFromWellFlowCT
+    14) B-4H &lt;-&gt; Reservoir (Eq: mass_conservation)
+       JutulDarcy.ReservoirFromWellFlowCT
+    15) E-4H &lt;-&gt; Reservoir (Eq: mass_conservation)
+       JutulDarcy.ReservoirFromWellFlowCT
+    16) K-3H &lt;-&gt; Reservoir (Eq: mass_conservation)
+       JutulDarcy.ReservoirFromWellFlowCT
+    17) C-2H &lt;-&gt; Reservoir (Eq: mass_conservation)
+       JutulDarcy.ReservoirFromWellFlowCT
+    18) F-1H &lt;-&gt; Reservoir (Eq: mass_conservation)
+       JutulDarcy.ReservoirFromWellFlowCT
+    19) E-2H &lt;-&gt; Reservoir (Eq: mass_conservation)
+       JutulDarcy.ReservoirFromWellFlowCT
+    20) B-3H &lt;-&gt; Reservoir (Eq: mass_conservation)
+       JutulDarcy.ReservoirFromWellFlowCT
+    21) F-4H &lt;-&gt; Reservoir (Eq: mass_conservation)
+       JutulDarcy.ReservoirFromWellFlowCT
+    22) D-1H &lt;-&gt; Reservoir (Eq: mass_conservation)
+       JutulDarcy.ReservoirFromWellFlowCT
+    23) F-3H &lt;-&gt; Reservoir (Eq: mass_conservation)
+       JutulDarcy.ReservoirFromWellFlowCT
+    24) F-2H &lt;-&gt; Reservoir (Eq: mass_conservation)
+       JutulDarcy.ReservoirFromWellFlowCT
+    25) C-3H &lt;-&gt; Reservoir (Eq: mass_conservation)
+       JutulDarcy.ReservoirFromWellFlowCT
+    26) D-2H &lt;-&gt; Reservoir (Eq: mass_conservation)
+       JutulDarcy.ReservoirFromWellFlowCT
+    27) B-1H &lt;-&gt; Reservoir (Eq: mass_conservation)
+       JutulDarcy.ReservoirFromWellFlowCT
+    28) D-3H &lt;-&gt; Reservoir (Eq: mass_conservation)
+       JutulDarcy.ReservoirFromWellFlowCT
+    29) D-3AH &lt;-&gt; Reservoir (Eq: mass_conservation)
+       JutulDarcy.ReservoirFromWellFlowCT
+    30) D-1CH &lt;-&gt; Reservoir (Eq: mass_conservation)
+       JutulDarcy.ReservoirFromWellFlowCT
+    31) B-4DH &lt;-&gt; Reservoir (Eq: mass_conservation)
+       JutulDarcy.ReservoirFromWellFlowCT
+    32) E-4AH &lt;-&gt; Reservoir (Eq: mass_conservation)
+       JutulDarcy.ReservoirFromWellFlowCT
+    33) C-4H &lt;-&gt; Reservoir (Eq: mass_conservation)
+       JutulDarcy.ReservoirFromWellFlowCT
+    34) E-3AH &lt;-&gt; Reservoir (Eq: mass_conservation)
+       JutulDarcy.ReservoirFromWellFlowCT
+    35) C-1H &lt;-&gt; Reservoir (Eq: mass_conservation)
+       JutulDarcy.ReservoirFromWellFlowCT
+    36) E-2AH &lt;-&gt; Reservoir (Eq: mass_conservation)
+       JutulDarcy.ReservoirFromWellFlowCT
+    37) B-4AH  -&gt; Facility (Eq: control_equation)
+       JutulDarcy.FacilityFromWellFlowCT
+    38) Facility  -&gt; B-4AH (Eq: mass_conservation)
+       JutulDarcy.WellFromFacilityFlowCT
+    39) B-2H  -&gt; Facility (Eq: control_equation)
+       JutulDarcy.FacilityFromWellFlowCT
+    40) Facility  -&gt; B-2H (Eq: mass_conservation)
+       JutulDarcy.WellFromFacilityFlowCT
+    41) E-3H  -&gt; Facility (Eq: control_equation)
+       JutulDarcy.FacilityFromWellFlowCT
+    42) Facility  -&gt; E-3H (Eq: mass_conservation)
+       JutulDarcy.WellFromFacilityFlowCT
+    43) D-3BH  -&gt; Facility (Eq: control_equation)
+       JutulDarcy.FacilityFromWellFlowCT
+    44) Facility  -&gt; D-3BH (Eq: mass_conservation)
+       JutulDarcy.WellFromFacilityFlowCT
+    45) E-3BH  -&gt; Facility (Eq: control_equation)
+       JutulDarcy.FacilityFromWellFlowCT
+    46) Facility  -&gt; E-3BH (Eq: mass_conservation)
+       JutulDarcy.WellFromFacilityFlowCT
+    47) B-1BH  -&gt; Facility (Eq: control_equation)
+       JutulDarcy.FacilityFromWellFlowCT
+    48) Facility  -&gt; B-1BH (Eq: mass_conservation)
+       JutulDarcy.WellFromFacilityFlowCT
+    49) D-4AH  -&gt; Facility (Eq: control_equation)
+       JutulDarcy.FacilityFromWellFlowCT
+    50) Facility  -&gt; D-4AH (Eq: mass_conservation)
+       JutulDarcy.WellFromFacilityFlowCT
+    51) B-4BH  -&gt; Facility (Eq: control_equation)
+       JutulDarcy.FacilityFromWellFlowCT
+    52) Facility  -&gt; B-4BH (Eq: mass_conservation)
+       JutulDarcy.WellFromFacilityFlowCT
+    53) C-4AH  -&gt; Facility (Eq: control_equation)
+       JutulDarcy.FacilityFromWellFlowCT
+    54) Facility  -&gt; C-4AH (Eq: mass_conservation)
+       JutulDarcy.WellFromFacilityFlowCT
+    55) E-3CH  -&gt; Facility (Eq: control_equation)
+       JutulDarcy.FacilityFromWellFlowCT
+    56) Facility  -&gt; E-3CH (Eq: mass_conservation)
+       JutulDarcy.WellFromFacilityFlowCT
+    57) B-1AH  -&gt; Facility (Eq: control_equation)
+       JutulDarcy.FacilityFromWellFlowCT
+    58) Facility  -&gt; B-1AH (Eq: mass_conservation)
+       JutulDarcy.WellFromFacilityFlowCT
+    59) D-4H  -&gt; Facility (Eq: control_equation)
+       JutulDarcy.FacilityFromWellFlowCT
+    60) Facility  -&gt; D-4H (Eq: mass_conservation)
+       JutulDarcy.WellFromFacilityFlowCT
+    61) E-1H  -&gt; Facility (Eq: control_equation)
+       JutulDarcy.FacilityFromWellFlowCT
+    62) Facility  -&gt; E-1H (Eq: mass_conservation)
+       JutulDarcy.WellFromFacilityFlowCT
+    63) B-4H  -&gt; Facility (Eq: control_equation)
+       JutulDarcy.FacilityFromWellFlowCT
+    64) Facility  -&gt; B-4H (Eq: mass_conservation)
+       JutulDarcy.WellFromFacilityFlowCT
+    65) E-4H  -&gt; Facility (Eq: control_equation)
+       JutulDarcy.FacilityFromWellFlowCT
+    66) Facility  -&gt; E-4H (Eq: mass_conservation)
+       JutulDarcy.WellFromFacilityFlowCT
+    67) K-3H  -&gt; Facility (Eq: control_equation)
+       JutulDarcy.FacilityFromWellFlowCT
+    68) Facility  -&gt; K-3H (Eq: mass_conservation)
+       JutulDarcy.WellFromFacilityFlowCT
+    69) C-2H  -&gt; Facility (Eq: control_equation)
+       JutulDarcy.FacilityFromWellFlowCT
+    70) Facility  -&gt; C-2H (Eq: mass_conservation)
+       JutulDarcy.WellFromFacilityFlowCT
+    71) F-1H  -&gt; Facility (Eq: control_equation)
+       JutulDarcy.FacilityFromWellFlowCT
+    72) Facility  -&gt; F-1H (Eq: mass_conservation)
+       JutulDarcy.WellFromFacilityFlowCT
+    73) E-2H  -&gt; Facility (Eq: control_equation)
+       JutulDarcy.FacilityFromWellFlowCT
+    74) Facility  -&gt; E-2H (Eq: mass_conservation)
+       JutulDarcy.WellFromFacilityFlowCT
+    75) B-3H  -&gt; Facility (Eq: control_equation)
+       JutulDarcy.FacilityFromWellFlowCT
+    76) Facility  -&gt; B-3H (Eq: mass_conservation)
+       JutulDarcy.WellFromFacilityFlowCT
+    77) F-4H  -&gt; Facility (Eq: control_equation)
+       JutulDarcy.FacilityFromWellFlowCT
+    78) Facility  -&gt; F-4H (Eq: mass_conservation)
+       JutulDarcy.WellFromFacilityFlowCT
+    79) D-1H  -&gt; Facility (Eq: control_equation)
+       JutulDarcy.FacilityFromWellFlowCT
+    80) Facility  -&gt; D-1H (Eq: mass_conservation)
+       JutulDarcy.WellFromFacilityFlowCT
+    81) F-3H  -&gt; Facility (Eq: control_equation)
+       JutulDarcy.FacilityFromWellFlowCT
+    82) Facility  -&gt; F-3H (Eq: mass_conservation)
+       JutulDarcy.WellFromFacilityFlowCT
+    83) F-2H  -&gt; Facility (Eq: control_equation)
+       JutulDarcy.FacilityFromWellFlowCT
+    84) Facility  -&gt; F-2H (Eq: mass_conservation)
+       JutulDarcy.WellFromFacilityFlowCT
+    85) C-3H  -&gt; Facility (Eq: control_equation)
+       JutulDarcy.FacilityFromWellFlowCT
+    86) Facility  -&gt; C-3H (Eq: mass_conservation)
+       JutulDarcy.WellFromFacilityFlowCT
+    87) D-2H  -&gt; Facility (Eq: control_equation)
+       JutulDarcy.FacilityFromWellFlowCT
+    88) Facility  -&gt; D-2H (Eq: mass_conservation)
+       JutulDarcy.WellFromFacilityFlowCT
+    89) B-1H  -&gt; Facility (Eq: control_equation)
+       JutulDarcy.FacilityFromWellFlowCT
+    90) Facility  -&gt; B-1H (Eq: mass_conservation)
+       JutulDarcy.WellFromFacilityFlowCT
+    91) D-3H  -&gt; Facility (Eq: control_equation)
+       JutulDarcy.FacilityFromWellFlowCT
+    92) Facility  -&gt; D-3H (Eq: mass_conservation)
+       JutulDarcy.WellFromFacilityFlowCT
+    93) D-3AH  -&gt; Facility (Eq: control_equation)
+       JutulDarcy.FacilityFromWellFlowCT
+    94) Facility  -&gt; D-3AH (Eq: mass_conservation)
+       JutulDarcy.WellFromFacilityFlowCT
+    95) D-1CH  -&gt; Facility (Eq: control_equation)
+       JutulDarcy.FacilityFromWellFlowCT
+    96) Facility  -&gt; D-1CH (Eq: mass_conservation)
+       JutulDarcy.WellFromFacilityFlowCT
+    97) B-4DH  -&gt; Facility (Eq: control_equation)
+       JutulDarcy.FacilityFromWellFlowCT
+    98) Facility  -&gt; B-4DH (Eq: mass_conservation)
+       JutulDarcy.WellFromFacilityFlowCT
+    99) E-4AH  -&gt; Facility (Eq: control_equation)
+       JutulDarcy.FacilityFromWellFlowCT
+    100) Facility  -&gt; E-4AH (Eq: mass_conservation)
+       JutulDarcy.WellFromFacilityFlowCT
+    101) C-4H  -&gt; Facility (Eq: control_equation)
+       JutulDarcy.FacilityFromWellFlowCT
+    102) Facility  -&gt; C-4H (Eq: mass_conservation)
+       JutulDarcy.WellFromFacilityFlowCT
+    103) E-3AH  -&gt; Facility (Eq: control_equation)
+       JutulDarcy.FacilityFromWellFlowCT
+    104) Facility  -&gt; E-3AH (Eq: mass_conservation)
+       JutulDarcy.WellFromFacilityFlowCT
+    105) C-1H  -&gt; Facility (Eq: control_equation)
+       JutulDarcy.FacilityFromWellFlowCT
+    106) Facility  -&gt; C-1H (Eq: mass_conservation)
+       JutulDarcy.WellFromFacilityFlowCT
+    107) E-2AH  -&gt; Facility (Eq: control_equation)
+       JutulDarcy.FacilityFromWellFlowCT
+    108) Facility  -&gt; E-2AH (Eq: mass_conservation)
+       JutulDarcy.WellFromFacilityFlowCT
+
+Model storage will be optimized for runtime performance.
+</code></pre><h2 id="Unpack-the-case-to-see-basic-data-structures"><a class="docs-heading-anchor" href="#Unpack-the-case-to-see-basic-data-structures">Unpack the case to see basic data structures</a><a id="Unpack-the-case-to-see-basic-data-structures-1"></a><a class="docs-heading-anchor-permalink" href="#Unpack-the-case-to-see-basic-data-structures" title="Permalink"></a></h2><pre><code class="language-julia hljs">model = case.model
+parameters = case.parameters
+forces = case.forces
+dt = case.dt;</code></pre><h2 id="Plot-the-reservoir-mesh,-wells-and-faults"><a class="docs-heading-anchor" href="#Plot-the-reservoir-mesh,-wells-and-faults">Plot the reservoir mesh, wells and faults</a><a id="Plot-the-reservoir-mesh,-wells-and-faults-1"></a><a class="docs-heading-anchor-permalink" href="#Plot-the-reservoir-mesh,-wells-and-faults" title="Permalink"></a></h2><p>We compose a few different plotting calls together to make a plot that shows the outline of the mesh, the fault structures and the well trajectories.</p><pre><code class="language-julia hljs">import Jutul: plot_mesh_edges!
+reservoir = reservoir_domain(model)
+mesh = physical_representation(reservoir)
+wells = get_model_wells(model)
+fig = Figure(size = (1200, 800))
+ax = Axis3(fig[1, 1], zreversed = true)
+plot_mesh_edges!(ax, mesh, alpha = 0.5)
+for (k, w) in wells
+    plot_well!(ax, mesh, w)
+end
+plot_faults!(ax, mesh, alpha = 0.5)
+ax.azimuth[] = -3.0
+ax.elevation[] = 0.5
+fig</code></pre><img src="84b53418.png" alt="Example block output"/><h2 id="Plot-the-reservoir-static-properties-in-interactive-viewer"><a class="docs-heading-anchor" href="#Plot-the-reservoir-static-properties-in-interactive-viewer">Plot the reservoir static properties in interactive viewer</a><a id="Plot-the-reservoir-static-properties-in-interactive-viewer-1"></a><a class="docs-heading-anchor-permalink" href="#Plot-the-reservoir-static-properties-in-interactive-viewer" title="Permalink"></a></h2><pre><code class="language-julia hljs">fig = plot_reservoir(model, key = :porosity)
+ax = fig.current_axis[]
+plot_faults!(ax, mesh, alpha = 0.5)
+ax.azimuth[] = -3.0
+ax.elevation[] = 0.5
+fig</code></pre><img src="bd9dc76b.png" alt="Example block output"/><h2 id="Simulate-the-model"><a class="docs-heading-anchor" href="#Simulate-the-model">Simulate the model</a><a id="Simulate-the-model-1"></a><a class="docs-heading-anchor-permalink" href="#Simulate-the-model" title="Permalink"></a></h2><pre><code class="language-julia hljs">ws, states = simulate_reservoir(case, output_substates = true)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">ReservoirSimResult with 463 entries:
+
+  wells (36 present):
+    :B-4H
+    :F-4H
+    :D-4H
+    :F-2H
+    :D-2H
+    :B-1H
+    :C-4H
+    :C-1H
+    :B-2H
+    :E-1H
+    :B-4BH
+    :D-3AH
+    :D-3BH
+    :C-3H
+    :E-3H
+    :K-3H
+    :E-4AH
+    :D-1H
+    :B-1AH
+    :E-3CH
+    :E-4H
+    :E-2H
+    :E-2AH
+    :C-4AH
+    :B-1BH
+    :C-2H
+    :B-4DH
+    :D-3H
+    :E-3AH
+    :D-4AH
+    :B-3H
+    :F-3H
+    :E-3BH
+    :D-1CH
+    :F-1H
+    :B-4AH
+    Results per well:
+       :wrat =&gt; Vector{Float64} of size (463,)
+       :Aqueous_mass_rate =&gt; Vector{Float64} of size (463,)
+       :orat =&gt; Vector{Float64} of size (463,)
+       :bhp =&gt; Vector{Float64} of size (463,)
+       :lrat =&gt; Vector{Float64} of size (463,)
+       :mass_rate =&gt; Vector{Float64} of size (463,)
+       :rate =&gt; Vector{Float64} of size (463,)
+       :Vapor_mass_rate =&gt; Vector{Float64} of size (463,)
+       :control =&gt; Vector{Symbol} of size (463,)
+       :Liquid_mass_rate =&gt; Vector{Float64} of size (463,)
+       :grat =&gt; Vector{Float64} of size (463,)
+
+  states (Vector with 463 entries, reservoir variables for each state)
+    :Rv =&gt; Vector{Float64} of size (44417,)
+    :BlackOilUnknown =&gt; Vector{BlackOilX{Float64}} of size (44417,)
+    :Saturations =&gt; Matrix{Float64} of size (3, 44417)
+    :Pressure =&gt; Vector{Float64} of size (44417,)
+    :Rs =&gt; Vector{Float64} of size (44417,)
+    :ImmiscibleSaturation =&gt; Vector{Float64} of size (44417,)
+    :TotalMasses =&gt; Matrix{Float64} of size (3, 44417)
+
+  time (report time for each state)
+     Vector{Float64} of length 463
+
+  result (extended states, reports)
+     SimResult with 247 entries
+
+  extra
+     Dict{Any, Any} with keys :simulator, :config
+
+  Completed at Sep. 08 2024 18:09 after 7 minutes, 3 seconds, 62.93 milliseconds.</code></pre><h2 id="Plot-the-reservoir-solution"><a class="docs-heading-anchor" href="#Plot-the-reservoir-solution">Plot the reservoir solution</a><a id="Plot-the-reservoir-solution-1"></a><a class="docs-heading-anchor-permalink" href="#Plot-the-reservoir-solution" title="Permalink"></a></h2><pre><code class="language-julia hljs">fig = plot_reservoir(model, states, step = 247, key = :Saturations)
+ax = fig.current_axis[]
+ax.azimuth[] = -3.0
+ax.elevation[] = 0.5
+fig</code></pre><img src="69f93b70.png" alt="Example block output"/><h2 id="Load-reference-and-set-up-plotting"><a class="docs-heading-anchor" href="#Load-reference-and-set-up-plotting">Load reference and set up plotting</a><a id="Load-reference-and-set-up-plotting-1"></a><a class="docs-heading-anchor-permalink" href="#Load-reference-and-set-up-plotting" title="Permalink"></a></h2><pre><code class="language-julia hljs">csv_path = joinpath(norne_dir, &quot;REFERENCE.CSV&quot;)
+data, header = readdlm(csv_path, &#39;,&#39;, header = true)
+time_ref = data[:, 1]
+time_jutul = deepcopy(ws.time)
+wells = deepcopy(ws.wells)
+wnames = collect(keys(wells))
+nw = length(wnames)
+day = si_unit(:day)
+cmap = :tableau_hue_circle
+
+inj = Symbol[]
+prod = Symbol[]
+for (wellname, well) in pairs(wells)
+    qts = well[:wrat] + well[:orat] + well[:grat]
+    if sum(qts) &gt; 0
+        push!(inj, wellname)
+    else
+        push!(prod, wellname)
+    end
+end
+
+function plot_well_comparison(response, well_names, reponse_name = &quot;$response&quot;)
+    fig = Figure(size = (1000, 400))
+    if response == :bhp
+        ys = 1/si_unit(:bar)
+        yl = &quot;Bottom hole pressure / Bar&quot;
+    elseif response == :wrat
+        ys = si_unit(:day)
+        yl = &quot;Surface water rate / m³/day&quot;
+    elseif response == :grat
+        ys = si_unit(:day)/1e6
+        yl = &quot;Surface gas rate / 10⁶ m³/day&quot;
+    elseif response == :orat
+        ys = si_unit(:day)/(1000*si_unit(:stb))
+        yl = &quot;Surface oil rate / 10³ stb/day&quot;
+    else
+        error(&quot;$response not ready.&quot;)
+    end
+    welltypes = []
+    ax = Axis(fig[1:4, 1], xlabel = &quot;Time / days&quot;, ylabel = yl)
+    i = 1
+    linehandles = []
+    linelabels = []
+    for well_name in well_names
+        well = wells[well_name]
+        label_in_csv = &quot;$well_name:$response&quot;
+        ref_pos = findfirst(x -&gt; x == label_in_csv, vec(header))
+        qoi = copy(well[response]).*ys
+        qoi_ref = data[:, ref_pos].*ys
+        tot_rate = copy(well[:rate])
+        @. qoi[tot_rate == 0] = NaN
+        grat_ref = data[:, findfirst(x -&gt; x == &quot;$well_name:grat&quot;, vec(header))]
+        orat_ref = data[:, findfirst(x -&gt; x == &quot;$well_name:orat&quot;, vec(header))]
+        wrat_ref = data[:, findfirst(x -&gt; x == &quot;$well_name:wrat&quot;, vec(header))]
+        tot_rate_ref = grat_ref + orat_ref + wrat_ref
+        @. qoi_ref[tot_rate_ref == 0] = NaN
+        crange = (1, max(length(well_names), 2))
+        lh = lines!(ax, time_jutul./day, abs.(qoi),
+            color = i,
+            colorrange = crange,
+            label = &quot;$well_name&quot;, colormap = cmap
+        )
+        push!(linehandles, lh)
+        push!(linelabels, &quot;$well_name&quot;)
+        lines!(ax, time_ref./day, abs.(qoi_ref),
+            color = i,
+            colorrange = crange,
+            linestyle = :dash,
+            colormap = cmap
+        )
+        i += 1
+    end
+    l1 = LineElement(color = :black, linestyle = nothing)
+    l2 = LineElement(color = :black, linestyle = :dash)
+
+    Legend(fig[1:3, 2], linehandles, linelabels, nbanks = 3)
+    Legend(fig[4, 2], [l1, l2], [&quot;JutulDarcy.jl&quot;, &quot;OPM Flow&quot;])
+    fig
+end</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">plot_well_comparison (generic function with 2 methods)</code></pre><h2 id="Injector-bhp"><a class="docs-heading-anchor" href="#Injector-bhp">Injector bhp</a><a id="Injector-bhp-1"></a><a class="docs-heading-anchor-permalink" href="#Injector-bhp" title="Permalink"></a></h2><pre><code class="language-julia hljs">plot_well_comparison(:bhp, inj, &quot;Bottom hole pressure&quot;)</code></pre><img src="17407078.png" alt="Example block output"/><h2 id="Gas-injection-rates"><a class="docs-heading-anchor" href="#Gas-injection-rates">Gas injection rates</a><a id="Gas-injection-rates-1"></a><a class="docs-heading-anchor-permalink" href="#Gas-injection-rates" title="Permalink"></a></h2><pre><code class="language-julia hljs">plot_well_comparison(:grat, inj, &quot;Gas surface injection rate&quot;)</code></pre><img src="506308e0.png" alt="Example block output"/><h2 id="Water-injection-rates"><a class="docs-heading-anchor" href="#Water-injection-rates">Water injection rates</a><a id="Water-injection-rates-1"></a><a class="docs-heading-anchor-permalink" href="#Water-injection-rates" title="Permalink"></a></h2><pre><code class="language-julia hljs">plot_well_comparison(:wrat, inj, &quot;Water surface injection rate&quot;)</code></pre><img src="3f50d0d4.png" alt="Example block output"/><h2 id="Producer-bhp"><a class="docs-heading-anchor" href="#Producer-bhp">Producer bhp</a><a id="Producer-bhp-1"></a><a class="docs-heading-anchor-permalink" href="#Producer-bhp" title="Permalink"></a></h2><pre><code class="language-julia hljs">plot_well_comparison(:bhp, prod, &quot;Bottom hole pressure&quot;)</code></pre><img src="fc220910.png" alt="Example block output"/><h2 id="Oil-production-rates"><a class="docs-heading-anchor" href="#Oil-production-rates">Oil production rates</a><a id="Oil-production-rates-1"></a><a class="docs-heading-anchor-permalink" href="#Oil-production-rates" title="Permalink"></a></h2><pre><code class="language-julia hljs">plot_well_comparison(:orat, prod, &quot;Oil surface production rate&quot;)</code></pre><img src="decf71f5.png" alt="Example block output"/><h2 id="Gas-production-rates"><a class="docs-heading-anchor" href="#Gas-production-rates">Gas production rates</a><a id="Gas-production-rates-1"></a><a class="docs-heading-anchor-permalink" href="#Gas-production-rates" title="Permalink"></a></h2><pre><code class="language-julia hljs">plot_well_comparison(:grat, prod, &quot;Gas surface production rate&quot;)</code></pre><img src="783057ea.png" alt="Example block output"/><h2 id="Example-on-GitHub"><a class="docs-heading-anchor" href="#Example-on-GitHub">Example on GitHub</a><a id="Example-on-GitHub-1"></a><a class="docs-heading-anchor-permalink" href="#Example-on-GitHub" title="Permalink"></a></h2><p>If you would like to run this example yourself, it can be downloaded from the JutulDarcy.jl GitHub repository <a href="https://github.com/sintefmath/JutulDarcy.jl/blob/main/examples/validation_norne_nohyst.jl">as a script</a>, or as a <a href="https://github.com/sintefmath/JutulDarcy.jl/blob/gh-pages/dev/examples/validation_norne_nohyst.ipynb">Notebook</a></p><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../validation_olympus_1/">« Validation: OLYMPUS 1</a><a class="docs-footer-nextpage" href="../validation_mrst/">Validation: MRST input files »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.7.0 on <span class="colophon-date" title="Sunday 8 September 2024 18:32">Sunday 8 September 2024</span>. Using Julia version 1.10.5.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
