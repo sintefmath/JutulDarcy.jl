@@ -320,6 +320,22 @@ end
 
 Adapt.@adapt_structure InjectionEnthalpyEvaluator
 
+"""
+Placeholder evaluator for fluid systems without a known way of computing the
+injected enthalpy from pressure and temperature. Setup succeeds, so that
+injectors with an explicitly given enthalpy can be used. An error is thrown only
+if the injected enthalpy has to be computed.
+"""
+struct UnsupportedInjectionEnthalpy{E} end
+
+"""
+    injection_enthalpy_evaluator(model)
+
+Return the evaluator used to compute the enthalpy of injected fluid from
+pressure and temperature for injectors without an explicitly given enthalpy.
+Packages with other fluid systems can add methods for their models, together
+with a corresponding `injected_fluid_enthalpy` method.
+"""
 function injection_enthalpy_evaluator(model)
     # Resolve constitutive laws during simulator setup. Kernel models
     # intentionally do not carry variable definitions.
@@ -331,7 +347,7 @@ function injection_enthalpy_evaluator(model)
     if energy isa FluidInternalEnergy
         energy = nothing
     elseif !(energy isa TemperatureDependentVariable)
-        throw(ArgumentError("Configure an injection enthalpy evaluator for $(typeof(energy))."))
+        return UnsupportedInjectionEnthalpy{typeof(energy)}()
     end
     return InjectionEnthalpyEvaluator(energy)
 end
@@ -516,6 +532,12 @@ function injected_fluid_enthalpy(ctrl, evaluator::InjectionEnthalpyEvaluator{Not
         H += ctrl.injection_mixture[c]*state.ComponentHeatCapacity[c, cell]*T
     end
     return H + injection_pressure_work(ctrl, model, state, p, cell)
+end
+
+function injected_fluid_enthalpy(ctrl, ::UnsupportedInjectionEnthalpy{E}, model, state, p, T, cell) where E
+    throw(ArgumentError("Cannot compute the injected enthalpy for $E. Give the \
+        enthalpy explicitly in InjectorControl, or add methods for \
+        injection_enthalpy_evaluator and injected_fluid_enthalpy."))
 end
 
 function injected_fluid_enthalpy(ctrl, enthalpy::PressureTemperatureDependentEnthalpy, model, state, p, T, cell)
