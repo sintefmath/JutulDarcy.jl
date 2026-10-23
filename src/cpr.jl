@@ -392,22 +392,36 @@ function prepare_cprw_backend_maps!(map, system_matrix)
         (fill(index + reservoir_cells, length(map.map_21[index]))
             for index in eachindex(map.map_21));
         init = Int[])
-    wells_22 = collect((reservoir_cells + index
-        for index in eachindex(map.map_22)))
+    wells_22 = reduce(vcat,
+        (fill(index + reservoir_cells, length(map.map_22[index]))
+            for index in eachindex(map.map_22)); init = Int[])
+    positions_22 = reduce(vcat,
+        (fill(map.nzmap_22[index], length(map.map_22[index]))
+            for index in eachindex(map.map_22)); init = Int[])
     prototype = system_matrix.rowptr
     map.backend_data[] = (
-        map_12 = cpr_backend_copy(prototype, map_12),
-        map_21 = cpr_backend_copy(prototype, map_21),
-        map_22 = cpr_backend_copy(prototype, map_22),
+        cross_12 = cprw_backend_reduction(prototype, map.nzmap_12, map_12, cells_12),
+        cross_21 = cprw_backend_reduction(prototype, map.nzmap_21, map_21, wells_21),
+        cross_22 = cprw_backend_reduction(prototype, positions_22, map_22, wells_22),
         cells_12 = cpr_backend_copy(prototype, cells_12),
-        wells_21 = cpr_backend_copy(prototype, wells_21),
-        wells_22 = cpr_backend_copy(prototype, wells_22),
+        well_cell_ptr = cpr_backend_copy(prototype, cumsum([1; length.(map.well_cells)])),
         nzmap_11 = cpr_backend_copy(prototype, map.nzmap_11),
-        nzmap_12 = cpr_backend_copy(prototype, map.nzmap_12),
-        nzmap_21 = cpr_backend_copy(prototype, map.nzmap_21),
-        nzmap_22 = cpr_backend_copy(prototype, map.nzmap_22)
     )
     return map
+end
+
+function cprw_backend_reduction(prototype, positions, blocks, entities)
+    # One thread sums all fine blocks contributing to a coarse entry. This
+    # includes segment diagonals and multiple segments perforating one cell.
+    order = sortperm(positions)
+    sorted = positions[order]
+    starts = findall(i -> i == 1 || sorted[i] != sorted[i - 1], eachindex(sorted))
+    return (
+        positions = cpr_backend_copy(prototype, sorted[starts]),
+        offsets = cpr_backend_copy(prototype, [starts; length(sorted) + 1]),
+        blocks = cpr_backend_copy(prototype, blocks[order]),
+        entities = cpr_backend_copy(prototype, entities[order]),
+    )
 end
 
 function create_pressure_system(p_prec, J, lsys, n, T, well_reservoir_map)
@@ -586,7 +600,9 @@ end
 
 function cprw_update_pressure_system!(nz_p, nz_s, A_s, A_p, w_p, well_reservoir_map, tb, ncells, np,::Val{ncomp}, ::Val{is_adjoint}) where {ncomp, is_adjoint}
     (; map_12, map_21, map_22, nzmap_11, nzmap_12, nzmap_21, nzmap_22) = well_reservoir_map
-    fill!(nz_p, zero(eltype(nz_p)))
+    for positions in (nzmap_12, nzmap_21, nzmap_22), position in positions
+        nz_p[position] = zero(eltype(nz_p))
+    end
     # Reservoir internal connections
     @assert length(nzmap_11) == length(nz_s)
     @batch minbatch=tb for cell in 1:ncells
@@ -768,9 +784,7 @@ function update_weights!(cpr, cpr_storage::CPRStorage, model, storage, J, ps)
             if physical_representation(well_model.domain) isa MultiSegmentWell
                 # Use the same averaged restriction for every segment of a
                 # physical well, so internal segment fluxes cancel in its row.
-                for i in well_range
-                    cprw_average_weights!(w, wr_map.well_cells[i], last_porous_media_index + i, rmodel.context)
-                end
+                cprw_average_weights!(w, wr_map, well_range, last_porous_media_index, rmodel.context)
                 continue
             end
             first_column = last_porous_media_index + first(well_range)
@@ -793,13 +807,16 @@ function update_weights!(cpr, cpr_storage::CPRStorage, model, storage, J, ps)
     return w
 end
 
-function cprw_average_weights!(weights, cells, well, context)
-    for component in axes(weights, 1)
-        value = zero(eltype(weights))
-        for cell in cells
-            value += weights[component, cell]
+function cprw_average_weights!(weights, map, well_range, ncell, context)
+    for well in well_range
+        cells = map.well_cells[well]
+        for component in axes(weights, 1)
+            value = zero(eltype(weights))
+            for cell in cells
+                value += weights[component, cell]
+            end
+            weights[component, ncell + well] = isempty(cells) ? one(value) : value/length(cells)
         end
-        weights[component, well] = isempty(cells) ? one(value) : value/length(cells)
     end
     return weights
 end
@@ -1287,6 +1304,7 @@ function cpr_construct_well_reservoir_map(model::MultiModel, lsys, bz)
                     end
                 end
             end
+            unique!(diagonal_pairs)
             push!(map_22, well_positions(first.(diagonal_pairs), last.(diagonal_pairs),
                 lsys[linear_group, linear_group], well_row, well_column, bz, offsets[3][source_index]))
             # Extend sparsity to include well cells

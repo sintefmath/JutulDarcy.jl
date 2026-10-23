@@ -111,7 +111,8 @@ end
                 local_cpr.storage.A_p, HYPRE.HYPRE_Int(nrows), ncols, rows, columns, values)
             actual = permutedims(reshape(values, 18, nrows))
             expected = zeros(nrows, 18)
-            local_pressure = Matrix(helper.pressure_matrix)
+            ncell = size(A, 1)
+            local_pressure = isnothing(helper.well_reservoir_map) ? zeros(ncell, ncell) : Matrix(helper.pressure_matrix)
             if isnothing(helper.well_reservoir_map)
                 for row in 1:helper.nreservoir, position in SparseArrays.nzrange(A, row)
                     col = Jutul.colvals(A)[position]
@@ -120,7 +121,6 @@ end
                         for b in 1:local_cpr.storage.number_of_components)
                 end
             end
-            ncell = size(A, 1)
             global_columns = [Jutul.executor_index_to_global(local_sim.executor, cell, :column) for cell in 1:ncell]
             global_columns = [cell <= 6 ? cell : cell + 2 for cell in global_columns]
             append!(global_columns, 7:(6 + nwell))

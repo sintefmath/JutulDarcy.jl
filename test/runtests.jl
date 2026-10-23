@@ -34,6 +34,7 @@ end
 @testitem "CPRW BHP controls" begin
     include("cprw_bhp.jl")
     include("cprw_multisegment.jl")
+    include("cprw_multisegment_backend.jl")
 end
 
 @testitem "Float32 reservoir models" begin

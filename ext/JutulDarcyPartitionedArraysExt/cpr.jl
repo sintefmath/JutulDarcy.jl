@@ -11,7 +11,8 @@ function cprw_hypre_assembly_helper!(p_prec, model, lsys, executor, counts, comm
         "MPI CPRW requires the CSR backend (backend = :csr)."))
     bz = number_of_components(reservoir_model(model).system)
     well_map = JutulDarcy.cpr_construct_well_reservoir_map(model, lsys, bz)
-    pressure_matrix = JutulDarcy.pressure_matrix_from_global_jacobian(A, Float64, lsys, well_map)
+    pressure_matrix = isnothing(well_map) ? A :
+        JutulDarcy.pressure_matrix_from_global_jacobian(A, Float64, lsys, well_map)
     ncell = size(A, 1)
     nwell = size(pressure_matrix, 1) - ncell
     # Wells belong to a single rank, but each rank can own a different number
