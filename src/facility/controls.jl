@@ -455,19 +455,28 @@ function well_control_equation(ctrl, cond, well, model, state)
     return (val - val_t)/scale
 end
 
-function well_control_equation(ctrl::ProducerControl{T}, cond, well, model, state) where {T <: SurfaceVolumeTarget}
+const PhaseRateTarget = Union{
+    SurfaceWaterRateTarget,
+    SurfaceOilRateTarget,
+    SurfaceGasRateTarget,
+    SurfaceLiquidRateTarget
+}
+
+function well_control_equation(ctrl::ProducerControl{T}, cond, well, model, state) where {T <: PhaseRateTarget}
     target = ctrl.target
     val_t = get_control_target_value(target, model, state)
     val = well_target_value(ctrl, target, cond, well, model, state)
     rate_slack = (val - val_t)/target_scaling(target)
-    if is_zero_rate_control(ctrl)
+    if is_zero_rate_control(ctrl) || iszero(ctrl.bhp_limit_scale)
         return rate_slack
     end
     limits = current_limits(state.WellGroupConfiguration, well)
     if isnothing(limits) || !haskey(limits, :bhp)
         return rate_slack
     end
-    pressure_slack = (cond.bottom_hole_pressure - limits.bhp)/target_scaling(BottomHolePressureTarget(limits.bhp))
+    # The distance to the BHP limit is converted to a surface rate, so that the
+    # two slacks have the same units
+    pressure_slack = ctrl.bhp_limit_scale*(cond.bottom_hole_pressure - limits.bhp)/target_scaling(target)
     # Production may fall below its requested rate only at the lower BHP limit.
     # A rate equation alone is singular when its phase is absent. The
     # Fischer-Burmeister equation enforces both inequalities and their

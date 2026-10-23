@@ -801,20 +801,31 @@ function Base.isequal(f::InjectorControl, g::InjectorControl)
 end
 
 """
-    ProducerControl(target)
+    ProducerControl(target; factor = 1.0, bhp_limit_scale = 1e-10)
 
 Well control for production out of the reservoir. `target` specifies the type of target (for example `BottomHolePressureTarget()`).
+
+For water, oil, gas and liquid rate targets, the rate target and the lower
+bottom-hole pressure limit are combined in a single Fischer-Burmeister
+complementarity equation. `bhp_limit_scale` [surface m^3/s/Pa] converts the
+distance to the bottom-hole pressure limit to a rate in this equation. It
+should be comparable to the productivity of the well: The equation reduces to
+the rate equation when the well is far from the limit relative to the rate
+mismatch. Setting `bhp_limit_scale = 0` disables the complementarity equation,
+so that the plain rate equation is used.
 
 See also [`DisabledControl`](@ref), [`InjectorControl`](@ref).
 """
 struct ProducerControl{T, R} <: WellControlForce
     target::T
     factor::R
-    function ProducerControl(target::T; factor::R = 1.0, check = true) where {T<:WellTarget, R<:Real}
+    bhp_limit_scale::Float64
+    function ProducerControl(target::T; factor::R = 1.0, bhp_limit_scale = 1e-10, check = true) where {T<:WellTarget, R<:Real}
         if check && rate_weighted(target)
             target.value <= 0.0 || error("Producer target rate must be negative or zero, was $(target.value)")
         end
-        return new{T, R}(target, factor)
+        bhp_limit_scale >= 0.0 || throw(ArgumentError("bhp_limit_scale must be non-negative, was $bhp_limit_scale"))
+        return new{T, R}(target, factor, bhp_limit_scale)
     end
 end
 
@@ -823,7 +834,7 @@ default_limits(f::ProducerControl{T}) where T<:TotalMassRateTarget = merge((bhp 
 default_limits(f::ProducerControl{T}) where T<:BottomHolePressureTarget = merge((rate_lower = -MIN_ACTIVE_WELL_RATE,), as_limit(f.target))
 
 function replace_target(f::ProducerControl, target)
-    return ProducerControl(target, factor = f.factor, check = false)
+    return ProducerControl(target, factor = f.factor, bhp_limit_scale = f.bhp_limit_scale, check = false)
 end
 
 # A zero total-rate target closes the surface connection while retaining the
