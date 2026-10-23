@@ -1,6 +1,6 @@
 using Jutul, JutulDarcy, Test, LinearAlgebra
 
-function cprw_multisegment_case(; merged = false, split_wells = false)
+function cprw_multisegment_case(; merged = false, split_wells = false, thermal = false)
     bar = si_unit(:bar)
     domain = reservoir_domain(CartesianMesh((3, 1, 3), (300.0, 100.0, 45.0));
         permeability = 1e-13, porosity = 0.2)
@@ -9,27 +9,28 @@ function cprw_multisegment_case(; merged = false, split_wells = false)
     push!(wells, setup_well(domain, [3]; name = :Simple, simple_well = true))
     system = ImmiscibleSystem((LiquidPhase(), VaporPhase());
         reference_densities = [1000.0, 100.0])
-    model = setup_reservoir_model(domain, system; wells, split_wells, backend = :csr)
-    state0 = setup_reservoir_state(model; Pressure = 200bar, Saturations = [0.8, 0.2])
+    model = setup_reservoir_model(domain, system; wells, split_wells, thermal, backend = :csr)
+    state_options = thermal ? (Temperature = 350.0,) : NamedTuple()
+    state0 = setup_reservoir_state(model; Pressure = 200bar, Saturations = [0.8, 0.2], state_options...)
     controls = Dict(
         :Producer => ProducerControl(BottomHolePressureTarget(190bar)),
-        :Injector => InjectorControl(TotalRateTarget(1e-4), [1.0, 0.0]; density = 1000.0),
+        :Injector => InjectorControl(TotalRateTarget(1e-4), [1.0, 0.0]; density = 1000.0, temperature = 350.0),
         :Simple => DisabledControl(),
     )
     next_controls = copy(controls)
     next_controls[:Producer] = ProducerControl(TotalRateTarget(-1e-4))
-    next_controls[:Injector] = InjectorControl(BottomHolePressureTarget(210bar), [1.0, 0.0]; density = 1000.0)
+    next_controls[:Injector] = InjectorControl(BottomHolePressureTarget(210bar), [1.0, 0.0]; density = 1000.0, temperature = 350.0)
     forces = [setup_reservoir_forces(model; control) for control in (controls, next_controls)]
     case = JutulCase(model, fill(0.05*si_unit(:day), 2), forces; state0)
     return merged ? JutulDarcy.merge_similar_wells(case) : case
 end
 
-function check_multisegment_coarse_system(result)
+function check_multisegment_coarse_system(result; nwell = 3)
     sim = result.extra[:simulator]
     cpr = result.extra[:config][:linear_solver].preconditioner
     map = cpr.storage.well_reservoir_map
     ncell = number_of_cells(reservoir_model(sim.model).domain)
-    @test map.np == ncell + 3
+    @test map.np == ncell + nwell
     pressure = Matrix(JutulDarcy.cpr_host_matrix(cpr.storage.A_p))
     weights = Array(cpr.storage.w_p)
     ncomp = cpr.storage.number_of_components
@@ -72,9 +73,12 @@ function check_multisegment_coarse_system(result)
                 restriction[equation_offset + cell_index(node, component)] = weights[component, row]
             end
             @test weights[:, row] ≈ vec(sum(weights[:, map.well_cells[coarse]]; dims = 2))/length(map.well_cells[coarse])
-            expected = vec(sum(weights[:, 1:ncell].*reshape(vec(sum(A12[:, pcols]; dims = 2)), bz, ncell); dims = 1))
+            pressure_column = reshape(vec(sum(A12[:, pcols]; dims = 2)), bz, ncell)
+            expected = vec(sum(weights[:, 1:ncell].*pressure_column[1:ncomp, :]; dims = 1))
             @test pressure[1:ncell, row] ≈ expected
-            if name == :Injector
+            facility_key = haskey(sim.model.models, :Facility) ? :Facility : Symbol(key, :_ctrl)
+            cfg = sim.storage[facility_key].state.WellGroupConfiguration
+            if JutulDarcy.operating_control(cfg, name).target isa BottomHolePressureTarget
                 @test pressure[row, row] == 1
                 @test all(iszero, pressure[row, 1:ncell])
             else
@@ -88,17 +92,43 @@ end
 @testset "CPRW multisegment pressure enrichment" begin
     options = (info_level = -1, timesteps = :none, error_on_incomplete = true,
         failure_cuts_timestep = false, tol_cnv = 1e-7, tol_mb = 1e-9, tol_cnv_well = 1e-7)
-    for (merged, split_wells) in ((false, false), (false, true), (true, false))
-        @testset "merged=$merged, split_wells=$split_wells" begin
-            case = cprw_multisegment_case(; merged, split_wells)
+    for (merged, split_wells, thermal) in ((false, false, false), (false, true, false), (true, false, false), (false, true, true))
+        @testset "merged=$merged, split_wells=$split_wells, thermal=$thermal" begin
+            case = cprw_multisegment_case(; merged, split_wells, thermal)
             reference = simulate_reservoir(case; precond = :ilu0, options...)
             result = simulate_reservoir(case; precond = :cprw, options...)
             @test length(result.states) == length(case.dt)
             for (state, ref) in zip(result.states, reference.states)
                 @test state[:Pressure] ≈ ref[:Pressure] rtol = 1e-7
                 @test state[:Saturations] ≈ ref[:Saturations] rtol = 1e-7
+                if thermal
+                    @test state[:Temperature] ≈ ref[:Temperature] rtol = 1e-7
+                end
             end
             check_multisegment_coarse_system(result)
+        end
+    end
+end
+
+@testset "CPRW multisegment compositional and black-oil systems" begin
+    for physics in (:compositional_2ph_3c, :bo_spe1)
+        @testset "$physics" begin
+            case = JutulDarcy.setup_mini_wellcase(Val(physics);
+                simple_well = false, nstep = 1, total_time = si_unit(:day), backend = :csr)
+            options = (info_level = -1, timesteps = :none, error_on_incomplete = true,
+                failure_cuts_timestep = false, tol_cnv = 1e-7, tol_mb = 1e-9, tol_cnv_well = 1e-7)
+            reference = simulate_reservoir(case; precond = :ilu0, options...)
+            result = simulate_reservoir(case; precond = :cprw, options...)
+            @test length(result.states) == length(case.dt)
+            for (state, ref) in zip(result.states, reference.states)
+                @test state[:Pressure] ≈ ref[:Pressure] rtol = 1e-7
+                for field in (:Saturations, :OverallMoleFractions, :ImmiscibleSaturation)
+                    if haskey(state, field)
+                        @test state[field] ≈ ref[field] rtol = 1e-7 atol = 1e-10
+                    end
+                end
+            end
+            check_multisegment_coarse_system(result; nwell = 2)
         end
     end
 end

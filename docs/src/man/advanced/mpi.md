@@ -29,13 +29,15 @@ include wells in the distributed pressure solve:
 model = setup_reservoir_model(domain, system;
     wells = wells, backend = :csr, split_wells = true)
 # Set up parameters, state and forces as usual, then:
+case = JutulCase(model, timesteps, forces; state0 = state0, parameters = parameters)
 result = simulate_reservoir(case;
     mode = :mpi, precond = :cprw, output_path = "output")
 ```
 
 The coarse system contains reservoir pressures and one auxiliary pressure per
-physical well, including multisegment wells and independently controlled wells
-inside a merged model. The Krylov vectors still contain only reservoir unknowns;
+physical well, including multisegment wells. Serial CPRW also supports
+independently controlled wells inside a merged model.
+The Krylov vectors still contain only reservoir unknowns;
 the existing Schur operator handles the remaining well variables.
 
 Initialization gathers each rank's pressure row count, including its well rows.
@@ -73,7 +75,7 @@ The comparison against `main` at `53544802` identified missing multisegment
 coarse rows, assumptions that all wells share one linear-system group,
 shared-Facility-only BHP handling, and a reservoir-domain lookup used for
 well-local analytical weights. These are handled for both serial and MPI CSR.
-Previously MPI silently used CPR after warning that CPRW was unavailable.
+Previously MPI used CPR after warning that CPRW was unavailable.
 The serial SimpleWell weighting policy remains analytical or accumulation based;
 OPM's default well weights instead average the perforation-cell weights.
 

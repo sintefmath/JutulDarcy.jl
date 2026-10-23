@@ -3,7 +3,7 @@ using Test, Jutul, JutulDarcy, MPI, PartitionedArrays, HYPRE, SparseArrays
 MPI.Init()
 @assert MPI.Comm_size(MPI.COMM_WORLD) == 2 "Run this test with test/mpi/run.jl (two MPI ranks)."
 
-function setup_mpi_case(; clustered = false, multisegment = false)
+function setup_mpi_case(; clustered = false, multisegment = false, thermal = false)
     bar, day = si_units(:bar, :day)
     domain = reservoir_domain(CartesianMesh((16, 1, 1), (160.0, 10.0, 10.0)),
         permeability = 1e-12, porosity = 0.2)
@@ -15,20 +15,25 @@ function setup_mpi_case(; clustered = false, multisegment = false)
     producer = setup_well(domain, producer_cells;
         name = :Producer, simple_well = !multisegment)
     model = setup_reservoir_model(domain, system;
-        wells = [injector, producer], split_wells = true, backend = :csr)
+        wells = [injector, producer], split_wells = true, backend = :csr, thermal)
+    if thermal
+        push!(reservoir_model(model).output_variables, :Temperature)
+        unique!(reservoir_model(model).output_variables)
+    end
     densities = ConstantCompressibilityDensities(
         p_ref = 100bar, density_ref = rho, compressibility = [1e-6/bar, 1e-4/bar])
     replace_variables!(model, PhaseMassDensities = densities)
     parameters = setup_parameters(model)
-    state0 = setup_reservoir_state(model, Pressure = 100bar, Saturations = [0.8, 0.2])
+    state_options = thermal ? (Temperature = 350.0,) : NamedTuple()
+    state0 = setup_reservoir_state(model; Pressure = 100bar, Saturations = [0.8, 0.2], state_options...)
     control = Dict(
-        :Injector => InjectorControl(TotalRateTarget(0.001), [0.0, 1.0], density = rho[2]),
+        :Injector => InjectorControl(TotalRateTarget(0.001), [0.0, 1.0], density = rho[2], temperature = 350.0),
         :Producer => ProducerControl(BottomHolePressureTarget(90bar))
     )
     forces = setup_reservoir_forces(model; control = control)
     if clustered
         next_control = Dict(
-            :Injector => InjectorControl(BottomHolePressureTarget(110bar), [0.0, 1.0], density = rho[2]),
+            :Injector => InjectorControl(BottomHolePressureTarget(110bar), [0.0, 1.0], density = rho[2], temperature = 350.0),
             :Producer => ProducerControl(TotalRateTarget(-0.001)),
         )
         forces = [forces, setup_reservoir_forces(model; control = next_control)]
@@ -37,7 +42,9 @@ function setup_mpi_case(; clustered = false, multisegment = false)
 end
 
 @testset "MPI $precond owned CSR rows (clustered=$clustered, multisegment=$multisegment)" for (precond, clustered, multisegment) in ((:cpr, false, false), (:cprw, false, false), (:cprw, true, false), (:cprw, false, true), (:cprw, true, true))
-    case = setup_mpi_case(; clustered, multisegment)
+    # The last case also checks bz != ncomp (temperature is a fine unknown).
+    thermal = clustered && multisegment
+    case = setup_mpi_case(; clustered, multisegment, thermal)
     options = (info_level = -1, timesteps = :none, failure_cuts_timestep = false,
         error_on_incomplete = true, precond = precond, rtol = 1e-8,
         linear_solver_arg = (amg_type = :hypre,))
@@ -62,6 +69,12 @@ end
     local_sim = PartitionedArrays.getany(sim.storage.simulators)
     system = Jutul.get_simulator_storage(local_sim).LinearizedSystem
     A = JutulDarcy.reservoir_jacobian(system)
+    @test size(eltype(A), 1) == 2 + thermal
+    if thermal
+        local_model = Jutul.get_simulator_model(local_sim)
+        push!(reservoir_model(local_model).output_variables, :Temperature)
+        unique!(reservoir_model(local_model).output_variables)
+    end
     @test sim.backend isa Jutul.MPI_PArrayBackend
     @test A isa Jutul.StaticSparsityMatrixCSR
     @test 0 < sim.storage.nc_process < size(A, 1)
@@ -130,7 +143,7 @@ end
         # Distributed output is consolidated on rank zero. Compare all report
         # steps, checking the counts first so an empty result cannot pass.
         result = JutulDarcy.ReservoirSimResult(case, raw_result)
-        reference = simulate_reservoir(setup_mpi_case(; clustered, multisegment); options...,
+        reference = simulate_reservoir(setup_mpi_case(; clustered, multisegment, thermal); options...,
             tol_cnv = 1e-7, tol_mb = 1e-10)
         @test length(result.states) == length(reference.states) == length(case.dt)
         @test length(result.time) == length(case.dt)
@@ -138,6 +151,9 @@ end
             @test state[:Pressure] ≈ ref[:Pressure] rtol = 1e-5
             saturation_error = maximum(abs, state[:Saturations] - ref[:Saturations])
             @test saturation_error < 1e-4
+            if thermal
+                @test state[:Temperature] ≈ ref[:Temperature] rtol = 1e-5
+            end
         end
         for well in (:Injector, :Producer), quantity in (:bhp, :rate)
             @test result.wells[well, quantity] ≈ reference.wells[well, quantity] rtol = 1e-5
