@@ -1,7 +1,7 @@
 using Jutul, JutulDarcy, Test, SparseArrays, JLArrays, CUDA
 using Jutul.KernelExecution: KernelAbstractions
 
-function cprw_bhp_test_case(; merged = false)
+function cprw_bhp_test_case(; merged = false, split_wells = false)
     bar = si_unit(:bar)
     grid = CartesianMesh((3, 1, 2), (300.0, 100.0, 40.0))
     domain = reservoir_domain(grid,
@@ -11,7 +11,7 @@ function cprw_bhp_test_case(; merged = false)
     system = ImmiscibleSystem((LiquidPhase(), VaporPhase());
         reference_densities = [1000.0, 100.0])
     model = setup_reservoir_model(domain, system; wells,
-        backend = :csr, block_backend = true)
+        backend = :csr, block_backend = true, split_wells)
     state0 = setup_reservoir_state(model;
         Pressure = 200bar, Saturations = [0.8, 0.2])
     controls = Dict(
@@ -101,11 +101,11 @@ end
         CUDA.allowscalar(false)
         push!(policies, (mode = :ka_cuda,))
     end
-    for merged in (false, true)
-        case, = cprw_bhp_test_case(; merged)
+    for (merged, split_wells) in ((false, false), (true, false), (false, true))
+        case, = cprw_bhp_test_case(; merged, split_wells)
         reference = simulate_reservoir(case; precond = :ilu0, options...)
         for policy in policies
-            @testset "merged=$merged, $policy" begin
+            @testset "merged=$merged, split_wells=$split_wells, $policy" begin
                 result = simulate_reservoir(case; precond = :cprw, policy..., options...)
                 @test length(result.states) == length(case.dt)
                 for (actual, expected) in zip(result.states, reference.states)

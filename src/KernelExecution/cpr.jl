@@ -10,24 +10,26 @@ function synchronize_cpr_kernel(backend, event)
 end
 
 @kernel function cprw_zero_offdiagonals_kernel!(values,
-        @Const(rowptr), @Const(columns), first_row)
+        @Const(rowptr), @Const(columns), first_row, unit_diagonal)
     index = @index(Global)
     row = first_row + index - 1
     @inbounds for position in rowptr[row]:(rowptr[row + 1] - 1)
         if columns[position] != row
             values[position] = zero(eltype(values))
+        elseif unit_diagonal
+            values[position] = one(eltype(values))
         end
     end
 end
 
 function cprw_zero_offdiagonals!(matrix::Jutul.StaticSparsityMatrixCSR{
         <:Any, <:Any, <:Any, <:Any, <:Any, <:KernelAbstractions.Backend},
-        first_row, count)
+        first_row, count, unit_diagonal = false)
     iszero(count) && return matrix
     backend = matrix.backend
     kernel! = cprw_zero_offdiagonals_kernel!(backend, cpr_kernel_block_size(matrix))
     event = kernel!(nonzeros(matrix), matrix.rowptr, Jutul.colvals(matrix),
-        first_row; ndrange = count)
+        first_row, unit_diagonal; ndrange = count)
     synchronize_cpr_kernel(backend, event)
     return matrix
 end
@@ -101,17 +103,19 @@ end
 end
 
 @kernel function update_cprw_cross_kernel!(pressure_values,
-        @Const(pressure_positions), @Const(system_positions),
+        @Const(pressure_positions), @Const(offsets), @Const(system_positions),
         @Const(system_values), @Const(weight_entities),
         @Const(weights), number_of_components, represented_as_adjoint)
     index = @index(Global)
     @inbounds begin
-        positions = system_positions[index]
-        block = map(position -> system_values[position], positions)
-        entity = weight_entities[index]
-        pressure_values[pressure_positions[index]] = reduce_cpr_block(
-            block, weights, entity, number_of_components,
-            represented_as_adjoint)
+        value = zero(eltype(pressure_values))
+        for position in offsets[index]:(offsets[index + 1] - 1)
+            block = cprw_block(system_values, system_positions[position])
+            entity = weight_entities[position]
+            value += reduce_cpr_block(block, weights, entity,
+                number_of_components, represented_as_adjoint)
+        end
+        pressure_values[pressure_positions[index]] = value
     end
 end
 
@@ -140,24 +144,50 @@ function update_pressure_system!(pressure_matrix::Jutul.StaticSparsityMatrixCSR,
 
     cross_kernel! = update_cprw_cross_kernel!(backend, block_size)
     cross_terms = (
-        (backend_data.nzmap_12, backend_data.map_12,
-            well_reservoir_map.nzval_12, backend_data.cells_12),
-        (backend_data.nzmap_21, backend_data.map_21,
-            well_reservoir_map.nzval_21, backend_data.wells_21),
-        (backend_data.nzmap_22, backend_data.map_22,
-            well_reservoir_map.nzval_22, backend_data.wells_22)
+        (backend_data.cross_12, well_reservoir_map.nzval_12),
+        (backend_data.cross_21, well_reservoir_map.nzval_21),
+        (backend_data.cross_22, well_reservoir_map.nzval_22)
     )
-    for (pressure_positions, system_positions, system_values,
-            weight_entities) in cross_terms
-        count = length(pressure_positions)
+    for (reduction, system_values) in cross_terms
+        count = length(reduction.positions)
         iszero(count) && continue
-        event = cross_kernel!(pressure_values, pressure_positions,
-            system_positions, system_values, weight_entities, weights,
+        event = cross_kernel!(pressure_values, reduction.positions,
+            reduction.offsets, reduction.blocks, system_values, reduction.entities, weights,
             number_of_components, represented_as_adjoint;
             ndrange = count)
         synchronize_cpr_kernel(backend, event)
     end
     return pressure_matrix
+end
+
+@kernel function cprw_average_weights_kernel!(weights, @Const(cells),
+        @Const(pointers), first_well, last_well, ncell)
+    index = @index(Global)
+    ncomp = size(weights, 1)
+    component = (index - 1) % ncomp + 1
+    well = (index - 1) ÷ ncomp + first_well
+    if well <= last_well
+        value = zero(eltype(weights))
+        @inbounds begin
+            first = pointers[well]
+            count = pointers[well + 1] - first
+            for position in first:(first + count - 1)
+                value += weights[component, cells[position]]
+            end
+            weights[component, ncell + well] = iszero(count) ? one(value) : value/count
+        end
+    end
+end
+
+function cprw_average_weights!(weights, map, well_range, ncell,
+        context::Jutul.KernelAbstractionsContext)
+    data = map.backend_data[]
+    kernel! = cprw_average_weights_kernel!(context.backend, 128)
+    event = kernel!(weights, data.cells_12, data.well_cell_ptr,
+        first(well_range), last(well_range), ncell;
+        ndrange = size(weights, 1)*length(well_range))
+    synchronize_cpr_kernel(context.backend, event)
+    return weights
 end
 
 @inline function cpr_weight_vector(accumulation, rhs, cell,

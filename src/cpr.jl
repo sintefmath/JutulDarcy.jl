@@ -392,22 +392,36 @@ function prepare_cprw_backend_maps!(map, system_matrix)
         (fill(index + reservoir_cells, length(map.map_21[index]))
             for index in eachindex(map.map_21));
         init = Int[])
-    wells_22 = collect((reservoir_cells + index
-        for index in eachindex(map.map_22)))
+    wells_22 = reduce(vcat,
+        (fill(index + reservoir_cells, length(map.map_22[index]))
+            for index in eachindex(map.map_22)); init = Int[])
+    positions_22 = reduce(vcat,
+        (fill(map.nzmap_22[index], length(map.map_22[index]))
+            for index in eachindex(map.map_22)); init = Int[])
     prototype = system_matrix.rowptr
     map.backend_data[] = (
-        map_12 = cpr_backend_copy(prototype, map_12),
-        map_21 = cpr_backend_copy(prototype, map_21),
-        map_22 = cpr_backend_copy(prototype, map_22),
+        cross_12 = cprw_backend_reduction(prototype, map.nzmap_12, map_12, cells_12),
+        cross_21 = cprw_backend_reduction(prototype, map.nzmap_21, map_21, wells_21),
+        cross_22 = cprw_backend_reduction(prototype, positions_22, map_22, wells_22),
         cells_12 = cpr_backend_copy(prototype, cells_12),
-        wells_21 = cpr_backend_copy(prototype, wells_21),
-        wells_22 = cpr_backend_copy(prototype, wells_22),
+        well_cell_ptr = cpr_backend_copy(prototype, cumsum([1; length.(map.well_cells)])),
         nzmap_11 = cpr_backend_copy(prototype, map.nzmap_11),
-        nzmap_12 = cpr_backend_copy(prototype, map.nzmap_12),
-        nzmap_21 = cpr_backend_copy(prototype, map.nzmap_21),
-        nzmap_22 = cpr_backend_copy(prototype, map.nzmap_22)
     )
     return map
+end
+
+function cprw_backend_reduction(prototype, positions, blocks, entities)
+    # One thread sums all fine blocks contributing to a coarse entry. This
+    # includes segment diagonals and multiple segments perforating one cell.
+    order = sortperm(positions)
+    sorted = positions[order]
+    starts = findall(i -> i == 1 || sorted[i] != sorted[i - 1], eachindex(sorted))
+    return (
+        positions = cpr_backend_copy(prototype, sorted[starts]),
+        offsets = cpr_backend_copy(prototype, [starts; length(sorted) + 1]),
+        blocks = cpr_backend_copy(prototype, blocks[order]),
+        entities = cpr_backend_copy(prototype, entities[order]),
+    )
 end
 
 function create_pressure_system(p_prec, J, lsys, n, T, well_reservoir_map)
@@ -437,11 +451,19 @@ function update_cpr_internals!(cpr::CPRPreconditioner, lsys, model, storage, rec
     A_p = cpr_s.A_p
     w_p = cpr_s.w_p
     rw_map = cpr_s.well_reservoir_map
-    @tic "pressure system" update_pressure_system!(A_p, cpr.pressure_precond, A, w_p, ctx, executor, rw_map)
+    @tic "pressure system" update_cpr_pressure_system!(A_p, cpr.pressure_precond, A, w_p, ctx, executor, rw_map, model, storage)
+    return cpr_amg_update_decision(cpr, do_p_update, do_p_update_partial)
+end
+
+function update_cpr_pressure_system!(A_p, p_prec, A, w_p, ctx, executor, rw_map, model, storage)
+    if !isnothing(rw_map)
+        refresh_cprw_source_values!(rw_map)
+    end
+    update_pressure_system!(A_p, p_prec, A, w_p, ctx, executor, rw_map)
     if !isnothing(rw_map)
         cprw_fix_bhp_controlled_wells!(A_p, rw_map, model, storage)
     end
-    return cpr_amg_update_decision(cpr, do_p_update, do_p_update_partial)
+    return A_p
 end
 
 # A BHP-controlled well's pressure is fixed by its control equation, which is not part of the
@@ -449,46 +471,49 @@ end
 # keep only the diagonal (the row's rhs is already zero): the pressure stage then keeps BHP fixed.
 function cprw_fix_bhp_controlled_wells!(A_p::Jutul.StaticSparsityMatrixCSR, rw_map, model, storage)
     model isa MultiModel || return A_p
-    fkey = :Facility
-    haskey(storage, fkey) || return A_p
-    # A host-evaluated facility owns the current controls; its backend mirror
-    # only receives numerical state updates.
-    facility_storage, = Jutul.submodel_evaluation_pair(storage, model, fkey)
-    cfg = facility_storage.state.WellGroupConfiguration
     offset = rw_map.np - sum(length, rw_map.well_ranges; init = 0)  # wells come last
     for (key, range) in zip(rw_map.wells, rw_map.well_ranges)
+        fkey = haskey(model.models, :Facility) ? :Facility : Symbol(key, :_ctrl)
+        haskey(storage, fkey) || continue
+        # A host-evaluated facility owns the current controls; its backend mirror
+        # only receives numerical state updates.
+        facility_storage, = Jutul.submodel_evaluation_pair(storage, model, fkey)
+        cfg = facility_storage.state.WellGroupConfiguration
         well = physical_representation(model.models[key].domain)
         first_row = offset + first(range)
         info = well.multiwell
+        multisegment = well isa MultiSegmentWell
         if isnothing(info)
-            cprw_fix_bhp_controlled_well!(A_p, cfg, key, first_row, length(range))
+            cprw_fix_bhp_controlled_well!(A_p, cfg, key, first_row, length(range), multisegment)
         else
             # Merged wells retain their original control names and node ranges.
             for (index, name) in enumerate(info.names)
-                start = info.nodes.pos[index]
-                count = info.nodes.pos[index + 1] - start
-                cprw_fix_bhp_controlled_well!(A_p, cfg, name, first_row + start - 1, count)
+                start = multisegment ? index : info.nodes.pos[index]
+                count = multisegment ? 1 : info.nodes.pos[index + 1] - start
+                cprw_fix_bhp_controlled_well!(A_p, cfg, name, first_row + start - 1, count, multisegment)
             end
         end
     end
     return A_p
 end
 
-function cprw_fix_bhp_controlled_well!(A_p, cfg, name, first_row, count)
+function cprw_fix_bhp_controlled_well!(A_p, cfg, name, first_row, count, unit_diagonal = false)
     haskey(cfg.operating_controls, name) || return A_p
     if operating_control(cfg, name).target isa BottomHolePressureTarget
-        cprw_zero_offdiagonals!(A_p, first_row, count)
+        cprw_zero_offdiagonals!(A_p, first_row, count, unit_diagonal)
     end
     return A_p
 end
 
-function cprw_zero_offdiagonals!(A_p, first_row, count)
+function cprw_zero_offdiagonals!(A_p, first_row, count, unit_diagonal = false)
     nz = nonzeros(A_p)
     cols = Jutul.colvals(A_p)
     for row in first_row:(first_row + count - 1)
         for pos in nzrange(A_p, row)
             if cols[pos] != row
                 nz[pos] = zero(eltype(nz))
+            elseif unit_diagonal
+                nz[pos] = one(eltype(nz))
             end
         end
     end
@@ -571,6 +596,9 @@ end
 
 function cprw_update_pressure_system!(nz_p, nz_s, A_s, A_p, w_p, well_reservoir_map, tb, ncells, np,::Val{ncomp}, ::Val{is_adjoint}) where {ncomp, is_adjoint}
     (; map_12, map_21, map_22, nzmap_11, nzmap_12, nzmap_21, nzmap_22) = well_reservoir_map
+    for positions in (nzmap_12, nzmap_21, nzmap_22), position in positions
+        nz_p[position] = zero(eltype(nz_p))
+    end
     # Reservoir internal connections
     @assert length(nzmap_11) == length(nz_s)
     @batch minbatch=tb for cell in 1:ncells
@@ -589,8 +617,8 @@ function cprw_update_pressure_system!(nz_p, nz_s, A_s, A_p, w_p, well_reservoir_
         # nzmap_12_i = nzmap_12[i]
         @inbounds for j in eachindex(map_12_i)
             cell = wc[j]
-            Ji = nz_12[map_12_i[j]]
-            nz_p[nzmap_12[ix]] = reduce_to_pressure(Ji, w_p, cell, ncomp, is_adjoint)
+            Ji = cprw_block(nz_12, map_12_i[j])
+            nz_p[nzmap_12[ix]] += reduce_to_pressure(Ji, w_p, cell, ncomp, is_adjoint)
             ix += 1
         end
     end
@@ -601,25 +629,25 @@ function cprw_update_pressure_system!(nz_p, nz_s, A_s, A_p, w_p, well_reservoir_
         map_21_i = map_21[i]
         @inbounds for j in eachindex(map_21_i)
             well = i + ncells
-            Ji = nz_21[map_21_i[j]]
-            nz_p[nzmap_21[ix]] = reduce_to_pressure(Ji, w_p, well, ncomp, is_adjoint)
+            Ji = cprw_block(nz_21, map_21_i[j])
+            nz_p[nzmap_21[ix]] += reduce_to_pressure(Ji, w_p, well, ncomp, is_adjoint)
             ix += 1
         end
     end
     # Wells differentiated wrt wells
     nz_22 = well_reservoir_map.nzval_22
-    ix = 1
     @inbounds for i in eachindex(map_22, nzmap_22)
         map_22_i = map_22[i]
         @inbounds for j in eachindex(map_22_i)
             well = i + ncells
-            Ji = nz_22[map_22_i[j]]
-            nz_p[nzmap_22[ix]] = reduce_to_pressure(Ji, w_p, well, ncomp, is_adjoint)
-            ix += 1
+            Ji = cprw_block(nz_22, map_22_i[j])
+            nz_p[nzmap_22[i]] += reduce_to_pressure(Ji, w_p, well, ncomp, is_adjoint)
         end
     end
     return nz_p
 end
+
+@inline cprw_block(values, positions) = map(pos -> iszero(pos) ? zero(eltype(values)) : values[pos], positions)
 
 function reduce_to_pressure(Ji, w_p, cell, Ncomp, adjoint)
     out = 0.0
@@ -748,6 +776,13 @@ function update_weights!(cpr, cpr_storage::CPRStorage, model, storage, J, ps)
         @assert !isnothing(wr_map)
         r = cpr_storage.w_rhs
         for (well, well_range) in zip(wr_map.wells, wr_map.well_ranges)
+            well_model = model.models[well]
+            if physical_representation(well_model.domain) isa MultiSegmentWell
+                # Use the same averaged restriction for every segment of a
+                # physical well, so internal segment fluxes cancel in its row.
+                cprw_average_weights!(w, wr_map, well_range, last_porous_media_index, rmodel.context)
+                continue
+            end
             first_column = last_porous_media_index + first(well_range)
             last_column = last_porous_media_index + last(well_range)
             w_i = view(w, :, first_column:last_column)
@@ -755,7 +790,7 @@ function update_weights!(cpr, cpr_storage::CPRStorage, model, storage, J, ps)
             wstate = storage[well].state
             if cpr.strategy == :analytical
                 update_analytical_cpr_weights!(
-                    w_i, rmodel, wstate, nothing, nwell_cells, ncomp, scaling,
+                    w_i, well_model, wstate, nothing, nwell_cells, ncomp, scaling,
                     rmodel.context)
             else
                 acc_i = wstate.TotalMasses
@@ -766,6 +801,20 @@ function update_weights!(cpr, cpr_storage::CPRStorage, model, storage, J, ps)
         end
     end
     return w
+end
+
+function cprw_average_weights!(weights, map, well_range, ncell, context)
+    for well in well_range
+        cells = map.well_cells[well]
+        for component in axes(weights, 1)
+            value = zero(eltype(weights))
+            for cell in cells
+                value += weights[component, cell]
+            end
+            weights[component, ncell + well] = isempty(cells) ? one(value) : value/length(cells)
+        end
+    end
+    return weights
 end
 
 function cpr_weights_for_reservoir!(model::SimulationModel, J, cpr, cpr_storage, storage, offset)
@@ -1100,63 +1149,81 @@ end
 
 cpr_host_matrix(matrix) = matrix
 
+function refresh_cprw_source_values!(map)
+    sources = map.source_values
+    if !isnothing(sources)
+        for (destination, blocks) in zip((map.nzval_12, map.nzval_21, map.nzval_22), sources)
+            offset = 0
+            for block in blocks
+                copyto!(destination, offset + 1, block, 1, length(block))
+                offset += length(block)
+            end
+        end
+    end
+    return map
+end
+
 function cpr_construct_well_reservoir_map(model::MultiModel, lsys, bz)
-    num_simple_wells = 0
-    simple_well_keys = Symbol[]
+    num_wells = 0
+    well_keys = Symbol[]
     well_ranges = UnitRange{Int}[]
+    well_nodes = Vector{UnitRange{Int}}[]
     for (k, m) in pairs(model.models)
-        if k == :Reservoir
+        if !model_or_domain_is_well(m)
             continue
         end
-        stop = true
-        if model_or_domain_is_well(m)
-            w = physical_representation(m.domain)
-            if w isa SimpleWell
-                n = number_of_cells(w)
-                push!(well_ranges, (num_simple_wells + 1):(num_simple_wells + n))
-                num_simple_wells += n
-                push!(simple_well_keys, k)
-                stop = false
+        w = physical_representation(m.domain)
+        nodes = if w isa SimpleWell
+            [node:node for node in 1:number_of_cells(w)]
+        elseif w isa MultiSegmentWell
+            # A uniform pressure shift over a physical well provides its BHP
+            # coarse mode; segment fluxes and transport stay in the Schur solve.
+            if isnothing(w.multiwell)
+                [1:number_of_cells(w)]
+            else
+                [w.multiwell.nodes.pos[i]:(w.multiwell.nodes.pos[i + 1] - 1)
+                    for i in eachindex(w.multiwell.names)]
             end
+        else
+            continue
         end
-        if stop
-            break
-        end
+        n = length(nodes)
+        push!(well_ranges, (num_wells + 1):(num_wells + n))
+        push!(well_nodes, nodes)
+        num_wells += n
+        push!(well_keys, k)
     end
+    isempty(well_keys) && return nothing
 
-    function weq_positions(J, cell_i, cell_j, row_index, column_index,
-            ::Val{bz}, layout) where bz
-        out = @MMatrix zeros(Int64, bz, bz)
-        for eq in 1:bz
-            for der in 1:bz
-                row = row_index(cell_i, eq)
-                column = column_index(cell_j, der)
-                out[eq, der] = find_sparse_position(J, row, column, layout)
+    # Split wells can belong to different Schur groups. Keep direct references
+    # for the usual single group; multiple groups share a refreshed flat buffer
+    # so the numerical reduction and backend kernels use the same mappings.
+    groups = unique([Jutul.group_index(model, key) for key in well_keys])
+    sources = map(((1, 2), (2, 1), (2, 2))) do (row, col)
+        [nonzeros(lsys[row == 1 ? 1 : group, col == 1 ? 1 : group].jac) for group in groups]
+    end
+    offsets = map(blocks -> cumsum([0; length.(blocks)]), sources)
+    values = map(blocks -> length(blocks) == 1 ? only(blocks) : reduce(vcat, blocks), sources)
+
+    jacobian_layout(::Jutul.LinearizedBlock{R}) where R = R()
+    jacobian_layout(system::LinearizedSystem) = system.matrix_layout
+    function well_positions(wcells, wperf, system, row_index, column_index,
+            ::Val{bz}, nz_offset) where bz
+        jacobian = cpr_host_matrix(system.jac)
+        adjoint = Jutul.represented_as_adjoint(jacobian_layout(system))
+        return map(eachindex(wcells)) do i
+            out = @MMatrix zeros(Int64, bz, bz)
+            for der in 1:bz, eq in 1:bz
+                row = row_index(wcells[i], eq)
+                column = column_index(wperf[i], der)
+                # Multisegment conservation blocks can have structural zeros:
+                # segment fluxes are independent unknowns on faces.
+                pos = find_sparse_position(jacobian, row, column, adjoint)
+                out[eq, der] = iszero(pos) ? 0 : pos + nz_offset
             end
+            return SMatrix{bz, bz, Int64, bz*bz}(out)
         end
-        return SMatrix{bz, bz, Int64, bz*bz}(out)
     end
-
-    function well_positions(wcells, wperf, lsys_block::Jutul.LinearizedBlock{R},
-            row_index, column_index, bz) where R
-        vbz = Val(bz)
-        layout = R()
-        jacobian = cpr_host_matrix(lsys_block.jac)
-        return map(i -> weq_positions(jacobian,
-            wcells[i], wperf[i], row_index, column_index, vbz, layout),
-            eachindex(wcells))
-    end
-
-    function well_positions(wcells, wperf, lsys::LinearizedSystem,
-            row_index, column_index, bz)
-        vbz = Val(bz)
-        layout = lsys.matrix_layout
-        jacobian = cpr_host_matrix(lsys.jac)
-        return map(i -> weq_positions(jacobian,
-            wcells[i], wperf[i], row_index, column_index, vbz, layout),
-            eachindex(wcells))
-    end
-
 
     # For each well find the list of cells and corresponding sparsity + indices
     # since these are not blocks.
@@ -1171,35 +1238,54 @@ function cpr_construct_well_reservoir_map(model::MultiModel, lsys, bz)
     map_12 = map_T()
     map_21 = map_T()
     map_22 = map_T()
-    map_well = map_T()
 
-    for (group, k) in enumerate(simple_well_keys)
+    for (group, k) in enumerate(well_keys)
         wmodel = model.models[k]
         w = physical_representation(wmodel.domain)
-        nwell_cells = length(well_ranges[group])
-        model_offset = bz*(first(well_ranges[group]) - 1)
+        nwell_cells = number_of_cells(w)
+        linear_group = Jutul.group_index(model, k)
+        source_index = findfirst(isequal(linear_group), groups)
+        model_offset = Jutul.group_linearized_system_offset(model, k)
         well_layout = matrix_layout(wmodel.context)
-        well_index(cell, component) = model_offset +
+        variable_offset = model_offset
+        for entity in Jutul.get_primary_variable_ordered_entities(wmodel)
+            entity == Cells() && break
+            variable_offset += Jutul.number_of_degrees_of_freedom(wmodel, entity)
+        end
+        equation_offset = Jutul.group_linearized_system_offset(model, k, Jutul.number_of_equations) +
+            Jutul.get_equation_offset(wmodel, :mass_conservation)
+        well_column(cell, component) = variable_offset +
+            Jutul.alignment_linear_index(cell, component, nwell_cells, bz, well_layout)
+        well_row(cell, component) = equation_offset +
             Jutul.alignment_linear_index(cell, component, nwell_cells, bz, well_layout)
         # This map is constructed once on the host. The completed index arrays
         # are moved to the execution backend by prepare_cprw_backend_maps!.
         perforations = w.perforations
-        cells_by_node = [Int[] for _ in well_ranges[group]]
-        for (node, cell) in zip(Array(perforations.self), Array(perforations.reservoir))
-            push!(cells_by_node[node], cell)
-        end
-        for (local_node, i) in enumerate(well_ranges[group])
-            wc = cells_by_node[local_node]
+        connections = unique(collect(zip(Array(perforations.self), Array(perforations.reservoir))))
+        for (coarse_node, i) in enumerate(well_ranges[group])
+            nodes = well_nodes[group][coarse_node]
+            perfs = filter(pair -> first(pair) in nodes, connections)
+            wn = first.(perfs)
+            wc = last.(perfs)
             push!(well_cells, wc)
             # Reservoir differentiated with respect to wells
-            push!(map_12, well_positions(wc, fill(local_node, length(wc)),
-                lsys[1, 2], reservoir_index, well_index, bz))
+            push!(map_12, well_positions(wc, wn,
+                lsys[1, linear_group], reservoir_index, well_column, Val(bz), offsets[1][source_index]))
             # Wells differentiated with respect to reservoir
-            push!(map_21, well_positions(fill(local_node, length(wc)), wc,
-                lsys[2, 1], well_index, reservoir_index, bz))
+            push!(map_21, well_positions(wn, wc,
+                lsys[linear_group, 1], well_row, reservoir_index, Val(bz), offsets[2][source_index]))
             # Wells differentiated with respect to wells
-            push!(map_22, well_positions([local_node], [local_node],
-                lsys[2, 2], well_index, well_index, bz))
+            diagonal_pairs = [(node, node) for node in nodes]
+            if w isa MultiSegmentWell
+                for (a, b) in eachcol(Array(w.neighborship))
+                    if a in nodes && b in nodes
+                        push!(diagonal_pairs, (a, b), (b, a))
+                    end
+                end
+            end
+            unique!(diagonal_pairs)
+            push!(map_22, well_positions(first.(diagonal_pairs), last.(diagonal_pairs),
+                lsys[linear_group, linear_group], well_row, well_column, Val(bz), offsets[3][source_index]))
             # Extend sparsity to include well cells
             for c in wc
                 push!(I, c)
@@ -1219,11 +1305,11 @@ function cpr_construct_well_reservoir_map(model::MultiModel, lsys, bz)
     nzmap_well = Int[]
 
     well_reservoir_map = (
-        wells = simple_well_keys,
+        wells = well_keys,
         well_ranges = well_ranges,
         I = I,
         J = J,
-        np = ncell + num_simple_wells,
+        np = ncell + num_wells,
         well_cells = well_cells,
         map_12 = map_12,
         map_21 = map_21,
@@ -1232,9 +1318,10 @@ function cpr_construct_well_reservoir_map(model::MultiModel, lsys, bz)
         nzmap_12 = nzmap_12,
         nzmap_21 = nzmap_21,
         nzmap_22 = nzmap_well,
-        nzval_12 = nonzeros(lsys[1, 2].jac),
-        nzval_21 = nonzeros(lsys[2, 1].jac),
-        nzval_22 = nonzeros(lsys[2, 2].jac),
+        nzval_12 = values[1],
+        nzval_21 = values[2],
+        nzval_22 = values[3],
+        source_values = length(groups) == 1 ? nothing : sources,
         backend_data = Ref{Any}(nothing)
     )
     return well_reservoir_map
