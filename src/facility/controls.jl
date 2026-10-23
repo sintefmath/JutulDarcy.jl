@@ -92,6 +92,12 @@ function Jutul.update_before_step_multimodel_backend!(
         end
         rmodel = model_g[:Reservoir]
         rstate = storage_g.Reservoir.state
+        if wkey == wname
+            cfg.productivity[wname] = estimate_well_productivity(storage_g[wkey], wmodel, rstate, rmodel)
+        else
+            # Merged wells share perforations, so no estimate per well
+            cfg.productivity[wname] = NaN
+        end
         update_before_step_well!(wstate, wmodel, rstate, rmodel,
             op_ctrls[wname], mask;
             well_symbol = wname,
@@ -467,7 +473,17 @@ function well_control_equation(ctrl::ProducerControl{T}, cond, well, model, stat
     if isnothing(limits) || !haskey(limits, :bhp)
         return rate_slack
     end
-    pressure_slack = (cond.bottom_hole_pressure - limits.bhp)/target_scaling(BottomHolePressureTarget(limits.bhp))
+    # The pressure slack is converted to the surface rate the well can add
+    # before reaching the BHP limit, using the productivity index estimated at
+    # the start of the step. Both slacks then have the same units, and the
+    # equation reduces to the rate equation when the well is far from the BHP
+    # limit compared to the rate mismatch.
+    J = well_productivity(state.WellGroupConfiguration, well)
+    if isfinite(J) && J > 0
+        pressure_slack = J*(cond.bottom_hole_pressure - limits.bhp)/target_scaling(target)
+    else
+        pressure_slack = (cond.bottom_hole_pressure - limits.bhp)/target_scaling(BottomHolePressureTarget(limits.bhp))
+    end
     # Production may fall below its requested rate only at the lower BHP limit.
     # A rate equation alone is singular when its phase is absent. The
     # Fischer-Burmeister equation enforces both inequalities and their
@@ -482,6 +498,36 @@ end
 
 function get_control_target_value(target::WellTarget, model, state)
     return target.value
+end
+
+"""
+    estimate_well_productivity(well_storage, well_model, reservoir_state, reservoir_model)
+
+Estimate the productivity index of a well as the sum over the perforations of
+well index times phase mobility, converted to surface volumes with the reference
+densities [surface m^3/s/Pa]. Values from the given states are used without
+derivatives. Returns `NaN` if the required reservoir quantities are not
+available or not yet evaluated.
+"""
+function estimate_well_productivity(well_storage, well_model, reservoir_state, reservoir_model)
+    prm = well_storage.parameters
+    if !haskey(prm, :WellIndices) || !haskey(reservoir_state, :PhaseMassMobilities)
+        return NaN
+    end
+    ρ_ref = reference_densities(reservoir_model.system)
+    cells = Array(physical_representation(well_model.domain).perforations.reservoir)
+    # Copy the perforated values to the host, so that device arrays are not
+    # indexed by scalar
+    WI = value.(Array(prm[:WellIndices]))
+    ρλ = value.(Array(reservoir_state[:PhaseMassMobilities][:, cells]))
+    J = 0.0
+    for i in eachindex(cells)
+        isfinite(WI[i]) || continue
+        for ph in axes(ρλ, 1)
+            J += WI[i]*ρλ[ph, i]/ρ_ref[ph]
+        end
+    end
+    return J
 end
 
 function get_control_target_value(target::ReinjectionTarget, model, state)

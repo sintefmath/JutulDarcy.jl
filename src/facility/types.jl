@@ -841,9 +841,11 @@ mutable struct WellGroupConfiguration{T, O, L}
     const operating_controls::T # Currently operating control
     const requested_controls::O # The requested control (which may be different if limits are hit)
     const limits::L             # Operating limits for the wells
+    const productivity::Dict{Symbol, Float64} # Productivity index estimate (surface m^3/s/Pa), updated before each step
     step_index::Int             # Internal book-keeping of what step we are at
-    function WellGroupConfiguration(; operating, limits, requested = operating, step = 0)
-        new{typeof(operating), typeof(requested), typeof(limits)}(operating, requested, limits, step)
+    function WellGroupConfiguration(; operating, limits, requested = operating,
+            productivity = Dict{Symbol, Float64}(), step = 0)
+        new{typeof(operating), typeof(requested), typeof(limits)}(operating, requested, limits, productivity, step)
     end
 end
 
@@ -874,6 +876,7 @@ function Base.copy(c::WellGroupConfiguration)
         operating = copy(c.operating_controls),
         requested = copy(c.requested_controls),
         limits = copy(c.limits),
+        productivity = copy(c.productivity),
         step = c.step_index
     )
 end
@@ -892,12 +895,16 @@ function Jutul.update_values!(old::WellGroupConfiguration, new::WellGroupConfigu
     for (k, v) in new.limits
         old.limits[k] = v
     end
+    for (k, v) in new.productivity
+        old.productivity[k] = v
+    end
     old.step_index = new.step_index
     return old
 end
 
 operating_control(cfg::WellGroupConfiguration, well::Symbol) = cfg.operating_controls[well]
 current_limits(cfg::WellGroupConfiguration, well::Symbol) = cfg.limits[well]
+well_productivity(cfg::WellGroupConfiguration, well::Symbol) = get(cfg.productivity, well, NaN)
 
 struct ControlEquationWell <: JutulEquation
     # Equation:
