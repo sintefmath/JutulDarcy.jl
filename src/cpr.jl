@@ -500,11 +500,7 @@ end
 function cprw_fix_bhp_controlled_well!(A_p, cfg, name, first_row, count, unit_diagonal = false)
     haskey(cfg.operating_controls, name) || return A_p
     if operating_control(cfg, name).target isa BottomHolePressureTarget
-        if unit_diagonal
-            cprw_zero_offdiagonals!(A_p, first_row, count, true)
-        else
-            cprw_zero_offdiagonals!(A_p, first_row, count)
-        end
+        cprw_zero_offdiagonals!(A_p, first_row, count, unit_diagonal)
     end
     return A_p
 end
@@ -1171,21 +1167,21 @@ function cpr_construct_well_reservoir_map(model::MultiModel, lsys, bz)
     num_wells = 0
     well_keys = Symbol[]
     well_ranges = UnitRange{Int}[]
-    well_nodes = Vector{Vector{Int}}[]
+    well_nodes = Vector{UnitRange{Int}}[]
     for (k, m) in pairs(model.models)
         if !model_or_domain_is_well(m)
             continue
         end
         w = physical_representation(m.domain)
         nodes = if w isa SimpleWell
-            [[node] for node in 1:number_of_cells(w)]
+            [node:node for node in 1:number_of_cells(w)]
         elseif w isa MultiSegmentWell
             # A uniform pressure shift over a physical well provides its BHP
             # coarse mode; segment fluxes and transport stay in the Schur solve.
             if isnothing(w.multiwell)
-                [collect(1:number_of_cells(w))]
+                [1:number_of_cells(w)]
             else
-                [collect(w.multiwell.nodes.pos[i]:(w.multiwell.nodes.pos[i + 1] - 1))
+                [w.multiwell.nodes.pos[i]:(w.multiwell.nodes.pos[i + 1] - 1)
                     for i in eachindex(w.multiwell.names)]
             end
         else
@@ -1209,41 +1205,25 @@ function cpr_construct_well_reservoir_map(model::MultiModel, lsys, bz)
     offsets = map(blocks -> cumsum([0; length.(blocks)]), sources)
     values = map(blocks -> length(blocks) == 1 ? only(blocks) : reduce(vcat, blocks), sources)
 
-    function weq_positions(J, cell_i, cell_j, row_index, column_index,
-            ::Val{bz}, layout) where bz
-        out = @MMatrix zeros(Int64, bz, bz)
-        for eq in 1:bz
-            for der in 1:bz
-                row = row_index(cell_i, eq)
-                column = column_index(cell_j, der)
+    jacobian_layout(::Jutul.LinearizedBlock{R}) where R = R()
+    jacobian_layout(system::LinearizedSystem) = system.matrix_layout
+    function well_positions(wcells, wperf, system, row_index, column_index,
+            ::Val{bz}, nz_offset) where bz
+        jacobian = cpr_host_matrix(system.jac)
+        adjoint = Jutul.represented_as_adjoint(jacobian_layout(system))
+        return map(eachindex(wcells)) do i
+            out = @MMatrix zeros(Int64, bz, bz)
+            for der in 1:bz, eq in 1:bz
+                row = row_index(wcells[i], eq)
+                column = column_index(wperf[i], der)
                 # Multisegment conservation blocks can have structural zeros:
                 # segment fluxes are independent unknowns on faces.
-                out[eq, der] = find_sparse_position(J, row, column, Jutul.represented_as_adjoint(layout))
+                pos = find_sparse_position(jacobian, row, column, adjoint)
+                out[eq, der] = iszero(pos) ? 0 : pos + nz_offset
             end
+            return SMatrix{bz, bz, Int64, bz*bz}(out)
         end
-        return SMatrix{bz, bz, Int64, bz*bz}(out)
     end
-
-    function well_positions(wcells, wperf, lsys_block::Jutul.LinearizedBlock{R},
-            row_index, column_index, bz, nz_offset) where R
-        vbz = Val(bz)
-        layout = R()
-        jacobian = cpr_host_matrix(lsys_block.jac)
-        return map(i -> map(pos -> iszero(pos) ? 0 : pos + nz_offset, weq_positions(jacobian,
-            wcells[i], wperf[i], row_index, column_index, vbz, layout)),
-            eachindex(wcells))
-    end
-
-    function well_positions(wcells, wperf, lsys::LinearizedSystem,
-            row_index, column_index, bz, nz_offset)
-        vbz = Val(bz)
-        layout = lsys.matrix_layout
-        jacobian = cpr_host_matrix(lsys.jac)
-        return map(i -> map(pos -> iszero(pos) ? 0 : pos + nz_offset, weq_positions(jacobian,
-            wcells[i], wperf[i], row_index, column_index, vbz, layout)),
-            eachindex(wcells))
-    end
-
 
     # For each well find the list of cells and corresponding sparsity + indices
     # since these are not blocks.
@@ -1284,29 +1264,28 @@ function cpr_construct_well_reservoir_map(model::MultiModel, lsys, bz)
         connections = unique(collect(zip(Array(perforations.self), Array(perforations.reservoir))))
         for (coarse_node, i) in enumerate(well_ranges[group])
             nodes = well_nodes[group][coarse_node]
-            node_set = Set(nodes)
-            perfs = filter(pair -> first(pair) in node_set, connections)
+            perfs = filter(pair -> first(pair) in nodes, connections)
             wn = first.(perfs)
             wc = last.(perfs)
             push!(well_cells, wc)
             # Reservoir differentiated with respect to wells
             push!(map_12, well_positions(wc, wn,
-                lsys[1, linear_group], reservoir_index, well_column, bz, offsets[1][source_index]))
+                lsys[1, linear_group], reservoir_index, well_column, Val(bz), offsets[1][source_index]))
             # Wells differentiated with respect to reservoir
             push!(map_21, well_positions(wn, wc,
-                lsys[linear_group, 1], well_row, reservoir_index, bz, offsets[2][source_index]))
+                lsys[linear_group, 1], well_row, reservoir_index, Val(bz), offsets[2][source_index]))
             # Wells differentiated with respect to wells
             diagonal_pairs = [(node, node) for node in nodes]
             if w isa MultiSegmentWell
                 for (a, b) in eachcol(Array(w.neighborship))
-                    if a in node_set && b in node_set
+                    if a in nodes && b in nodes
                         push!(diagonal_pairs, (a, b), (b, a))
                     end
                 end
             end
             unique!(diagonal_pairs)
             push!(map_22, well_positions(first.(diagonal_pairs), last.(diagonal_pairs),
-                lsys[linear_group, linear_group], well_row, well_column, bz, offsets[3][source_index]))
+                lsys[linear_group, linear_group], well_row, well_column, Val(bz), offsets[3][source_index]))
             # Extend sparsity to include well cells
             for c in wc
                 push!(I, c)

@@ -31,10 +31,9 @@ end
     include("kernel_abstractions.jl")
 end
 
-@testitem "CPRW BHP controls" begin
+@testitem "CPRW wells" begin
     include("cprw_bhp.jl")
     include("cprw_multisegment.jl")
-    include("cprw_multisegment_backend.jl")
 end
 
 @testitem "Float32 reservoir models" begin

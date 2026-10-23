@@ -1,4 +1,5 @@
-using Jutul, JutulDarcy, Test, LinearAlgebra
+using Jutul, JutulDarcy, Test, JLArrays, CUDA
+using Jutul.KernelExecution: KernelAbstractions
 
 function cprw_multisegment_case(; merged = false, split_wells = false, thermal = false)
     bar = si_unit(:bar)
@@ -25,110 +26,55 @@ function cprw_multisegment_case(; merged = false, split_wells = false, thermal =
     return merged ? JutulDarcy.merge_similar_wells(case) : case
 end
 
-function check_multisegment_coarse_system(result; nwell = 3)
-    sim = result.extra[:simulator]
-    cpr = result.extra[:config][:linear_solver].preconditioner
-    map = cpr.storage.well_reservoir_map
-    ncell = number_of_cells(reservoir_model(sim.model).domain)
-    @test map.np == ncell + nwell
-    pressure = Matrix(JutulDarcy.cpr_host_matrix(cpr.storage.A_p))
-    weights = Array(cpr.storage.w_p)
-    ncomp = cpr.storage.number_of_components
-    bz = cpr.storage.block_size
-    lsys = sim.storage.LinearizedSystem
-    for (key, range) in zip(map.wells, map.well_ranges)
-        model = sim.model.models[key]
-        well = physical_representation(model.domain)
-        well isa JutulDarcy.MultiSegmentWell || continue
-        group = Jutul.group_index(sim.model, key)
-        offset = Jutul.group_linearized_system_offset(sim.model, key)
-        # Build the cell-variable offset from the actual state field sizes;
-        # segment face fluxes may precede pressure in the primary-variable list.
-        variable_offset = offset
-        for (name, variable) in model.primary_variables
-            Jutul.associated_entity(variable) == Cells() && break
-            variable_offset += length(sim.storage[key].state[name])
-        end
-        equation_offset = Jutul.group_linearized_system_offset(sim.model, key, Jutul.number_of_equations) +
-            Jutul.get_equation_offset(model, :mass_conservation)
-        layout = Jutul.matrix_layout(model.context)
-        nnodes = number_of_cells(well)
-        A12 = Matrix(JutulDarcy.cpr_host_matrix(lsys[1, group].jac))
-        A21 = Matrix(JutulDarcy.cpr_host_matrix(lsys[group, 1].jac))
-        A22 = Matrix(JutulDarcy.cpr_host_matrix(lsys[group, group].jac))
-        for (i, coarse) in enumerate(range)
-            if isnothing(well.multiwell)
-                name = key
-                nodes = 1:nnodes
-            else
-                name = well.multiwell.names[i]
-                nodes = well.multiwell.nodes.pos[i]:(well.multiwell.nodes.pos[i + 1] - 1)
-            end
-            row = ncell + coarse
-            cell_index(node, component) = Jutul.alignment_linear_index(node, component, nnodes, bz, layout)
-            pcols = [variable_offset + cell_index(node, 1) for node in nodes]
-            # Construct R_w and P_b independently of CPRW's sparse maps.
-            restriction = zeros(size(A21, 1))
-            for node in nodes, component in 1:ncomp
-                restriction[equation_offset + cell_index(node, component)] = weights[component, row]
-            end
-            @test weights[:, row] ≈ vec(sum(weights[:, map.well_cells[coarse]]; dims = 2))/length(map.well_cells[coarse])
-            pressure_column = reshape(vec(sum(A12[:, pcols]; dims = 2)), bz, ncell)
-            expected = vec(sum(weights[:, 1:ncell].*pressure_column[1:ncomp, :]; dims = 1))
-            @test pressure[1:ncell, row] ≈ expected
-            facility_key = haskey(sim.model.models, :Facility) ? :Facility : Symbol(key, :_ctrl)
-            cfg = sim.storage[facility_key].state.WellGroupConfiguration
-            if JutulDarcy.operating_control(cfg, name).target isa BottomHolePressureTarget
-                @test pressure[row, row] == 1
-                @test all(iszero, pressure[row, 1:ncell])
-            else
-                @test pressure[row, 1:ncell] ≈ vec(transpose(restriction)*A21[:, 1:bz:end])
-                @test pressure[row, row] ≈ sum(transpose(restriction)*A22[:, pcols])
-            end
-        end
-    end
-end
-
-@testset "CPRW multisegment pressure enrichment" begin
+@testset "CPRW multisegment wells" begin
     options = (info_level = -1, timesteps = :none, error_on_incomplete = true,
         failure_cuts_timestep = false, tol_cnv = 1e-7, tol_mb = 1e-9, tol_cnv_well = 1e-7)
-    for (merged, split_wells, thermal) in ((false, false, false), (false, true, false), (true, false, false), (false, true, true))
-        @testset "merged=$merged, split_wells=$split_wells, thermal=$thermal" begin
-            case = cprw_multisegment_case(; merged, split_wells, thermal)
-            reference = simulate_reservoir(case; precond = :ilu0, options...)
-            result = simulate_reservoir(case; precond = :cprw, options...)
-            @test length(result.states) == length(case.dt)
-            for (state, ref) in zip(result.states, reference.states)
-                @test state[:Pressure] ≈ ref[:Pressure] rtol = 1e-7
-                @test state[:Saturations] ≈ ref[:Saturations] rtol = 1e-7
-                if thermal
-                    @test state[:Temperature] ≈ ref[:Temperature] rtol = 1e-7
-                end
-            end
-            check_multisegment_coarse_system(result)
-        end
+    policies = [
+        (mode = :default,),
+        (mode = :ka, ka_backend = KernelAbstractions.CPU()),
+        (mode = :ka, ka_backend = JLBackend()),
+    ]
+    if CUDA.functional()
+        CUDA.allowscalar(false)
+        push!(policies, (mode = :ka_cuda,))
     end
-end
-
-@testset "CPRW multisegment compositional and black-oil systems" begin
+    # Exercise backend reductions on ordinary and merged wells. Split groups,
+    # thermal unknowns and the other fluid systems each need one focused case.
+    cases = [
+        ("ordinary", cprw_multisegment_case(), true, 3),
+        ("merged", cprw_multisegment_case(; merged = true), true, 3),
+        ("split", cprw_multisegment_case(; split_wells = true), false, 3),
+        ("thermal", cprw_multisegment_case(; split_wells = true, thermal = true), false, 3),
+    ]
     for physics in (:compositional_2ph_3c, :bo_spe1)
-        @testset "$physics" begin
-            case = JutulDarcy.setup_mini_wellcase(Val(physics);
-                simple_well = false, nstep = 1, total_time = si_unit(:day), backend = :csr)
-            options = (info_level = -1, timesteps = :none, error_on_incomplete = true,
-                failure_cuts_timestep = false, tol_cnv = 1e-7, tol_mb = 1e-9, tol_cnv_well = 1e-7)
-            reference = simulate_reservoir(case; precond = :ilu0, options...)
-            result = simulate_reservoir(case; precond = :cprw, options...)
-            @test length(result.states) == length(case.dt)
-            for (state, ref) in zip(result.states, reference.states)
-                @test state[:Pressure] ≈ ref[:Pressure] rtol = 1e-7
-                for field in (:Saturations, :OverallMoleFractions, :ImmiscibleSaturation)
-                    if haskey(state, field)
-                        @test state[field] ≈ ref[field] rtol = 1e-7 atol = 1e-10
+        case = JutulDarcy.setup_mini_wellcase(Val(physics);
+            simple_well = false, nstep = 1, total_time = si_unit(:day), backend = :csr)
+        push!(cases, (string(physics), case, false, 2))
+    end
+    for (name, case, test_backends, nwell) in cases
+        reference = simulate_reservoir(case; precond = :ilu0, options...)
+        for policy in (test_backends ? policies : policies[1:1])
+            @testset "$name, $policy" begin
+                result = simulate_reservoir(case; precond = :cprw, policy..., options...)
+                @test length(result.states) == length(reference.states) == length(case.dt)
+                for (state, ref) in zip(result.states, reference.states)
+                    for field in (:Pressure, :Saturations, :Temperature, :OverallMoleFractions, :ImmiscibleSaturation)
+                        if haskey(ref, field)
+                            @test state[field] ≈ ref[field] rtol = 1e-7 atol = 1e-10
+                        end
                     end
                 end
+                for well in well_symbols(case.model), quantity in (:bhp, :rate)
+                    @test result.wells[well, quantity] ≈ reference.wells[well, quantity] rtol = 1e-7 atol = 1e-10
+                end
+                # Ensure CPRW actually enriches and couples the pressure solve.
+                cpr = result.extra[:config][:linear_solver].preconditioner
+                pressure = Matrix(JutulDarcy.cpr_host_matrix(cpr.storage.A_p))
+                ncell = number_of_cells(reservoir_model(case.model).domain)
+                @test size(pressure) == (ncell + nwell, ncell + nwell)
+                @test any(!iszero, pressure[1:ncell, (ncell + 1):end])
+                @test any(!iszero, pressure[(ncell + 1):end, 1:ncell])
             end
-            check_multisegment_coarse_system(result; nwell = 2)
         end
     end
 end

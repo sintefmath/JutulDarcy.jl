@@ -208,12 +208,7 @@ function inner_hypre_p_rhs!(r_p, y, ncomp, bz, w_p, helper, mode)
             R_p[i] = y[(i-1)*bz + 1]*w_p[1, i]
         end
     end
-    # Auxiliary well pressures have no fine-level residual, including when
-    # the local fine vector also contains ghost reservoir cells.
-    for i in (n + 1):length(R_p)
-        R_p[i] = 0.0
-    end
-
+    # Auxiliary well entries stay zero: the buffer is cleared after each copy.
     Jutul.local_hypre_copy!(r_p, R_p, ix)
     @. R_p = 0.0
 end

@@ -71,13 +71,8 @@ actual well block, including accumulation. This corresponds to OPM's
 default instead uses the negative sum of the well-to-reservoir row.
 Prescribed BHP produces a trivial coarse well equation with zero correction.
 
-The comparison against `main` at `53544802` identified missing multisegment
-coarse rows, assumptions that all wells share one linear-system group,
-shared-Facility-only BHP handling, and a reservoir-domain lookup used for
-well-local analytical weights. These are handled for both serial and MPI CSR.
-Previously MPI used CPR after warning that CPRW was unavailable.
-The serial SimpleWell weighting policy remains analytical or accumulation based;
-OPM's default well weights instead average the perforation-cell weights.
+SimpleWell weights are analytical or accumulation based; OPM's default instead
+averages the perforation-cell reservoir weights.
 
 The OPM source comparison used commit `e55ee32c811ae099db12555438d153f77cde75de`:
 [transfer policy](https://github.com/OPM/opm-simulators/blob/e55ee32c811ae099db12555438d153f77cde75de/opm/simulators/linalg/PressureBhpTransferPolicy.hpp),

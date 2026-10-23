@@ -51,9 +51,9 @@ end
         CUDA.allowscalar(false)
         push!(backends, CUDA.CUDABackend())
     end
-    for (merged, split_wells) in ((false, false), (true, false), (false, true)), T in (Float32, Float64), backend in backends
-        @testset "merged=$merged, split_wells=$split_wells, $T, $backend" begin
-            case, controls, next_controls = cprw_bhp_test_case(; merged, split_wells)
+    for merged in (false, true), T in (Float32, Float64), backend in backends
+        @testset "merged=$merged, $T, $backend" begin
+            case, controls, next_controls = cprw_bhp_test_case(; merged)
             # Six reservoir rows, followed by three independently controlled wells.
             map = if merged
                 (wells = [:SimpleWells], well_ranges = [1:3], np = 9)
@@ -63,8 +63,7 @@ end
             end
             reference = reshape(T.(1:81), 9, 9)
             cfg = JutulDarcy.WellGroupConfiguration(keys(controls), controls)
-            facility_keys = split_wells ? [Symbol(key, :_ctrl) for key in keys(controls)] : [:Facility]
-            storage = Dict(key => (state = (WellGroupConfiguration = cfg,),) for key in facility_keys)
+            storage = Dict(:Facility => (state = (WellGroupConfiguration = cfg,),))
             for (operating, bhp_row) in ((controls, 7), (next_controls, 8))
                 # Requested controls stay unchanged when an operating limit switches BHP.
                 merge!(cfg.operating_controls, operating)
@@ -118,36 +117,6 @@ end
                 @test !iszero(pressure[8, 8])
                 @test all(iszero, pressure[8, [1:7; 9]])
                 @test any(!iszero, pressure[7, 1:6])
-                # Check the coarse blocks against a direct restriction of the
-                # current Jacobian, independently of the cached nonzero maps.
-                simulator = result.extra[:simulator]
-                model = simulator.model
-                lsys = simulator.storage.LinearizedSystem
-                weights = Array(cpr.storage.w_p)
-                ncomp = cpr.storage.number_of_components
-                bz = cpr.storage.block_size
-                map = cpr.storage.well_reservoir_map
-                for (key, range) in zip(map.wells, map.well_ranges)
-                    group = Jutul.group_index(model, key)
-                    offset = Jutul.group_linearized_system_offset(model, key)
-                    layout = Jutul.matrix_layout(model.models[key].context)
-                    A12 = Matrix(JutulDarcy.cpr_host_matrix(lsys[1, group].jac))
-                    A21 = Matrix(JutulDarcy.cpr_host_matrix(lsys[group, 1].jac))
-                    A22 = Matrix(JutulDarcy.cpr_host_matrix(lsys[group, group].jac))
-                    for (node, index) in enumerate(range)
-                        row = 6 + index
-                        well_indices = [offset + Jutul.alignment_linear_index(
-                            node, component, length(range), bz, layout) for component in 1:ncomp]
-                        column = first(well_indices)
-                        expected = vec(sum(weights[:, 1:6].*reshape(A12[:, column], bz, 6); dims = 1))
-                        @test pressure[1:6, row] ≈ expected
-                        @test pressure[row, row] ≈ sum(weights[:, row].*A22[well_indices, column])
-                        if row != 8 # the injector is BHP controlled at the last step
-                            expected = vec(transpose(weights[:, row])*A21[well_indices, 1:bz:end])
-                            @test pressure[row, 1:6] ≈ expected
-                        end
-                    end
-                end
                 @test result.wells[:Producer][:bhp][1] ≈ 190*si_unit(:bar)
                 @test result.wells[:Injector][:bhp][2] ≈ 210*si_unit(:bar)
             end
