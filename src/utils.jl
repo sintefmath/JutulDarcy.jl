@@ -430,6 +430,10 @@ impact simulation speed.
   libraries.
 - `context=DefaultContext()`: Context used for entire model. Not recommended to
   set up manually, use `backend` instead.
+- `secondary_scheme=:flat`: CPU secondary-variable scheduling. Use `:flat` for
+  contiguous worker batches, `:fused` for cache-sized tiles of dependent variables,
+  or `:strided` for interleaved worker batches. Explicit `context` and
+  `reservoir_context` settings take precedence.
 - `assemble_wells_together=true`: Assemble wells in a single big matrix rather
   than many small matrices.
 - `block_backend=true`: Use block sparse representation. This is needed by the
@@ -490,7 +494,8 @@ low values can lead to slow convergence.
 function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         wells = [],
         tracers = [],
-        context = DefaultContext(),
+        secondary_scheme = :flat,
+        context = DefaultContext(secondary_scheme = secondary_scheme),
         reservoir_context = nothing,
         general_ad = false,
         backend = :csr,
@@ -555,14 +560,28 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
     end
     # List of models (order matters)
     models = OrderedDict{Symbol, Jutul.AbstractSimulationModel}()
-    reservoir_context, context = Jutul.select_contexts(
-        backend;
-        main_context = reservoir_context,
-        context = context,
-        block_backend = block_backend,
-        nthreads = nthreads,
-        minbatch = minbatch
-    )
+    if isnothing(context)
+        if backend == :csr
+            context = ParallelCSRContext(secondary_scheme = secondary_scheme)
+        else
+            context = DefaultContext(minbatch = minbatch, secondary_scheme = secondary_scheme)
+        end
+    end
+    if isnothing(reservoir_context)
+        layout = block_backend ? BlockMajorLayout() : EquationMajorLayout()
+        if backend == :csr
+            reservoir_context = ParallelCSRContext(nthreads;
+                matrix_layout = layout, minbatch = minbatch,
+                secondary_scheme = secondary_scheme)
+        elseif backend == :csc
+            @assert context isa DefaultContext
+            reservoir_context = DefaultContext(;
+                matrix_layout = layout, minbatch = minbatch, nthreads = nthreads,
+                secondary_scheme = secondary_scheme)
+        else
+            error("Unsupported context type $backend")
+        end
+    end
     # We first set up the reservoir
     rmodel = SimulationModel(
         reservoir,
@@ -1352,6 +1371,7 @@ function setup_reservoir_simulator(case::JutulCase;
             linear_float_type = linear_float_type,
             linear_index_type = linear_index_type,
             matrix_layout = Jutul.matrix_layout(sim_cpu.model.context),
+            secondary_scheme = Jutul.secondary_scheme(reservoir_model(sim_cpu.model)),
             workgroupsize = ka_workgroupsize,
             reduce_memory = reduce_memory)
         if ismissing(group_execution)
@@ -1849,6 +1869,7 @@ function reservoir_multimodel(models::AbstractDict;
         groups = missing
     )
     res_model = models[:Reservoir]
+    secondary_scheme = Jutul.secondary_scheme(res_model)
     is_block(x) = Jutul.is_cell_major(matrix_layout(x.context))
     block_backend = is_block(res_model)
     n = length(models)
@@ -1901,14 +1922,14 @@ function reservoir_multimodel(models::AbstractDict;
                 end
             end
             red = :schur_apply
-            outer_context = DefaultContext()
+            outer_context = DefaultContext(secondary_scheme = secondary_scheme)
         else
             outer_context = models[:Reservoir].context
             groups = nothing
             red = nothing
         end
     else
-        outer_context = DefaultContext()
+        outer_context = DefaultContext(secondary_scheme = secondary_scheme)
         red = :schur_apply
     end
     models = convert_to_immutable_storage(models)
@@ -2208,7 +2229,7 @@ function partitioner_input(model_or_domain::Union{JutulModel, DataDomain}, param
         end
     end
     if conn == :unit
-        T = ones(Int, nf)
+        T = ones(Int, size(N, 2))
     else
         trans = max.(trans, 1e-20)
         if conn == :trans
