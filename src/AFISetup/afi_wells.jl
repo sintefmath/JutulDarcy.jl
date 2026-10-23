@@ -95,7 +95,7 @@ function setup_wells(d::AFIInputFile, reservoir; perf_sort = Dict())
                             uid = current_uids[current_i]
                             if ov isa Real && ov ≈ 0.0 && !(v ≈ 0.0)
                                 # Old value was set to zero - we accept the new value
-                                old_value[i] = v
+                                old_value[current_i] = v
                             elseif (v isa Real && !isapprox(v, ov, rtol = 1e-6) && !(k == "WellBoreRadius" && v ≈ 0.0)) || (v isa String && v != ov)
                                 msg *= " Index $i cell-completion $uid: old=$(ov) vs new=$v\n"
                             end
@@ -262,7 +262,8 @@ function setup_wells(d::AFIInputFile, reservoir; perf_sort = Dict())
         )
         w[:well_index_multiplier, JutulDarcy.Perforations()] = pi_mult
         w[:perforation_names, JutulDarcy.Perforations()] = compnames
-        w[:original_perforation_indices, JutulDarcy.Perforations()] = sorted_ix
+        w[:original_perforation_indices, JutulDarcy.Perforations()] = findall(active)[sorted_ix]
+        w[:perforation_connection_ids, JutulDarcy.Perforations()] = w2c["UniqueID"][active][sorted_ix]
         if !ismissing(tvd)
             w[:perforation_centroids, JutulDarcy.Perforations()][3, :] .= tvd
         end
