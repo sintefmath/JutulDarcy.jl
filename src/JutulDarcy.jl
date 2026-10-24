@@ -85,8 +85,8 @@ module JutulDarcy
     export BrooksCoreyRelativePermeabilities, TabulatedSimpleRelativePermeabilities
     export SaturationWeightedOilRelperm, StoneIMethod, StoneIIMethod
     export set_relative_permeability!
-    export generate_perm_poro
-    export map_to_domain, map_to_domain!
+    export generate_perm_poro, generate_perm_poro!, kozeny_carman_permeability
+    export map_property_to_cells, map_property_to_cells!
     export EquilibriumRegion
     export setup_reservoir_dict_optimization, optimize_reservoir, parameters_gradient_reservoir, setup_injector_control, setup_producer_control, setup_disabled_control
 
@@ -205,8 +205,8 @@ module JutulDarcy
 
     include("formulations/formulations.jl")
     include("coarsening/coarsening.jl")
-    include("geomodelling/utils.jl")
-    include("geomodelling/generate.jl")
+    include("geomodelling/mapping.jl")
+    include("geomodelling/permeability.jl")
 
     include("ext/ext.jl")
     # Nonlinear domain decomposition solvers
