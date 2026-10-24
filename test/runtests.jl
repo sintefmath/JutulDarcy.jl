@@ -160,5 +160,9 @@ end
     include("dfm.jl")
 end
 
+@testitem "GeoStats" begin
+    include("geostats.jl")
+end
+
 @run_package_tests
 nothing

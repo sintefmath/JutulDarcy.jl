@@ -181,3 +181,25 @@ plot_wells(wells_gaussian)
 # ### Plot a few realizations for the Gaussian porosity fields
 # We observe that the porosity fields now have spatial correlation.
 plot_realizations(saturations_gaussian, porosities_gaussian)
+# ## Generate realizations directly on the reservoir mesh
+# JutulDarcy can also generate realizations directly on a reservoir mesh with
+# [`generate_perm_poro`](@ref) once GeoStats is loaded. The Gaussian field is
+# sampled on the logical IJK grid of the mesh, transformed to porosity and
+# clamped to the given bounds. A permeability field is also computed from a
+# Kozeny-Carman relation, but we only use the porosity here since
+# `simulate_qfs` computes the permeability itself. We use a correlation range of
+# 600 meters, which corresponds to the 30 cells used above.
+mesh = reservoir_mesh((nx, nx, 1), (1000.0, 1000.0, 10.0))
+realizations = generate_perm_poro(mesh,
+    nrealizations = 10,
+    seed = 1,
+    porosity_mean = 0.2,
+    porosity_std = 0.025,
+    porosity_bounds = (0.1, 0.3),
+    horizontal_correlation_range = 600.0
+)
+porosities_mesh = map(r -> r[:porosity], realizations)
+wells_mesh, saturations_mesh = simulate_porosities(porosities_mesh);
+plot_wells(wells_mesh)
+# ### Plot a few of the realizations generated on the mesh
+plot_realizations(saturations_mesh, porosities_mesh)

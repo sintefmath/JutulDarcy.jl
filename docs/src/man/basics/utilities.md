@@ -34,6 +34,32 @@ JutulDarcy.co2_inventory
 JutulDarcy.plot_co2_inventory
 ```
 
+## Geostatistical realizations
+
+Spatially correlated porosity and permeability fields can be generated with
+[GeoStats.jl](https://juliaearth.github.io/GeoStats.jl) once it is loaded
+(`using GeoStats`). For meshes with a logical IJK structure (Cartesian and
+corner-point meshes) the realization is by default sampled on the logical grid,
+so that the correlation follows the layers of the model. Properties defined on
+a separate Cartesian grid can be mapped to any mesh with volume-weighted
+averaging, both when the grid is finer and when it is coarser than the mesh.
+
+```julia
+using JutulDarcy, GeoStats
+domain = reservoir_domain(mesh)
+realization = generate_perm_poro!(domain, seed = 1, horizontal_correlation_range = 200.0, vertical_correlation_range = 5.0)
+# Map values from a fine Cartesian grid, e.g. a GeoStats realization
+map_property_to_cells!(domain, grid, Dict(:porosity => poro, :permeability => perm))
+```
+
+```@docs
+generate_perm_poro
+generate_perm_poro!
+map_property_to_cells
+map_property_to_cells!
+kozeny_carman_permeability
+```
+
 ## API utilities
 
 ```@docs
