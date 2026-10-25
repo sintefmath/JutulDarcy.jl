@@ -1779,6 +1779,7 @@ function setup_reservoir_cross_terms!(model::MultiModel)
     has_thermal = haskey(rmodel.equations, :energy_conservation)
     conservation = :mass_conservation
     energy = :energy_conservation
+    handled_closed_loops = Vector{String}(undef, 0)
     for (k, m) in pairs(model.models)
         if k == :Reservoir
             # These are set up from wells via symmetry
@@ -1832,6 +1833,43 @@ function setup_reservoir_cross_terms!(model::MultiModel)
                     if model_energy_formulation(m) != model_energy_formulation(rmodel)
                         throw(ArgumentError("Well $k and the reservoir must use the same energy formulation."))
                     end
+                end
+                is_closed_loop = g isa MultiSegmentWell &&
+                    m.data_domain.representation.type == :closed_loop
+                if is_closed_loop
+                    # Deprecated: Closed-loop wells should be set up as a
+                    # single merged well (see `merge_well_domains`), where
+                    # the supply and return parts are connected by a well
+                    # segment instead of these cross terms.
+                    # TODO: Avoid hard-coded index for BTES bottom cell
+                    name = string(k)
+                    if !contains(name, "_supply")
+                        continue
+                    end
+                    cl_name = replace(name, "_supply" => "")
+                    if cl_name in handled_closed_loops
+                        continue
+                    end
+                    Base.depwarn("Coupling closed-loop wells of type :closed_loop \
+                        ($(cl_name)_supply and $(cl_name)_return) by cross terms is \
+                        deprecated and will be removed in a future release. Set up \
+                        closed-loop wells as a single merged well (see \
+                        `JutulDarcy.WellMerging.merge_well_domains`) where the supply \
+                        and return parts are connected by a well segment.",
+                        :setup_reservoir_cross_terms!, force = true)
+
+                    supply_well = Symbol(cl_name*"_supply")
+                    return_well = Symbol(cl_name*"_return")
+                    supply_nodes = g.end_nodes
+                    g_return = physical_representation(model.models[return_well])
+                    return_nodes = g_return.end_nodes
+                    wc_return = vec(g_return.perforations.self)
+                    ct_mass = JutulDarcy.ClosedLoopSupplyToReturnMassCT(supply_nodes, return_nodes)
+                    ct_energy = JutulDarcy.ClosedLoopSupplyToReturnEnergyCT(supply_nodes, return_nodes)
+                    add_cross_term!(model, ct_mass, target = return_well, source = supply_well, equation = conservation)
+                    add_cross_term!(model, ct_energy, target = return_well, source = supply_well, equation = energy)
+
+                    push!(handled_closed_loops, cl_name)
                 end
             end
         end
