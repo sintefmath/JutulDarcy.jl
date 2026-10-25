@@ -1,11 +1,14 @@
 module Geothermal
 
     using Jutul, JutulDarcy
+    export BTESWellSupplyToReturnMassCT, ClosedLoopSupplyToReturnEnergyCT
+    export update_cross_term_in_entity!
 
     function JutulDarcy.setup_reservoir_model(reservoir::DataDomain, ::Val{:geothermal}; kwarg...)
         return setup_reservoir_model_geothermal(reservoir; kwarg...)
     end
 
+    include("wells/cross_terms.jl")
     include("properties.jl")
 
 end
