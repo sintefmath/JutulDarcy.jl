@@ -1634,7 +1634,12 @@ function simulate_reservoir(case::JutulCase;
                 config[k] = v
             end
         end
-        extra_arg = (state0 = case.state0, parameters = case.parameters)
+        # an MPI simulator already holds its partitioned state and parameters
+        if sim isa Jutul.PArraySimulator
+            extra_arg = NamedTuple()
+        else
+            extra_arg = (state0 = case.state0, parameters = case.parameters)
+        end
         @assert !ismissing(config) "If simulator is provided, config must also be provided"
     end
     if validate
