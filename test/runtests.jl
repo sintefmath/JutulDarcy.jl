@@ -48,6 +48,10 @@ end
     include("multimodel.jl")
 end
 
+@testitem "Closed-loop cross terms (deprecated)" begin
+    include("closed_loop_crossterms.jl")
+end
+
 @testitem "Runtime well shutting" begin
     include("well_shutting.jl")
 end

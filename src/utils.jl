@@ -367,6 +367,15 @@ function get_model_wells(model::MultiModel; data_domain = false)
     return wells
 end
 
+# Names of the wells controlled by the facility for a well domain. Merged wells
+# (e.g. from `merge_well_domains`) keep the names of the original wells.
+function well_domain_names(w::WellDomain)
+    if !(w isa Union{SimpleWell, MultiSegmentWell}) || isnothing(w.multiwell)
+        return Symbol[w.name]
+    end
+    return collect(Symbol, w.multiwell.names)
+end
+
 """
     model = setup_reservoir_model(reservoir, system; wells = [], <keyword arguments>)
     model = setup_reservoir_model(reservoir, system; wells = [w1, w2], backend = :csr, <keyword arguments>)
@@ -678,7 +687,7 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
             )
             models[wname] = wmodel
             if split_wells
-                wg = WellGroup([wname], can_shut_wells = can_shut_wells)
+                wg = WellGroup(well_domain_names(w), can_shut_wells = can_shut_wells)
                 F = SimulationModel(wg, facility_system, context = context, data_domain = DataDomain(wg))
                 if thermal
                     add_thermal_to_facility!(F)
@@ -693,7 +702,8 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
                 models[k] = v
             end
         else
-            wg = WellGroup(map(x -> physical_representation(x).name, wells), can_shut_wells = can_shut_wells)
+            wnames = reduce(vcat, map(x -> well_domain_names(physical_representation(x)), wells))
+            wg = WellGroup(wnames, can_shut_wells = can_shut_wells)
             F = SimulationModel(wg, facility_system, context = context, data_domain = DataDomain(wg))
             if thermal
                 add_thermal_to_facility!(F)
@@ -1827,6 +1837,10 @@ function setup_reservoir_cross_terms!(model::MultiModel)
                 is_closed_loop = g isa MultiSegmentWell &&
                     m.data_domain.representation.type == :closed_loop
                 if is_closed_loop
+                    # Deprecated: Closed-loop wells should be set up as a
+                    # single merged well (see `merge_well_domains`), where
+                    # the supply and return parts are connected by a well
+                    # segment instead of these cross terms.
                     # TODO: Avoid hard-coded index for BTES bottom cell
                     name = string(k)
                     if !contains(name, "_supply")
@@ -1836,6 +1850,13 @@ function setup_reservoir_cross_terms!(model::MultiModel)
                     if cl_name in handled_closed_loops
                         continue
                     end
+                    Base.depwarn("Coupling closed-loop wells of type :closed_loop \
+                        ($(cl_name)_supply and $(cl_name)_return) by cross terms is \
+                        deprecated and will be removed in a future release. Set up \
+                        closed-loop wells as a single merged well (see \
+                        `JutulDarcy.WellMerging.merge_well_domains`) where the supply \
+                        and return parts are connected by a well segment.",
+                        :setup_reservoir_cross_terms!, force = true)
 
                     supply_well = Symbol(cl_name*"_supply")
                     return_well = Symbol(cl_name*"_return")
