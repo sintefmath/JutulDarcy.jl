@@ -184,6 +184,14 @@ JutulDarcy.tabulated_enthalpy
 JutulDarcy.FluidInternalEnergyFromFluidEnthalpy
 ```
 
+### Thermal conductivity
+
+The rock and fluid heat conduction terms are discretized with two-point transmissibilities that are computed from the cell-wise thermal conductivities ``\lambda_r`` and ``\lambda_\alpha`` (`rock_thermal_conductivity` and `fluid_thermal_conductivity` in [`reservoir_domain`](@ref)), weighted by ``1-\phi`` and ``\phi``, respectively. By default, the fluid thermal conductivity is constant in time. A state-dependent conductivity, e.g. evaluated from a table of pressure and temperature, can be used with [`JutulDarcy.set_dynamic_fluid_thermal_conductivity!`](@ref). This is done for the geothermal property setup with `dynamic_conductivity = true`.
+
+```@docs
+JutulDarcy.set_dynamic_fluid_thermal_conductivity!
+```
+
 ### Total energy formulation
 
 By default, the conserved quantity is the thermal energy. Alternatively, the total energy formulation (`energy_formulation = :total` in [`setup_reservoir_model`](@ref) or [`JutulDarcy.add_thermal_to_model!`](@ref)) also includes the gravitational potential energy of the fluid, ``\Phi = -g z`` per unit mass:
