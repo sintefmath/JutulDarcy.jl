@@ -8,6 +8,7 @@ function setup_reservoir_model_geothermal(
         table_arg = NamedTuple(),
         single_phase = true,
         update_reservoir = true,
+        dynamic_conductivity = false,
         table_cache = Dict(),
         kwarg...
     )
@@ -20,15 +21,19 @@ function setup_reservoir_model_geothermal(
     else
         error("Multiphase geothermal is not implemented")
     end
-    # TODO: make this dynamic
-    cond_water = tables[:phase_conductivity](1*si_unit(:atm), 273.15 + 20.0)
     if update_reservoir
+        # Reference value. If dynamic_conductivity is true, the fluid thermal
+        # conductivity is evaluated from the table during the simulation.
+        cond_water = tables[:phase_conductivity](1*si_unit(:atm), 273.15 + 20.0)
         reservoir[:fluid_thermal_conductivity] .= cond_water
     end
     model = setup_reservoir_model(reservoir, sys; thermal = true, extra_out = false, kwarg...)
     # Tables
     rho = JutulDarcy.PressureTemperatureDependentVariable(tables[:density])
     enthalpy = JutulDarcy.PressureTemperatureDependentEnthalpy(tables[:enthalpy])
+    if dynamic_conductivity
+        lambda = JutulDarcy.PressureTemperatureDependentVariable(tables[:phase_conductivity])
+    end
 
     mu = JutulDarcy.PTViscosities(tables[:viscosity])
 
@@ -41,6 +46,9 @@ function setup_reservoir_model_geothermal(
                 FluidInternalEnergy = JutulDarcy.FluidInternalEnergyFromFluidEnthalpy(),
             )
             delete!(m.parameters, :ComponentHeatCapacity)
+            if dynamic_conductivity && k == :Reservoir
+                JutulDarcy.set_dynamic_fluid_thermal_conductivity!(m, lambda)
+            end
         end
     end
     JutulDarcy.lower_temperature_limit!(model)
