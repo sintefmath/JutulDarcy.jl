@@ -85,6 +85,9 @@ function thermal_heat_flux(face, state, model, grad, upw, flux_type)
         θ_fα = fluid_thermal_transmissibility(state, θ_f, face, grad, α)
         θ += θ_fα*phase_face_average(S, grad, α)
     end
+    if haskey(state, :ThermalDispersionTransmissibility)
+        θ += thermal_dispersion_face_transmissibility(state, face, grad, nph)
+    end
     conductive_flux = -θ*gradient(T, grad)
     return conductive_flux + convective_flux
 end

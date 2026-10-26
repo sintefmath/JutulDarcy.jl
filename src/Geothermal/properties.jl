@@ -46,6 +46,11 @@ function setup_reservoir_model_geothermal(
                 FluidInternalEnergy = JutulDarcy.FluidInternalEnergyFromFluidEnthalpy(),
             )
             delete!(m.parameters, :ComponentHeatCapacity)
+            if haskey(m.secondary_variables, :FluidHeatCapacity)
+                # Used by thermal dispersion
+                c_p = JutulDarcy.PressureTemperatureDependentVariable(tables[:heat_capacity_constant_pressure])
+                set_secondary_variables!(m; FluidHeatCapacity = c_p)
+            end
             if dynamic_conductivity && k == :Reservoir
                 JutulDarcy.set_dynamic_fluid_thermal_conductivity!(m, lambda)
             end
