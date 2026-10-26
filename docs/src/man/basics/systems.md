@@ -184,12 +184,22 @@ JutulDarcy.tabulated_enthalpy
 JutulDarcy.FluidInternalEnergyFromFluidEnthalpy
 ```
 
-### Thermal conductivity
+### Thermal conductivity and dispersion
 
 The rock and fluid heat conduction terms are discretized with two-point transmissibilities that are computed from the cell-wise thermal conductivities ``\lambda_r`` and ``\lambda_\alpha`` (`rock_thermal_conductivity` and `fluid_thermal_conductivity` in [`reservoir_domain`](@ref)), weighted by ``1-\phi`` and ``\phi``, respectively. By default, the fluid thermal conductivity is constant in time. A state-dependent conductivity, e.g. evaluated from a table of pressure and temperature, can be used with [`JutulDarcy.set_dynamic_fluid_thermal_conductivity!`](@ref). This is done for the geothermal property setup with `dynamic_conductivity = true`.
 
+Thermal dispersion adds a dispersive heat flux ``-\sum_\alpha \rho_\alpha c_\alpha \mathbf{D}_\alpha \nabla T`` with
+
+```math
+\mathbf{D}_\alpha = \alpha_T |\mathbf{v}_\alpha| \mathbf{I} + (\alpha_L - \alpha_T) \frac{\mathbf{v}_\alpha \mathbf{v}_\alpha^T}{|\mathbf{v}_\alpha|},
+```
+
+where ``\alpha_L`` and ``\alpha_T`` are the longitudinal and transverse dispersivities, ``\mathbf{v}_\alpha`` is the Darcy velocity of phase ``\alpha`` and ``c_\alpha`` is the specific heat capacity of the phase. The dispersivity is added to the domain with [`JutulDarcy.add_thermal_dispersion!`](@ref), and the dispersion is evaluated explicitly from the fluxes at the start of each time step.
+
 ```@docs
 JutulDarcy.set_dynamic_fluid_thermal_conductivity!
+JutulDarcy.add_thermal_dispersion!
+JutulDarcy.FluidHeatCapacity
 ```
 
 ### Total energy formulation

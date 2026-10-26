@@ -797,6 +797,9 @@ function add_thermal_to_model!(model; energy_formulation = :thermal)
         set_secondary_variables!(model,
             RockInternalEnergy = RockInternalEnergy()
         )
+        if haskey(model.data_domain, :thermal_dispersivity)
+            add_thermal_dispersion_to_model!(model)
+        end
     else
         if model_or_domain_is_well(model)
             w = physical_representation(model.domain)
@@ -908,3 +911,4 @@ end
 
 include("variables.jl")
 include("equations.jl")
+include("dispersion.jl")

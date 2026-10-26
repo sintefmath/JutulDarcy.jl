@@ -40,4 +40,6 @@ JutulDarcy.PerforationGravityDifference
 JutulDarcy.FluidThermalConductivities
 JutulDarcy.FluidThermalConductivity
 JutulDarcy.FluidThermalHalfFaceWeights
+JutulDarcy.ThermalDispersivity
+JutulDarcy.ThermalDispersionTransmissibility
 ```
