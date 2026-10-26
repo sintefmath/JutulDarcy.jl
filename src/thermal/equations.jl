@@ -67,8 +67,7 @@ Calculate the thermal heat flux for a given face in a thermal model.
 function thermal_heat_flux(face, state, model, grad, upw, flux_type)
     T = state.Temperature
     H_f = state.FluidEnthalpy
-    λ_r = state.RockThermalConductivities
-    λ_f = state.FluidThermalConductivities
+    θ_r = state.RockThermalConductivities
     S = state.Saturations
     nph = number_of_phases(model.system)
 
@@ -80,14 +79,57 @@ function thermal_heat_flux(face, state, model, grad, upw, flux_type)
         convective_flux += H_face_α*F_α
     end
 
-    λ_total = λ_r[face]
+    θ_f = state.FluidThermalConductivities
+    θ = θ_r[face]
     for α in 1:nph
-        λ_total += λ_f[α, face]*phase_face_average(S, grad, α)
+        θ_fα = fluid_thermal_transmissibility(state, θ_f, face, grad, α)
+        θ += θ_fα*phase_face_average(S, grad, α)
     end
-    conductive_flux = -λ_total*gradient(T, grad)
+    conductive_flux = -θ*gradient(T, grad)
     return conductive_flux + convective_flux
 end
 
+"""
+    tpfa_face_cells(tpfa::TPFA)
+
+Cells of a two-point gradient ordered as in the face neighborship, i.e.
+`(N[1, face], N[2, face])`, independent of which cell the flux is evaluated
+for.
+"""
+@inline function tpfa_face_cells(tpfa::TPFA)
+    if tpfa.face_sign > 0
+        return (tpfa.left, tpfa.right)
+    else
+        return (tpfa.right, tpfa.left)
+    end
+end
+
+"""
+    fluid_thermal_transmissibility(state, θ_f, face, grad, α)
+
+Fluid thermal transmissibility of phase `α` over `face`. If the model has a
+cell-wise fluid thermal conductivity (see
+`set_dynamic_fluid_thermal_conductivity!`), the static transmissibility is
+scaled by the current conductivity using `FluidThermalHalfFaceWeights`.
+"""
+@inline function fluid_thermal_transmissibility(state, θ_f, face, grad, α)
+    θ_fα = @inbounds θ_f[α, face]
+    if haskey(state, :FluidThermalHalfFaceWeights)
+        θ_fα *= fluid_thermal_conductivity_factor(state.FluidThermalConductivity, state.FluidThermalHalfFaceWeights, face, grad, α)
+    end
+    return θ_fα
+end
+
+@inline function fluid_thermal_conductivity_factor(λ, w, face, tpfa::TPFA, α)
+    l, r = tpfa_face_cells(tpfa)
+    a_l = @inbounds w[2α - 1, face]*λ[α, l]
+    a_r = @inbounds w[2α, face]*λ[α, r]
+    if a_l > 0 && a_r > 0
+        return a_l*a_r/(a_l + a_r)
+    else
+        return zero(a_l*a_r)
+    end
+end
 
 """
     Jutul.convergence_criterion(model, storage, eq::ConservationLaw{:TotalThermalEnergy}, eq_s, r; dt = 1.0, update_report = missing)
