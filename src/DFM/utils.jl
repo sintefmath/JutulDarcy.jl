@@ -317,6 +317,10 @@ function adjust_matrix_cell_volumes!(matrix_model::SimulationModel, fractures::D
 
     fracture_volumes = fractures[:volumes, Cells()]
     matrix_volumes = matrix[:volumes, Cells()]
+    # Fracture volumes may be of another type (e.g. dual numbers when
+    # differentiating with respect to the aperture)
+    Tv = promote_type(eltype(matrix_volumes), eltype(fracture_volumes))
+    matrix_volumes = collect(Tv, matrix_volumes)
     fmc = JutulDarcy.FractureMatrixConnection()
     fracture_cells = fractures[:connection_cells, fmc]
     matrix_cells = fractures[:matrix_cells, fmc]
@@ -451,19 +455,25 @@ function add_fractures_to_well(well::DataDomain{T}, fractures::DataDomain, matri
 
     wc = well.representation.perforations.self_fracture
     fc = well.representation.perforations.fracture
-    
-    well[:cell_length][wc] = fractures[:aperture][fc]
+    aperture = fractures[:aperture]
+    # The aperture may be of another type (e.g. dual numbers when
+    # differentiating with respect to it), so promote the well data
+    cell_length = well[:cell_length, Cells()]
+    cell_length = collect(promote_type(eltype(cell_length), eltype(aperture)), cell_length)
+    cell_length[wc] = aperture[fc]
+    well[:cell_length, Cells()] = cell_length
     Δ = well[:cell_dims_frac, FracturePerforations()]
     dir = well[:perforation_direction_frac, FracturePerforations()]
-    for (c, (Δ_k, dir_k)) in enumerate(zip(Δ, dir))
+    Δ = map(enumerate(zip(Δ, dir))) do (c, (Δ_k, dir_k))
         if dir_k isa Symbol
             d = findfirst(==(dir_k), [:x, :y, :z])
         else
             d = last(findmax(abs.(dir_k)))
         end
-        Δ_k = [Δ_k...]
-        Δ_k[d] = fractures[:aperture][fc[c]]
-        Δ[c] = Tuple(Δ_k)
+        Tv = promote_type(eltype(Δ_k), eltype(aperture))
+        Δ_k = Tv[Δ_k...]
+        Δ_k[d] = aperture[fc[c]]
+        Tuple(Δ_k)
     end
     well[:cell_dims_frac, FracturePerforations()] = Δ
 

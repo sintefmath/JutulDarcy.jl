@@ -214,7 +214,7 @@ function Jutul.default_parameter_values(data_domain, model, param::FluidThermalC
             size(Λ, 1) == nph || error("Expected size $(nph) x num_cells for \
                 :fluid_thermal_conductivity, got size $(size(Λ))")
             nf = number_of_faces(data_domain)
-            T = zeros(nph, nf)
+            T = zeros(promote_type(eltype(Λ), eltype(ϕ)), nph, nf)
             for ph in 1:nph
                 T[ph, :] = reservoir_conductivity_dfm(data_domain, Λ[ph, :].*ϕ)
             end
