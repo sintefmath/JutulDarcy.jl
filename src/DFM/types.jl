@@ -1,13 +1,9 @@
 struct FracturePerforations <: JutulEntity end
 struct FractureMatrixConnection <: JutulEntity end
 
-# Parameters on the fracture-matrix connections (e.g.
-# FractureMatrixTransmissibility) belong to the fracture model and enter its
-# conservation laws through the matrix-fracture cross terms, with connection i
-# acting on fracture cell connection_cells[i]. The hard-coded TPFA storage only
-# declares dependencies on cells and faces, so the pattern for the connections
-# is declared here (needed when they are primary variables in the parameter
-# adjoint).
+# The hard-coded TPFA storage only declares dependencies on cells and faces, so
+# the pattern for the connections is declared here (needed when they are primary
+# variables in the parameter adjoint).
 function Jutul.declare_pattern(model, e::ConservationLaw, e_s::Jutul.ConservationLawTPFAStorage, entity::FractureMatrixConnection)
     I = collect(model.data_domain[:connection_cells, entity])
     J = collect(eachindex(I))
