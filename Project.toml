@@ -53,9 +53,9 @@ JutulDarcyPartitionedArraysExt = ["PartitionedArrays", "MPI", "HYPRE"]
 [compat]
 Adapt = "4"
 AMGX = "0.2"
-AMDGPU = "1, 2"
+AMDGPU = "2.10"
 Artifacts = "1"
-CUDA = "6"
+CUDA = "6.5"
 DataStructures = "0.18.13"
 Dates = "1"
 DelimitedFiles = "1.6"
@@ -64,7 +64,6 @@ ForwardDiff = "0.10.30, 1"
 GeoEnergyIO = "1.2.2"
 HYPRE = "1.6.0, 1.7"
 Jutul = "0.5.6"
-JLArrays = "0.3"
 Krylov = "0.10"
 LazyArtifacts = "1"
 LinearAlgebra = "1"
@@ -90,7 +89,6 @@ julia = "1.10"
 AMGX = "c963dde9-0319-47f5-bf0c-b07d3c80ffa6"
 CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 HYPRE = "b5ffcf37-a2bd-41ab-a3da-4bd9bc8ad771"
-JLArrays = "27aeb0d3-9eb9-45fb-866b-73c2ecf80fcb"
 MPI = "da04e1cc-30fd-572f-bb4f-1f8673147195"
 PartitionedArrays = "5a9dfac6-5c52-46f7-8278-5e2210713be9"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
@@ -98,4 +96,4 @@ TestItemRunner = "f8b46487-2199-4994-9208-9a1283c18c0a"
 TestItems = "1c621080-faea-4a02-84b6-bbd5e436b8fe"
 
 [targets]
-test = ["Test", "CUDA", "TestItemRunner", "TestItems", "HYPRE", "JLArrays", "MPI", "PartitionedArrays"]
+test = ["Test", "CUDA", "TestItemRunner", "TestItems", "HYPRE", "MPI", "PartitionedArrays"]

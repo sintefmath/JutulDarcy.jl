@@ -1,5 +1,5 @@
 using Jutul, JutulDarcy
-using JLArrays
+using Jutul.KernelExecution: KernelAbstractions
 using MultiComponentFlash
 using ForwardDiff
 using SparseArrays
@@ -120,20 +120,20 @@ end
     oil = JutulDarcy.PVDO(MuBTable(
         [1.0e7, 2.0e7], [1.0, 1.1], [2.0e-3, 2.2e-3]))
     variable = DeckPhaseMassDensities((water, oil))
-    context = KernelAbstractionsContext(JLBackend())
+    context = KernelAbstractionsContext(KernelAbstractions.CPU())
 
     adapted = JutulDarcy.Adapt.adapt(context, variable)
 
-    @test adapted.pvt[2].tab[1].pressure isa JLArray
-    @test adapted.pvt[2].tab[1].shrinkage isa JLArray
-    @test adapted.pvt[2].tab[1].viscosity isa JLArray
+    @test adapted.pvt[2].tab[1].pressure isa Array
+    @test adapted.pvt[2].tab[1].shrinkage isa Array
+    @test adapted.pvt[2].tab[1].viscosity isa Array
 
     pc = Jutul.LinearInterpolant([0.0, 1.0], [0.0, 1.0])
     scaled_pc = JutulDarcy.ScaledCapillaryPressure(
         ((pc, pc), (pc, pc)); regions = [1])
     adapted_pc = JutulDarcy.Adapt.adapt(context, scaled_pc)
-    @test adapted_pc.pc[1][1].X isa JLArray
-    @test adapted_pc.regions isa JLArray
+    @test adapted_pc.pc[1][1].X isa Array
+    @test adapted_pc.regions isa Array
 end
 
 @testset "Heterogeneous regional table selection" begin
@@ -171,12 +171,12 @@ end
     cpu_bo = JutulDarcy.cnv_mb_errors_bo(
         residual, pore_volume, shrinkage, dt, reference_density, phases)
 
-    context = KernelAbstractionsContext(JLBackend())
+    context = KernelAbstractionsContext(KernelAbstractions.CPU())
     device_cnv_mb = JutulDarcy.cnv_mb_errors(
-        JLArray(residual), JLArray(pore_volume), JLArray(density),
+        Array(residual), Array(pore_volume), Array(density),
         dt, phases)
     device_bo = JutulDarcy.cnv_mb_errors_bo(
-        JLArray(residual), JLArray(pore_volume), JLArray(shrinkage),
+        Array(residual), Array(pore_volume), Array(shrinkage),
         dt, reference_density, phases)
 
     @test collect(device_cnv_mb[1]) ≈ collect(cpu_cnv_mb[1])
@@ -186,6 +186,7 @@ end
 end
 
 @testset "KA reservoir solver configuration" begin
+    @test JutulDarcy.kernel_abstractions_backend(Val(:ka_cpu_static)) isa KernelAbstractions.CPU
     grid = CartesianMesh((2, 1), (2.0, 1.0))
     state0, model, parameters, _, _ = get_test_setup(
         grid,
@@ -195,9 +196,10 @@ end
     )
     simulator = transfer_to_backend(
         Simulator(model; state0 = state0, parameters = parameters),
-        JLBackend())
+        KernelAbstractions.CPU())
     for variant in (:cpr, :cprw)
         solver = select_reservoir_linear_solver(simulator.model, variant;
+            smoother_type = :ka_ilu0,
             smoother_arg = (damping = 0.8,),
             cpr_arg = (weight_scaling = :none,))
         preconditioner = solver.preconditioner
@@ -222,7 +224,7 @@ end
         update_type = :none,
         update_type_partial = :sparsity,
         amg_arg = (smoother_type = :spai0,),
-        smoother_type = :ilu0)
+        smoother_type = :ka_ilu0)
     preconditioner = solver.preconditioner
     @test preconditioner.pressure_precond.reuse == :none
     @test preconditioner.pressure_precond.reuse_partial == :sparsity
@@ -245,7 +247,7 @@ end
         forces = forces, info_level = -1)
 
     cpu_simulator = Simulator(model, state0 = state0, parameters = parameters)
-    simulator = transfer_to_backend(cpu_simulator, JLBackend())
+    simulator = transfer_to_backend(cpu_simulator, KernelAbstractions.CPU())
     law_storage = simulator.storage.equations.mass_conservation
     @test ismissing(law_storage.half_face_flux_cells)
     @test isnothing(law_storage.half_face_flux_faces)
@@ -261,11 +263,11 @@ end
         cpu_law_storage.sources,
         nothing)
     adapted_face_dependent = JutulDarcy.Adapt.adapt(
-        KernelAbstractionsContext(JLBackend()), face_dependent_storage)
+        KernelAbstractionsContext(KernelAbstractions.CPU()), face_dependent_storage)
     @test !ismissing(adapted_face_dependent.half_face_flux_cells)
     @test !ismissing(adapted_face_dependent.half_face_flux_faces)
     @test isnothing(adapted_face_dependent.fused_equation_assembly)
-    @test simulator.storage.state.Pressure isa JLArray
+    @test simulator.storage.state.Pressure isa Array
     @test simulator.storage.primary_variables.Pressure === simulator.storage.state.Pressure
     @test simulator.storage.LinearizedSystem.jac_buffer ===
         nonzeros(simulator.storage.LinearizedSystem.jac)
@@ -280,7 +282,7 @@ end
 
     full_storage_simulator = transfer_to_backend(
         Simulator(model; state0 = state0, parameters = parameters),
-        JLBackend(); reduce_memory = false)
+        KernelAbstractions.CPU(); reduce_memory = false)
     full_law_storage =
         full_storage_simulator.storage.equations.mass_conservation
     @test !ismissing(full_law_storage.half_face_flux_cells)
@@ -304,7 +306,7 @@ end
         forces = forces, info_level = -1)
 
     cpu_simulator = Simulator(model, state0 = state0, parameters = parameters)
-    simulator = transfer_to_backend(cpu_simulator, JLBackend())
+    simulator = transfer_to_backend(cpu_simulator, KernelAbstractions.CPU())
     states, = simulate!(simulator, timesteps; forces = forces, info_level = -1)
 
     @test Array(states[end][:Pressure]) ≈ reference[end][:Pressure] rtol = 1e-10
@@ -428,7 +430,7 @@ end
 
         cpu_simulator = Simulator(
             model; state0 = state0, parameters = parameters)
-        simulator = transfer_to_backend(cpu_simulator, JLBackend())
+        simulator = transfer_to_backend(cpu_simulator, KernelAbstractions.CPU())
         @test isbitstype(typeof(simulator.model.system))
         ncomp = JutulDarcy.number_of_components(simulator.model.system)
         @test JutulDarcy.component_names(simulator.model.system)[1:ncomp] ==
@@ -546,7 +548,7 @@ end
 
     cpu_simulator = Simulator(
         model; state0 = state0, parameters = parameters)
-    simulator = transfer_to_backend(cpu_simulator, JLBackend())
+    simulator = transfer_to_backend(cpu_simulator, KernelAbstractions.CPU())
     @test isbitstype(typeof(simulator.model.system))
     states, = simulate!(simulator, timesteps; info_level = -1)
     @test Array(states[end][:Pressure]) ≈
@@ -564,7 +566,7 @@ end
     )
     simulator, = setup_reservoir_simulator(case;
         mode = :ka,
-        ka_backend = JLBackend(),
+        ka_backend = KernelAbstractions.CPU(),
         info_level = -1,
         linear_solver = nothing,
         timesteps = :none)
@@ -597,9 +599,10 @@ end
     end
     simulator, = setup_reservoir_simulator(case;
         mode = :ka,
-        ka_backend = JLBackend(),
+        ka_backend = KernelAbstractions.CPU(),
         info_level = -1,
         wells_on_device = true,
+        group_execution = Dict(:Facility => AssembleOnDevice, :default => SolveFullyOnDevice),
         linear_solver = nothing,
         timesteps = :none)
 
@@ -620,22 +623,22 @@ end
     @test !(simulator.model.models.Facility.domain.well_symbols isa Tuple)
     @test host.model[:Reservoir] === simulator.model[:Reservoir]
     @test host.storage[:Reservoir] === simulator.storage[:Reservoir]
-    @test host.storage.Reservoir.state.Pressure isa JLArray
+    @test host.storage.Reservoir.state.Pressure isa Array
     @test host.cross_term_evaluation.mixed_on_host
     @test Set(host.cross_term_evaluation.mixed_models) == Set((:PROD, :INJ))
-    @test simulator.storage.PROD.state.Pressure isa JLArray
-    @test simulator.storage.INJ.state.Pressure isa JLArray
+    @test simulator.storage.PROD.state.Pressure isa Array
+    @test simulator.storage.INJ.state.Pressure isa Array
     @test host.storage.PROD.state.Pressure isa Vector
     @test host.storage.INJ.state.Pressure isa Vector
     @test simulator.storage.Facility.state.WellGroupConfiguration !== nothing
     @test host.storage.Facility.state.WellGroupConfiguration !== nothing
     @test all(cross_term ->
-            cross_term.target_impact_map.entries isa JLArray,
+            cross_term.target_impact_map.entries isa Array,
         simulator.storage.cross_terms)
     mask = PerforationMask([1.0, 0.0])
     adapted_mask = Jutul.preprocess_forces(
         simulator, (mask = mask,)).forces.mask
-    @test adapted_mask.values isa JLArray
+    @test adapted_mask.values isa Array
     reset_state = deepcopy(case.state0)
     reset_state[:PROD][:Pressure] .+= 1.0
     Jutul.reset_variables!(simulator, reset_state)
@@ -667,7 +670,7 @@ end
 
     system = simulator.storage.LinearizedSystem
     @test system isa Jutul.LinearizedSystem
-    @test system.r_buffer isa JLArray
+    @test system.r_buffer isa Array
     @test all(isfinite, Array(system.r_buffer))
     @test all(isfinite, Array(nonzeros(system.jac)))
 
@@ -692,7 +695,7 @@ end
     case = setup_spe1_ka_case()
     simulator, = setup_reservoir_simulator(case;
         mode = :ka,
-        ka_backend = JLBackend(),
+        ka_backend = KernelAbstractions.CPU(),
         info_level = -1,
         linear_solver = nothing,
         timesteps = :none)
@@ -710,7 +713,7 @@ end
     Jutul.update_linearized_system!(simulator.storage, simulator.model)
 
     system = simulator.storage.LinearizedSystem
-    @test system.r_buffer isa JLArray
+    @test system.r_buffer isa Array
     @test all(isfinite, Array(system.r_buffer))
     @test all(isfinite, Array(nonzeros(system.jac)))
 end
