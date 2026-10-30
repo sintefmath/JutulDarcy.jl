@@ -29,54 +29,29 @@ end
     return flash_results
 end
 
-@inline function estimated_K_from_previous_flash(f, V, z)
-    # Estimate each component's vapor partition from the previous equilibrium,
-    # then renormalize the two phases using the *current* overall composition.
-    minimum_z = MultiComponentFlash.MINIMUM_COMPOSITION
-    ratios = map(f.liquid.mole_fractions, f.vapor.mole_fractions) do x, y
-        x = max(Float64(compositional_primal(x)), minimum_z)
-        y = max(Float64(compositional_primal(y)), minimum_z)
-        V*y/((1.0 - V)*x)
-    end
-    liquid_total = sum(map((ratio, z_i) -> z_i/(1.0 + ratio), ratios, z))
-    vapor_total = sum(map((ratio, z_i) -> z_i*ratio/(1.0 + ratio), ratios, z))
-    return ratios.*(liquid_total/vapor_total)
-end
-
-@inline function valid_reused_flash(V, K, converged)
-    valid = converged && isfinite(V) && 1e-6 < V < 1.0 - 1e-6
-    trivial = true
-    @inbounds for K_i in K
-        valid &= isfinite(K_i) && K_i > 0.0
-        trivial &= abs(K_i - 1.0) < 1e-6
-    end
-    return valid && !trivial
-end
-
 @inline function numeric_flash(f,
         fr::FlashResults{M, use_stability_bypass, reuse_guess}, eos, cond
     ) where {M, use_stability_bypass, reuse_guess}
     config = MultiComponentFlash.StaticConfig()
-    # This function may use approach by Rasmussen et al (2006) for reusing
-    # previous flash results depending on options set
+    # The paper's shortcut is a short, safeguarded Gibbs minimization from
+    # estimated phase amounts. Any difficulty reverts to the ordinary flash.
     if reuse_guess && f.state == MultiComponentFlash.two_phase_lv
-        V0 = Float64(compositional_primal(f.V))
+        V0 = oftype(cond.p, compositional_primal(f.V))
         if isfinite(V0) && 1e-6 < V0 < 1.0 - 1e-6
-            K0 = estimated_K_from_previous_flash(f, V0, cond.z)
-            # An interior vapor-fraction guess skips stability testing in
-            # MultiComponentFlash. This is not guaranteed to be successful; it
-            # must remain two-phase and nontrivial to be accepted.
-            V, K, report = flash_2ph!(config, K0, eos, cond, V0;
-                method = fr.method,
-                maxiter = 20,
-                extra_out = true,
-                tolerance = fr.tolerance,
-                z_min = nothing,
-                stability_bypass = false,
-                check = false,
-                verbose = false)
-            if valid_reused_flash(V, K, report.converged)
-                return V, K, report.stability_result
+            liquid, vapor = estimated_phase_amounts_from_previous_flash(f, V0, cond.z)
+            L, V = sum(liquid), sum(vapor)
+            K0 = (vapor/V) ./ (liquid/L)
+            V /= L + V
+            V, K, report = flash_2ph!(config, K0, eos, cond, V;
+                method = NewtonFlash(dMax = 1.0), maxiter = 3,
+                extra_out = true, tolerance = fr.tolerance, z_min = nothing,
+                stability_bypass = false, check = false, verbose = false)
+            if valid_reused_flash(V, K, report.converged, cond.z, fr.tolerance) &&
+                    reused_flash_is_stable(eos, cond, K, V, fr.tolerance)
+                stability = MultiComponentFlash.StaticStabilityResult(false,
+                    MultiComponentFlash.StabilityReport(), K,
+                    MultiComponentFlash.StaticStabilityStorage(cond, oftype(cond.p, NaN)), false)
+                return V, K, stability
             end
         end
     end
