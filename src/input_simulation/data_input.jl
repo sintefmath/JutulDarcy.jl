@@ -1857,6 +1857,8 @@ function parse_control_steps(runspec, props, schedule, sys)
                     controls, limits = apply_weltarg!(controls, limits, wk)
                 end
                 set_active_controls!(active_controls, controls)
+            elseif key == "TUNING"
+                # Initial settings are applied in setup_reservoir_simulator.
             elseif key in skip
                 # Already handled
             elseif key in ("WSEGVALV", "COMPSEGS", "WELSEGS")
