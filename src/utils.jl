@@ -1129,6 +1129,10 @@ end
 """
     setup_reservoir_simulator(case::JutulCase; <keyword arguments>)
 
+The initial TUNING settings in `case.input_data`, when present, supply defaults
+for timesteps and convergence tolerances. Explicit keyword arguments override
+these settings. Later TUNING changes in the schedule are ignored.
+
 # Keyword arguments
 
 - `method=:newton`: Can be `:newton`, `:nldd` or `:aspen`. Newton is the most
@@ -1175,6 +1179,10 @@ end
   no automatic timestepping (i.e. try to solve exact report steps)
 - `max_timestep=si_unit(:year)`: Maximum internal timestep used in solver.
 - `min_timestep=0.0`: Minimum internal timestep used in solver.
+- `max_dt`: Legacy alias for `max_timestep`. If both are provided, the smaller
+  value is used.
+- `timestep_decrease_on_cut=2.0`: Divide the timestep by this factor after a convergence
+  failure. TUNING supplies the reciprocal of `TSFCNV`.
 
 ## Convergence criterions
 The main numerical tolerances that govern the accuracy of the simulation. The
@@ -1281,17 +1289,20 @@ function setup_reservoir_simulator(case::JutulCase;
         precond = :cpr,
         linear_solver = :bicgstab,
         linear_solver_backend = :auto,
-        max_timestep = si_unit(:year),
-        min_timestep = 0.0,
-        max_dt = max_timestep,
+        max_dt = missing,
+        max_timestep = ismissing(max_dt) ? reservoir_simulation_input_defaults(case, :max_timestep) : max_dt,
+        min_timestep = reservoir_simulation_input_defaults(case, :min_timestep),
         rtol = missing,
-        initial_dt = si_unit(:day),
+        initial_dt = reservoir_simulation_input_defaults(case, :initial_dt),
+        timestep_max_increase = reservoir_simulation_input_defaults(case, :timestep_max_increase),
+        timestep_max_decrease = reservoir_simulation_input_defaults(case, :timestep_max_decrease),
+        timestep_decrease_on_cut = reservoir_simulation_input_defaults(case, :timestep_decrease_on_cut),
         target_ds = Inf,
         target_dz = Inf,
         target_its = 8,
         offset_its = 1,
-        tol_cnv = 1e-3,
-        tol_mb = 1e-7,
+        tol_cnv = reservoir_simulation_input_defaults(case, :tol_cnv),
+        tol_mb = reservoir_simulation_input_defaults(case, :tol_mb),
         info_level = 0,
         tol_cnv_well = 10*tol_cnv,
         tol_mb_well = 1e4*tol_mb,
@@ -1330,6 +1341,7 @@ function setup_reservoir_simulator(case::JutulCase;
         reduce_memory = true,
         kwarg...
     )
+    warn_unsupported_tuning(case.input_data)
     ka_mode = mode isa Symbol && (mode == :ka || startswith(String(mode), "ka_"))
     sim_type_overridden = float_type != Float64 || index_type != Int
     lsolve_type_overridden = linear_float_type != float_type || linear_index_type != index_type
@@ -1341,7 +1353,9 @@ function setup_reservoir_simulator(case::JutulCase;
         set_linear_solver = linear_solver isa Symbol || ismissing(linear_solver)
     end
     # Handle old kwarg...
-    max_timestep = min(max_dt, max_timestep)
+    if !ismissing(max_dt)
+        max_timestep = min(max_dt, max_timestep)
+    end
     extra_kwarg = Dict{Symbol, Any}()
     # Setup simulator
     sim_kwarg = Dict{Symbol, Any}()
@@ -1427,7 +1441,8 @@ function setup_reservoir_simulator(case::JutulCase;
         )
     end
 
-    t_base = TimestepSelector(initial_absolute = initial_dt, max = max_dt)
+    t_base = TimestepSelector(initial_absolute = initial_dt, max = max_timestep,
+        decrease = timestep_decrease_on_cut)
     sel = Vector{Any}()
     push!(sel, t_base)
     if timesteps == :auto || timesteps == :iteration
@@ -1507,6 +1522,8 @@ function setup_reservoir_simulator(case::JutulCase;
         relaxation = relaxation,
         max_timestep = max_timestep,
         min_timestep = min_timestep,
+        timestep_max_increase = timestep_max_increase,
+        timestep_max_decrease = timestep_max_decrease,
         failure_cuts_timestep = failure_cuts_timestep,
         max_timestep_cuts = max_timestep_cuts,
         kwarg...
@@ -1581,27 +1598,82 @@ function simulate_reservoir(state0, model, dt;
 end
 
 """
-    reservoir_simulation_input_defaults(input_data)
+    reservoir_simulation_input_defaults(case_or_input_data, key::Symbol)
 
-Return simulator keyword defaults supplied by a case's original input data.
-Overload this function for other input formats. Without recognized settings,
-the normal `setup_reservoir_simulator` defaults apply. Eclipse TUNING contributes
-the initial timestep settings; subsequent schedule changes are not supported.
+Return the default for a simulator keyword from a case's original input data.
+Supported keys are `initial_dt`, `max_timestep`, `min_timestep`,
+`timestep_max_increase`, `timestep_max_decrease`, `timestep_decrease_on_cut`, `tol_cnv`
+and `tol_mb`. Overload this function for other input formats. Without recognized
+settings, the normal `setup_reservoir_simulator` defaults apply. Eclipse TUNING
+contributes the initial timestep and convergence settings; subsequent schedule
+changes are not supported.
 """
-reservoir_simulation_input_defaults(input_data) = NamedTuple()
+function reservoir_simulation_input_defaults(case::JutulCase, key::Symbol)
+    return reservoir_simulation_input_defaults(case.input_data, key)
+end
 
-function reservoir_simulation_input_defaults(input_data::AbstractDict)
+function reservoir_simulation_input_defaults(input_data, key::Symbol)
+    return reservoir_simulation_input_defaults(nothing, key)
+end
+
+function reservoir_simulation_input_defaults(::Nothing, key::Symbol)
+    defaults = (
+        initial_dt = si_unit(:day),
+        max_timestep = si_unit(:year),
+        min_timestep = 0.0,
+        timestep_max_increase = 10.0,
+        timestep_max_decrease = 0.1,
+        timestep_decrease_on_cut = 2.0,
+        tol_cnv = 1e-3,
+        tol_mb = 1e-7,
+    )
+    return defaults[key]
+end
+
+function reservoir_simulation_input_defaults(input_data::AbstractDict, key::Symbol)
+    default = reservoir_simulation_input_defaults(nothing, key)
     schedule = get(input_data, "SCHEDULE", nothing)
-    isnothing(schedule) && return NamedTuple()
+    isnothing(schedule) && return default
     steps = get(schedule, "STEPS", [])
-    isempty(steps) && return NamedTuple()
-    if any(step -> haskey(step, "TUNING"), Iterators.drop(steps, 1))
-        jutul_message("TUNING", "Only initial timestep settings are supported; later TUNING changes are ignored.", color = :yellow)
-    end
+    isempty(steps) && return default
     tuning = get(first(steps), "TUNING", nothing)
-    isnothing(tuning) && return NamedTuple()
-    return (initial_dt = tuning[1], max_timestep = tuning[2],
-        min_timestep = tuning[3], timestep_max_increase = tuning[5])
+    isnothing(tuning) && return default
+    record, item = (
+        initial_dt = (1, 1),
+        max_timestep = (1, 2),
+        min_timestep = (1, 3),
+        timestep_max_increase = (1, 5),
+        timestep_max_decrease = (1, 6), # TSFMIN
+        timestep_decrease_on_cut = (1, 7), # TSFCNV
+        tol_cnv = (2, 2), # TRGCNV
+        tol_mb = (2, 3), # TRGMBE
+    )[key]
+    # Older GeoEnergyIO versions only retained the first record as a flat vector.
+    if first(tuning) isa Number
+        record == 1 || return default
+    else
+        record <= length(tuning) || return default
+        tuning = tuning[record]
+    end
+    item <= length(tuning) || return default
+    value = tuning[item]
+    if key == :timestep_decrease_on_cut
+        # TSFCNV multiplies a failed timestep; TimestepSelector divides by decrease.
+        value = 1/value
+    end
+    return value
+end
+
+warn_unsupported_tuning(input_data) = nothing
+
+function warn_unsupported_tuning(input_data::AbstractDict)
+    schedule = get(input_data, "SCHEDULE", nothing)
+    isnothing(schedule) && return nothing
+    steps = get(schedule, "STEPS", [])
+    if any(step -> haskey(step, "TUNING"), Iterators.drop(steps, 1))
+        jutul_message("TUNING", "Only initial timestep and convergence settings are supported; later TUNING changes are ignored.", color = :yellow)
+    end
+    return nothing
 end
 
 function simulate_reservoir(case::JutulCase;
@@ -1613,14 +1685,9 @@ function simulate_reservoir(case::JutulCase;
         validate = true,
         kwarg...
     )
-    (; model, forces, state0, parameters, dt) = case
+    (; model, forces, dt) = case
     if ismissing(simulator)
-        defaults = reservoir_simulation_input_defaults(case.input_data)
-        if haskey(kwarg, :max_dt)
-            defaults = merge(defaults, (max_timestep = kwarg[:max_dt],))
-        end
-        sim_kwarg = merge(defaults, (; kwarg...))
-        sim, config_new = setup_reservoir_simulator(model, state0, parameters; sim_kwarg...)
+        sim, config_new = setup_reservoir_simulator(case; kwarg...)
         if ismissing(config)
             config = config_new
         end
