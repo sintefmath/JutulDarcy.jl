@@ -1,6 +1,15 @@
 struct FracturePerforations <: JutulEntity end
 struct FractureMatrixConnection <: JutulEntity end
 
+# The hard-coded TPFA storage only declares dependencies on cells and faces, so
+# the pattern for the connections is declared here (needed when they are primary
+# variables in the parameter adjoint).
+function Jutul.declare_pattern(model, e::ConservationLaw, e_s::Jutul.ConservationLawTPFAStorage, entity::FractureMatrixConnection)
+    I = collect(model.data_domain[:connection_cells, entity])
+    J = collect(eachindex(I))
+    return Jutul.map_ij_to_active(I, J, model.domain, entity)
+end
+
 abstract type AbstractFractureMatrixConductivity <: ScalarVariable end
 
 struct FractureMatrixTransmissibility <: AbstractFractureMatrixConductivity end
@@ -155,9 +164,7 @@ function Jutul.default_parameter_values(data_domain, model, param::Transmissibil
             in DataDomain to initialize parameter $symb, had keys: \
             $(keys(data_domain))")
     end
-    if eltype(T)<:AbstractFloat
-        replace_bad_trans!(T, symb)
-    end
+    replace_bad_trans!(T, symb)
     return T
 
 end
