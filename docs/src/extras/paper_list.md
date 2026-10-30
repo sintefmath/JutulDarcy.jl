@@ -4,7 +4,7 @@ This page lists papers that use JutulDarcy.jl. Do you have a paper that is not l
 
 [JutulDarcy.jl - a fully differentiable high-performance reservoir simulator based on automatic differentiation. O. Møyner. Computational Geosciences (2025)](https://doi.org/10.1007/s10596-025-10366-6) is the main paper on JutulDarcy.jl. Please cite this if you make use of this package in your work.
 
-The list includes applications built on JutulDarcy.jl through packages such as JutulDarcyRules.jl and Fimbul.jl. Last checked: 30 October 2026.
+The list includes applications built on JutulDarcy.jl through packages such as JutulDarcyRules.jl and Fimbul.jl.
 
 ## Journal papers
 
