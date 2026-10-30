@@ -92,6 +92,10 @@ end
     include("thermal_backends.jl")
 end
 
+@testitem "Thermal conductivity and dispersion" begin
+    include("thermal_dispersion.jl")
+end
+
 @testitem "NLDD" begin
     include("nldd.jl")
 end
