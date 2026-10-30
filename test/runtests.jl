@@ -80,6 +80,10 @@ end
     include("thermal.jl")
 end
 
+@testitem "Thermal DATA and passive tracers" begin
+    include("thermal_data.jl")
+end
+
 @testitem "Tabulated thermal properties" begin
     include("thermal_properties.jl")
 end

@@ -119,7 +119,7 @@ function setup_case_from_parsed_data(datafile;
     end
     msg("Complete in $(round(t_domain, sigdigits = 3)) seconds.")
     pvt_reg = reservoir_regions(domain, :pvtnum)
-    has_pvt = isnothing(pvt_reg)
+    has_pvt = !isnothing(pvt_reg)
     # Parse wells
     msg("Parsing schedule.")
     t_schedule = @elapsed if skip_forces
@@ -141,7 +141,7 @@ function setup_case_from_parsed_data(datafile;
         if has_pvt
             c = first(w.perforations.reservoir)
             reg_w = pvt_reg[c]
-            sys, pvt = parse_physics_types(datafile, pvt_region = reg_w)
+            sys_w, pvt_w = parse_physics_types(datafile, pvt_region = reg_w)
         else
             sys_w, pvt_w = sys, pvt
         end
@@ -160,12 +160,20 @@ function setup_case_from_parsed_data(datafile;
         for t in tracers
             if t == "POLYMER"
                 push!(tracer_types, Tracers.PolymerTracer(sys))
-                # push!(tracer_types, MultiPhaseTracer(sys))
             else
-                error("Tracer $t not supported.")
+                rec = only(filter(rec -> rec[1] == t, props["TRACER"]))
+                @assert isempty(rec[3]) && isempty(rec[4]) && rec[5] == 0 && isempty(rec[6]) "Only non-partitioning tracers with default units are supported."
+                if rec[2] in ("WAT", "WATER")
+                    phase = AqueousPhase()
+                elseif rec[2] == "OIL"
+                    phase = LiquidPhase()
+                else
+                    phase = VaporPhase()
+                end
+                push!(tracer_types, SinglePhaseTracer(sys, phase))
             end
         end
-        extra_arg[:tracers] = [t for t in tracer_types]
+        extra_arg[:tracers] = Tracers.TracerFluxType(tracer_types, names = tracers)
     end
 
     t_model_base = @elapsed model = setup_reservoir_model(domain, sys;
@@ -217,7 +225,7 @@ function setup_case_from_parsed_data(datafile;
                 )
             end
             if is_thermal
-                set_thermal_deck_specialization!(submodel, props, domain[:pvtnum], oil, water, gas)
+                set_thermal_deck_specialization!(submodel, props, reservoir_regions(submodel.data_domain, :pvtnum), oil, water, gas)
             end
             if k == :Reservoir
                 set_deck_specialization!(submodel, rs, props, domain[:satnum], oil, water, gas)
@@ -680,6 +688,37 @@ function parse_state0(model, datafile; normalize = true, cell_nz = 1)
         initialize_numerical_aquifers!(init, rmodel, reservoir[:numerical_aquifers])
     end
 
+    if haskey(rmodel.primary_variables, :Temperature) && !haskey(init, :Temperature)
+        if haskey(sol, "TEMPI")
+            init[:Temperature] = convert_to_si.(sol["TEMPI"][physical_representation(reservoir).cell_map], :Celsius)
+        else
+            temperature = equil_temperature_function(datafile, 1)
+            if !ismissing(temperature)
+                init[:Temperature] = temperature.(reservoir[:cell_centroids][3, :])
+            end
+        end
+    end
+
+    tracer_names = data_file_active_tracers(datafile)
+    if !isempty(tracer_names)
+        nc = number_of_cells(reservoir)
+        concentrations = zeros(length(tracer_names), nc)
+        grid = physical_representation(reservoir)
+        depths = reservoir[:cell_centroids][3, :]
+        for (i, name) in enumerate(tracer_names)
+            block_key, depth_key = "TBLKF$name", "TVDPF$name"
+            if haskey(sol, block_key)
+                concentrations[i, :] .= sol[block_key][grid.cell_map]
+            elseif haskey(sol, depth_key)
+                table = sol[depth_key]
+                f = get_1d_interpolator(table[:, 1], table[:, 2])
+                concentrations[i, :] .= f.(depths)
+            end
+        end
+        @assert all(isfinite, concentrations) && all(concentrations .>= 0) "Initial tracer concentrations must be finite and nonnegative."
+        init[:TracerConcentrations] = concentrations
+    end
+
     if haskey(init, :Temperature)
         # Temperature can be set during equil, write it to data domain for
         # parameter initialization.
@@ -830,7 +869,11 @@ function parse_state0_direct_assignment(model, datafile)
         sat = zeros(nph, nc)
         for (idx, phase) in enumerate(get_phases(sys))
             if phase == AqueousPhase()
-                sat[idx, :] .= sw
+                if ismissing(sw) && nph == 1
+                    sat[idx, :] .= 1.0
+                else
+                    sat[idx, :] .= sw
+                end
             elseif phase == LiquidPhase()
                 sat[idx, :] .= s_rem
             else
@@ -939,7 +982,12 @@ function reservoir_domain(data_file::AbstractDict;
 
     permx = grid["PERMX"]
     permy = grid["PERMY"]
-    permz = grid["PERMZ"]
+    if haskey(grid, "PERMZ")
+        permz = grid["PERMZ"]
+    else
+        @assert nz == 1 "PERMZ is required for grids with more than one layer."
+        permz = zero(permx)
+    end
     gporo = grid["PORO"]
     gmultpv = get(grid, "MULTPV", Float64[])
     T = promote_type(eltype(permx), eltype(permy), eltype(permz), eltype(gporo), eltype(gmultpv))
@@ -1072,7 +1120,7 @@ function reservoir_domain(data_file::AbstractDict;
         temperature = zeros(nc)
         T_inp = sol["TEMPI"]
         for (i, c) in enumerate(active_ix)
-            temperature[i] = convert_to_si(T_inp[i], :Celsius)
+            temperature[i] = convert_to_si(T_inp[c], :Celsius)
         end
         extra_data_arg[:temperature] = temperature
     end
@@ -1090,7 +1138,9 @@ function reservoir_domain(data_file::AbstractDict;
             pos = 1
             for phase in ("WATER", "OIL", "GAS")
                 if has(phase)
-                    fluid_conductivity[pos, :] .= grid["THC$phase"][active_ix]
+                    if haskey(grid, "THC$phase")
+                        fluid_conductivity[pos, :] .= grid["THC$phase"][active_ix]
+                    end
                     pos += 1
                 end
             end
@@ -1223,6 +1273,10 @@ function reservoir_domain(data_file::AbstractDict;
                 centroids[3, cell] = D
             end
         end
+    end
+    if has("THERMAL") && haskey(grid, "THCONR")
+        # THCONR already includes both solid and fluid contributions.
+        domain[:bulk_thermal_conductivity] = grid["THCONR"][active_ix]
     end
     return domain
 end
@@ -1637,16 +1691,19 @@ end
 
 function data_file_active_tracers(datafile_or_runspec)
     if haskey(datafile_or_runspec, "RUNSPEC")
-        rs = datafile_or_runspec["RUNSPEC"]
-    else
-        rs = datafile_or_runspec
+        return data_file_active_tracers(datafile_or_runspec["RUNSPEC"], datafile_or_runspec["PROPS"])
     end
+    return data_file_active_tracers(datafile_or_runspec, Dict())
+end
+
+function data_file_active_tracers(runspec, props)
     out = String[]
-    possible_tracers = ("POLYMER",)
-    for t in possible_tracers
-        if haskey(rs, t)
-            push!(out, t)
-        end
+    if haskey(runspec, "POLYMER")
+        push!(out, "POLYMER")
+    end
+    for rec in get(props, "TRACER", [])
+        @assert !(rec[1] in out) "Duplicate tracer name $(rec[1])."
+        push!(out, rec[1])
     end
     return out
 end
@@ -1663,7 +1720,7 @@ function parse_control_steps(runspec, props, schedule, sys)
 
     wells = schedule["WELSPECS"]
     steps = schedule["STEPS"]
-    active_tracers = data_file_active_tracers(runspec)
+    active_tracers = data_file_active_tracers(runspec, props)
     if !isempty(steps) && length(keys(steps[end])) == 0
         # Prune empty final record
         steps = steps[1:end-1]
@@ -1680,6 +1737,7 @@ function parse_control_steps(runspec, props, schedule, sys)
     limits = sdict()
     streams = sdict()
     polymer = sdict()
+    tracer_concentrations = sdict()
     status = sdict()
     mswell_kw = Dict{String, sdict}()
     function get_and_create_mswell_kw(k::AbstractString, subkey = missing)
@@ -1708,6 +1766,7 @@ function parse_control_steps(runspec, props, schedule, sys)
         streams[k] = nothing
         status[k] = "SHUT"
         polymer[k] = 0.0
+        tracer_concentrations[k] = Dict{String, Float64}()
         well_injection[k] = nothing
         well_factor[k] = 1.0
         # 0 deg C is strange, but the default for .DATA files.
@@ -1733,7 +1792,7 @@ function parse_control_steps(runspec, props, schedule, sys)
         push!(cstep, ctrl_ix)
     end
 
-    skip = ("WELLSTRE", "WINJGAS", "GINJGAS", "GRUPINJE", "WELLINJE", "WEFAC", "WTEMP", "WPOLYMER", "FBHPDEF")
+    skip = ("WELLSTRE", "WINJGAS", "GINJGAS", "GRUPINJE", "WELLINJE", "WEFAC", "WTEMP", "WTRACER", "WPOLYMER", "FBHPDEF")
     bad_kw = Dict{String, Bool}()
     streams = setup_well_streams()
     default_bhp = nothing
@@ -1756,6 +1815,14 @@ function parse_control_steps(runspec, props, schedule, sys)
             for wk in step["WPOLYMER"]
                 name, polymer_concentration = wk
                 polymer[name] = polymer_concentration
+            end
+        end
+        if haskey(step, "WTRACER")
+            for rec in step["WTRACER"]
+                name, tracer, concentration, cumulative, group = rec
+                @assert tracer in active_tracers "Unknown WTRACER name $tracer."
+                @assert isnan(cumulative) && isempty(group) "WTRACER recycling and cumulative factors are not supported."
+                tracer_concentrations[name][tracer] = concentration
             end
         end
         for (key, kword) in pairs(step)
@@ -1844,6 +1911,7 @@ function parse_control_steps(runspec, props, schedule, sys)
                         factor = well_factor[name],
                         temperature = well_temp[name],
                         polymer = polymer[name],
+                        tracer_concentrations = tracer_concentrations[name],
                         tracers = active_tracers
                     )
                 end
@@ -1871,6 +1939,17 @@ function parse_control_steps(runspec, props, schedule, sys)
                 bad_kw[key] = true
             end
         end
+        # Temperature/tracer-only updates must also change existing injectors.
+        for (name, ctrl) in controls
+            if ctrl isa InjectorControl
+                tracer_values = data_file_tracer_values(active_tracers, polymer[name], tracer_concentrations[name])
+                controls[name] = InjectorControl(ctrl.target, ctrl.injection_mixture;
+                    density = ctrl.mixture_density, phases = ctrl.phases,
+                    temperature = well_temp[name], enthalpy = ctrl.enthalpy,
+                    factor = ctrl.factor, tracers = tracer_values)
+            end
+        end
+        set_active_controls!(active_controls, controls)
         if found_time
             push!(all_compdat, deepcopy(compdat))
             push!(all_controls, deepcopy(controls))
@@ -2006,7 +2085,7 @@ function producer_limits(; bhp = Inf, lrat = Inf, orat = Inf, wrat = Inf, grat =
     return NamedTuple(pairs(lims))
 end
 
-function producer_control(sys, flag, ctrl, orat, wrat, grat, lrat, bhp; is_hist = false, temperature = NaN, resv = 0.0, tracers = String[], polymer = 0.0, kwarg...)
+function producer_control(sys, flag, ctrl, orat, wrat, grat, lrat, bhp; is_hist = false, temperature = NaN, resv = 0.0, tracers = String[], polymer = 0.0, tracer_concentrations = nothing, kwarg...)
     rho_s = reference_densities(sys)
     phases = get_phases(sys)
 
@@ -2085,7 +2164,19 @@ function injector_limits(; bhp = Inf, surface_rate = Inf, reservoir_rate = Inf)
     return NamedTuple(pairs(lims))
 end
 
-function injector_control(sys, streams, name, flag, type, ctype, surf_rate, res_rate, bhp; is_hist = false, tracers = String[], polymer = 0.0, kwarg...)
+function data_file_tracer_values(tracers, polymer, concentrations)
+    if isempty(tracers)
+        return missing
+    end
+    return map(tracers) do tracer
+        if tracer == "POLYMER"
+            return polymer
+        end
+        return get(concentrations, tracer, 0.0)
+    end
+end
+
+function injector_control(sys, streams, name, flag, type, ctype, surf_rate, res_rate, bhp; is_hist = false, tracers = String[], polymer = 0.0, tracer_concentrations = Dict{String, Float64}(), kwarg...)
     if occursin('*', flag)
         # This is a bit of a hack.
         flag = "OPEN"
@@ -2135,19 +2226,7 @@ function injector_control(sys, streams, name, flag, type, ctype, surf_rate, res_
         ctrl = DisabledControl()
         lims = nothing
     else
-        ntracers = length(tracers)
-        if ntracers > 0
-            tracer_vals = zeros(ntracers)
-            for (i, t) in enumerate(tracers)
-                if t == "POLYMER"
-                    tracer_vals[i] = polymer
-                else
-                    error("Tracer $t not supported.")
-                end
-            end
-        else
-            tracer_vals = missing
-        end
+        tracer_vals = data_file_tracer_values(tracers, polymer, tracer_concentrations)
         ctrl = InjectorControl(t, mix; density = rho, phases = phases_mix, tracers = tracer_vals, kwarg...)
         if is_hist
             # TODO: This magic number comes from MRST.

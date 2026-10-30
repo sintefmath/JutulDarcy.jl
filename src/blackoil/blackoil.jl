@@ -113,12 +113,12 @@ function cnv_mb_errors_bo(r, Φ, b, dt, rhoS, ::Val{N}) where N
     cell_count = length(Φ)
     total_pore_volume = sum(value, Φ)
     average_inverse_formation_volume_factor = ntuple(Val(N)) do phase
-        shrinkage = view(b, phase, :)
+        shrinkage = Jutul.matrix_row_view(b, phase)
         sum(x -> inv(value(x)), shrinkage)/cell_count
     end
 
     cnv = ntuple(Val(N)) do phase
-        residual = view(r, phase, :)
+        residual = Jutul.matrix_row_view(r, phase)
         function residual_per_pore_volume(residual, pore_volume)
             return abs(value(residual))/value(pore_volume)
         end
@@ -129,7 +129,7 @@ function cnv_mb_errors_bo(r, Φ, b, dt, rhoS, ::Val{N}) where N
     end
 
     mb = ntuple(Val(N)) do phase
-        residual_sum = sum(value, view(r, phase, :))
+        residual_sum = sum(value, Jutul.matrix_row_view(r, phase))
         B = average_inverse_formation_volume_factor[phase]
         B*dt*abs(residual_sum)/(rhoS[phase]*total_pore_volume)
     end

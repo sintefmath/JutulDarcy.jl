@@ -34,6 +34,10 @@ end
             r_i = region(μ, i)
             p = Pressure[i]
             T = Temperature[i]
+            if isnothing(thermal_tables)
+                mu[ph, i] = viscosity(pvt_ph, reg, p, i)
+                continue
+            end
             pvt_thermal = table_by_region(thermal_tables, r_i)
             p_ref = table_by_region(μ.thermal.p_ref, r_i)
             mu_thermal = pvt_thermal(T)

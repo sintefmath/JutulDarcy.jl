@@ -1,4 +1,9 @@
-using Test, Jutul, JutulDarcy, Adapt, JLArrays
+using Test, Jutul, JutulDarcy, Adapt, JLArrays, CUDA
+using JutulDarcy.StaticArrays: SVector
+using Jutul.KernelExecution: KernelAbstractions
+using .KernelAbstractions: @kernel, @index
+
+CUDA.allowscalar(false)
 
 @testset "Tabulated thermal properties on JLArrays" begin
     for physics in (:geothermal, :co2brine_immiscible, :co2brine_compositional)
@@ -49,6 +54,8 @@ end
 @testset "Tabulated geothermal wells on a KA backend" begin
     case = JutulDarcy.setup_mini_wellcase(Val(:geothermal);
         simple_well = false, nstep = 1, total_time = 0.01*si_unit(:day))
+    case = JutulCase(convert_to_immutable_storage(case.model), case.dt, case.forces;
+        state0 = case.state0, parameters = case.parameters)
     for (backend, float_type) in (
             (JLBackend(), Float64),
             (Jutul.KernelExecution.KernelAbstractions.CPU(), Float32))
@@ -67,5 +74,44 @@ end
             @test all(isfinite, Jutul.value.(Array(state.FluidInternalEnergy)))
         end
         @test all(isfinite, Array(simulator.storage.LinearizedSystem.r_buffer))
+    end
+end
+
+@kernel function injection_enthalpy_test_kernel!(out, evaluator, model, state, mixture, temperatures)
+    cell = @index(Global)
+    ctrl = (injection_mixture = mixture,)
+    out[cell] = JutulDarcy.injected_fluid_enthalpy(ctrl, evaluator, model,
+        state, state.Pressure[cell], temperatures[cell], cell)
+end
+
+@testset "Injection enthalpy evaluates without model definitions" begin
+    system = ImmiscibleSystem((AqueousPhase(), VaporPhase()))
+    model = (system = system,)
+    temperatures = [290.0, 320.0]
+    state = (Pressure = [1e5, 2e5], PhaseMassDensities = [1000.0 990.0; 1.0 2.0],
+        ComponentHeatCapacity = [1500.0 1500.0; 500.0 500.0])
+    mixture = SVector(0.8, 0.2)
+    capacities = [SVector(1000.0, 2000.0), SVector(2000.0, 3000.0)]
+    energy = JutulDarcy.IntegratedHeatCapacity([280.0, 340.0], capacities)
+    variable = JutulDarcy.TemperatureDependentVariable((energy, energy); regions = [1, 2])
+    evaluator = JutulDarcy.InjectionEnthalpyEvaluator(variable)
+    # The mass-weighted heat capacity is 1200 at 280 K and increases
+    # linearly with slope 1000/60. Integrate it analytically and add p/ρ.
+    reference = [336000 + 1200*dT + (1000/120)*dT^2 for dT in (10.0, 40.0)]
+    reference .+= [1e5*(0.8/1000 + 0.2), 2e5*(0.8/990 + 0.2/2)]
+    backends = Any[KernelAbstractions.CPU()]
+    if CUDA.functional()
+        push!(backends, CUDA.CUDABackend(always_inline = true))
+    end
+    for backend in backends, float_type in (Float32, Float64)
+        context = KernelAbstractionsContext(backend; float_type)
+        device_state = Adapt.adapt(context, state)
+        device_evaluator = Adapt.adapt(context, evaluator)
+        output = Adapt.adapt(context, zeros(2))
+        launch! = injection_enthalpy_test_kernel!(backend, 32)
+        launch!(output, device_evaluator, model, device_state, Adapt.adapt(context, mixture),
+            Adapt.adapt(context, temperatures); ndrange = 2)
+        KernelAbstractions.synchronize(backend)
+        @test Array(output) ≈ reference rtol = 1e-6
     end
 end

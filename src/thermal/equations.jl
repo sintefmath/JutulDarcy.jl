@@ -114,7 +114,7 @@ function Jutul.convergence_criterion(model, storage, eq::EnergyConservationLaw, 
     # negative.
     E0 = Jutul.active_view(storage.state0.TotalThermalEnergy, M;
         for_variables = false)
-    residual = view(r, 1, :)
+    residual = Jutul.matrix_row_view(r, 1)
     Etot = sum(value, E0)
     eb = abs(sum(value, residual))*dt/Etot
     normalized_energy(residual, total_energy) =
