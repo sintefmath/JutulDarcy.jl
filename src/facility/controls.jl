@@ -360,8 +360,13 @@ function check_well_limit(name::Symbol, limit_value, cond, control::InjectorCont
             if rate > limit_value
                 next_target = TotalMassRateTarget(limit_value)
             end
+        elseif name == :mrat
+            rate = cond.total_mass_rate
+            if rate > limit_value
+                next_target = TotalMassRateTarget(limit_value)
+            end
         else
-            error("Unsupported well producer constraint/limit $name")
+            error("Unsupported well injector constraint/limit $name")
         end
     end
     return next_target
@@ -425,8 +430,13 @@ function check_well_limit(name::Symbol, limit_value, cond::FacilityVariablesForW
                 if rate < limit_value
                     next_target = TotalRateTarget(-limit_value)
                 end
+            elseif name == :mrat
+                rate = -cond.total_mass_rate
+                if rate > limit_value
+                    next_target = TotalMassRateTarget(-limit_value)
+                end
             else
-                error("Unsupported well injector constraint/limit $name")
+                error("Unsupported well producer constraint/limit $name")
             end
         end
     end
