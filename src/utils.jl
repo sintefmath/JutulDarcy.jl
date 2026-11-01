@@ -532,7 +532,8 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         wells_systems = missing,
         wells_as_cells = false,
         discretization_arg = NamedTuple(),
-        groups = missing
+        groups = missing,
+        well_groups::Dict{Symbol, Vector{Symbol}} = Dict{Symbol, Vector{Symbol}}()
     )
     # Deal with wells, make sure that multisegment wells come last.
     if !(wells isa AbstractArray)
@@ -633,6 +634,9 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
     models[:Reservoir] = rmodel
     # Then we set up all the wells
     facility_system = FacilitySystem(system)
+    if split_wells && length(keys(well_groups)) > 0
+        error("Split wells is enabled but well groups are defined. This combination is not supported.")
+    end
     encountered_wells = Dict{Symbol, Bool}()
     if length(wells) > 0
         facility_to_add = OrderedDict()
@@ -694,7 +698,11 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
                 models[k] = v
             end
         else
-            wg = WellGroup(map(x -> physical_representation(x).name, wells), can_shut_wells = can_shut_wells)
+            wg = WellGroup(
+                map(x -> physical_representation(x).name, wells),
+                can_shut_wells = can_shut_wells,
+                groups = well_groups
+            )
             F = SimulationModel(wg, facility_system, context = context, data_domain = DataDomain(wg))
             if thermal
                 add_thermal_to_facility!(F)
