@@ -489,6 +489,9 @@ low values can lead to slow convergence.
   repeatedly get rates with the wrong side. Disabling this can make certain
   models infeasible to simulate, but it can be useful to do so for simple models
   where you know that the wells should be operational.
+- `well_groups=Dict{Symbol, Vector{Symbol}}()`: Named groups for group rate targets.
+- `group_use_potentials=Dict{Symbol, Bool}()`: Use potential weighting for each
+  group (default `true`). Set a group to `false` for equal allocation.
 
 """
 function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
@@ -533,7 +536,8 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         wells_as_cells = false,
         discretization_arg = NamedTuple(),
         groups = missing,
-        well_groups::Dict{Symbol, Vector{Symbol}} = Dict{Symbol, Vector{Symbol}}()
+        well_groups::Dict{Symbol, Vector{Symbol}} = Dict{Symbol, Vector{Symbol}}(),
+        group_use_potentials::Dict{Symbol, Bool} = Dict{Symbol, Bool}()
     )
     # Deal with wells, make sure that multisegment wells come last.
     if !(wells isa AbstractArray)
@@ -701,7 +705,8 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
             wg = WellGroup(
                 map(x -> physical_representation(x).name, wells),
                 can_shut_wells = can_shut_wells,
-                groups = well_groups
+                groups = well_groups,
+                use_potentials = group_use_potentials
             )
             F = SimulationModel(wg, facility_system, context = context, data_domain = DataDomain(wg))
             if thermal

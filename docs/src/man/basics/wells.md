@@ -60,6 +60,29 @@ JutulDarcy.TotalReservoirRateTarget
 TotalMassRateTarget
 ```
 
+### Group rate targets
+
+Pass `well_groups = Dict(:Group => [:W1, :W2])` to `setup_reservoir_model`
+and apply the same group target to each member. Rates are positive for injection
+and negative for production. Each group must contain only injectors or only
+producers. Wells at individual limits contribute their current phase rates;
+the remaining target is shared by wells still under group control.
+Group targets are retained in the well limits under `group_rate`, `group_lrat`,
+`group_orat`, `group_grat` or `group_wrat`, so wells can switch back to group
+control when their allocated group rate becomes limiting.
+
+`group_use_potentials = Dict(:Group => false)` gives equal weights instead of
+the default potential weighting. This is stored in `WellGroup.use_potentials`.
+See the [geothermal group control example](../../examples/geothermal/geothermal_groups.md).
+
+```@docs
+GroupTotalRateTarget
+GroupSurfaceLiquidRateTarget
+GroupSurfaceOilRateTarget
+GroupSurfaceGasRateTarget
+GroupSurfaceWaterRateTarget
+```
+
 ### Implementation of well controls
 
 ```@docs

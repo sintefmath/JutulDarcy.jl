@@ -20,15 +20,20 @@ mutable struct WellGroup <: WellControllerDomain
     well_to_group::Dict{Symbol, Symbol}
     group_to_wells::Dict{Symbol, Vector{Symbol}}
     group_to_well_numbers::Dict{Symbol, Vector{Int}}
+    use_potentials::Dict{Symbol, Bool}
 end
 
 """
-    WellGroup(wells::Vector{Symbol}; can_shut_wells = true)
+    WellGroup(wells::Vector{Symbol}; groups = Dict(), use_potentials = Dict(), can_shut_wells = true)
 
 Create a well group that can control the given set of wells.
+`groups` maps group names to well names. `use_potentials` selects potential
+weighting for each group (default `true`); `false` gives equal weights to wells
+under group control. Wells at individual limits use their current rates.
 """
 function WellGroup(wells::Vector{Symbol};
         groups = Dict{Symbol, Vector{Symbol}}(),
+        use_potentials = Dict{Symbol, Bool}(),
         can_shut_wells = true,
         can_shut_injectors = can_shut_wells,
         can_shut_producers = can_shut_wells
@@ -36,17 +41,22 @@ function WellGroup(wells::Vector{Symbol};
     group_to_wells = Dict{Symbol, Vector{Symbol}}()
     well_to_group = Dict{Symbol, Symbol}()
     group_to_well_numbers = Dict{Symbol, Vector{Int}}()
+    all(g -> haskey(groups, g), keys(use_potentials)) || throw(ArgumentError("Unknown group in use_potentials"))
+    group_use_potentials = Dict{Symbol, Bool}()
     for (group, wells_in_group) in groups
+        isempty(wells_in_group) && throw(ArgumentError("Group $group must contain at least one well"))
         group_to_wells[group] = wells_in_group
         group_to_well_numbers[group] = Int[]
+        group_use_potentials[group] = get(use_potentials, group, true)
         for well in wells_in_group
             !haskey(well_to_group, well) || throw(ArgumentError("Well $well is already assigned to a group"))
             well_to_group[well] = group
-            idx = findfirst(==(well), wells_in_group)
+            idx = findfirst(==(well), wells)
+            isnothing(idx) && throw(ArgumentError("Unknown well $well in group $group"))
             push!(group_to_well_numbers[group], idx)
         end
     end
-    return WellGroup(wells, can_shut_producers, can_shut_injectors, well_to_group, group_to_wells, group_to_well_numbers)
+    return WellGroup(wells, can_shut_producers, can_shut_injectors, well_to_group, group_to_wells, group_to_well_numbers, group_use_potentials)
 end
 
 struct FacilityVariablesForWell{T}
@@ -544,6 +554,88 @@ struct GroupTotalRateTarget{T} <: GroupRateTarget where T<:AbstractFloat
     end
 end
 Base.show(io::IO, t::GroupTotalRateTarget) = print(io, "GroupTotalRateTarget with value $(t.value) [m^3/s]")
+
+"""
+    GroupSurfaceLiquidRateTarget(q)
+
+Well target of specified liquid rate (LRAT) with value `q` at surface
+conditions for a group of wells. Apply the same target to all wells in the
+group defined by `well_groups`. Use positive rates for injection and negative
+rates for production.
+"""
+struct GroupSurfaceLiquidRateTarget{T} <: GroupRateTarget where T<:AbstractFloat
+    value::T
+    function GroupSurfaceLiquidRateTarget(v::T) where T
+        if T == Float64
+            isfinite(v) || throw(ArgumentError("Rate must be finite, was $v"))
+        end
+        return new{T}(v)
+    end
+end
+Base.show(io::IO, t::GroupSurfaceLiquidRateTarget) = print(io, "GroupSurfaceLiquidRateTarget with value $(t.value) [m^3/s]")
+
+"""
+    GroupSurfaceOilRateTarget(q)
+
+Well target of specified oil rate (ORAT) with value `q` at surface
+conditions for a group of wells. Apply the same target to all wells in the
+group defined by `well_groups`. Use positive rates for injection and negative
+rates for production.
+"""
+struct GroupSurfaceOilRateTarget{T} <: GroupRateTarget where T<:AbstractFloat
+    value::T
+    function GroupSurfaceOilRateTarget(v::T) where T
+        if T == Float64
+            isfinite(v) || throw(ArgumentError("Rate must be finite, was $v"))
+        end
+        return new{T}(v)
+    end
+end
+Base.show(io::IO, t::GroupSurfaceOilRateTarget) = print(io, "GroupSurfaceOilRateTarget with value $(t.value) [m^3/s]")
+
+"""
+    GroupSurfaceGasRateTarget(q)
+
+Well target of specified gas rate (GRAT) with value `q` at surface
+conditions for a group of wells. Apply the same target to all wells in the
+group defined by `well_groups`. Use positive rates for injection and negative
+rates for production.
+"""
+struct GroupSurfaceGasRateTarget{T} <: GroupRateTarget where T<:AbstractFloat
+    value::T
+    function GroupSurfaceGasRateTarget(v::T) where T
+        if T == Float64
+            isfinite(v) || throw(ArgumentError("Rate must be finite, was $v"))
+        end
+        return new{T}(v)
+    end
+end
+Base.show(io::IO, t::GroupSurfaceGasRateTarget) = print(io, "GroupSurfaceGasRateTarget with value $(t.value) [m^3/s]")
+
+"""
+    GroupSurfaceWaterRateTarget(q)
+
+Well target of specified water rate (WRAT) with value `q` at surface
+conditions for a group of wells. Apply the same target to all wells in the
+group defined by `well_groups`. Use positive rates for injection and negative
+rates for production.
+"""
+struct GroupSurfaceWaterRateTarget{T} <: GroupRateTarget where T<:AbstractFloat
+    value::T
+    function GroupSurfaceWaterRateTarget(v::T) where T
+        if T == Float64
+            isfinite(v) || throw(ArgumentError("Rate must be finite, was $v"))
+        end
+        return new{T}(v)
+    end
+end
+Base.show(io::IO, t::GroupSurfaceWaterRateTarget) = print(io, "GroupSurfaceWaterRateTarget with value $(t.value) [m^3/s]")
+
+individual_rate_target(t::GroupTotalRateTarget) = TotalRateTarget(t.value)
+individual_rate_target(t::GroupSurfaceLiquidRateTarget) = SurfaceLiquidRateTarget(t.value)
+individual_rate_target(t::GroupSurfaceOilRateTarget) = SurfaceOilRateTarget(t.value)
+individual_rate_target(t::GroupSurfaceGasRateTarget) = SurfaceGasRateTarget(t.value)
+individual_rate_target(t::GroupSurfaceWaterRateTarget) = SurfaceWaterRateTarget(t.value)
 
 """
     TotalMassRateTarget(q)
@@ -1136,12 +1228,56 @@ end
 
 function well_target_information(t::Union{GroupTotalRateTarget, Val{:group_rate}})
     return well_target_information(
-        symbol = :rate,
+        symbol = :group_rate,
         description = "Surface total rate for group",
-        explanation = "Total volumetric rate at surface conditions for a gorup. This is the sum of all phases. For most models, it is the sum of the mass rates divided by the prescribed surface densities. For compositional models the density is computed using a flash.",
+        explanation = "Total volumetric rate at surface conditions for a group. This is the sum of all phases.",
         unit_type = :liquid_volume_surface,
         unit_label = "m³/s",
         type = GroupTotalRateTarget
+    )
+end
+
+function well_target_information(t::Union{GroupSurfaceLiquidRateTarget, Val{:group_lrat}})
+    return well_target_information(
+        symbol = :group_lrat,
+        description = "Surface liquid rate for group",
+        explanation = "Liquid volumetric rate at surface conditions for a group of wells.",
+        unit_type = :liquid_volume_surface,
+        unit_label = "m³/s",
+        type = GroupSurfaceLiquidRateTarget
+    )
+end
+
+function well_target_information(t::Union{GroupSurfaceOilRateTarget, Val{:group_orat}})
+    return well_target_information(
+        symbol = :group_orat,
+        description = "Surface oil rate for group",
+        explanation = "Oil volumetric rate at surface conditions for a group of wells.",
+        unit_type = :liquid_volume_surface,
+        unit_label = "m³/s",
+        type = GroupSurfaceOilRateTarget
+    )
+end
+
+function well_target_information(t::Union{GroupSurfaceGasRateTarget, Val{:group_grat}})
+    return well_target_information(
+        symbol = :group_grat,
+        description = "Surface gas rate for group",
+        explanation = "Gas volumetric rate at surface conditions for a group of wells.",
+        unit_type = :gas_volume_surface,
+        unit_label = "m³/s",
+        type = GroupSurfaceGasRateTarget
+    )
+end
+
+function well_target_information(t::Union{GroupSurfaceWaterRateTarget, Val{:group_wrat}})
+    return well_target_information(
+        symbol = :group_wrat,
+        description = "Surface water rate for group",
+        explanation = "Water volumetric rate at surface conditions for a group of wells.",
+        unit_type = :liquid_volume_surface,
+        unit_label = "m³/s",
+        type = GroupSurfaceWaterRateTarget
     )
 end
 

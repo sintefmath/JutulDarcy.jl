@@ -52,6 +52,10 @@ end
     include("well_shutting.jl")
 end
 
+@testitem "Well group controls" begin
+    include("well_groups.jl")
+end
+
 @testitem "Multisegment wells" begin
     include("mswells.jl")
 end

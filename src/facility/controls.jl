@@ -143,7 +143,7 @@ function apply_well_limits!(cfg::WellGroupConfiguration, model, state, limits, c
     end
     # println("Checking: $well with limits $limits with $cond")
     old_control = control
-    control, changed = check_well_limits(limits, cond, control)
+    control, changed = check_well_limits(limits, cond, control, well, model, state)
     if changed
         @debug "Well $well switching control from $(old_control.target) to $(control.target) due to active limit." limits cond
         cfg.operating_controls[well] = control
@@ -278,14 +278,14 @@ function set_facility_values_for_control!(state, model::FacilityModel, control, 
     return state
 end
 
-function check_well_limits(limits, cond, control)
+function check_well_limits(limits, cond, control, well = nothing, model = nothing, state = nothing)
     # current_target = control.target
     # next_target = current_target
     current_name = translate_target_to_symbol(control.target)
     next_target = missing
     changed = false
     if haskey(limits, current_name)
-        control_check = check_well_limit(current_name, limits[current_name], cond, control)
+        control_check = check_well_limit(current_name, limits[current_name], cond, control, well, model, state)
         control_ok = ismissing(control_check)
     else
         control_ok = true
@@ -295,7 +295,7 @@ function check_well_limits(limits, cond, control)
             if name == current_name
                 continue
             end
-            next_target = check_well_limit(name, limit_value, cond, control)
+            next_target = check_well_limit(name, limit_value, cond, control, well, model, state)
             if !ismissing(next_target)
                 changed = true
                 break
@@ -307,6 +307,25 @@ function check_well_limits(limits, cond, control)
         control = replace_target(control, next_target)
     end
     return (control, changed)
+end
+
+function check_well_limit(name::Symbol, limit_value, cond, control, well, model, state)
+    if startswith(string(name), "group_")
+        if control isa ProducerControl
+            limit_value = -abs(limit_value)
+        end
+        target = well_target_information(name).type(limit_value)
+        group_control = replace_target(control, target)
+        allocated = get_control_target_value(group_control, target, cond, well, model, state)
+        rate_target = individual_rate_target(target)
+        rate_name = translate_target_to_symbol(rate_target)
+        if !ismissing(check_well_limit(rate_name, value(allocated), cond, control))
+            return target
+        end
+        return missing
+    else
+        return check_well_limit(name, limit_value, cond, control)
+    end
 end
 
 """
@@ -508,26 +527,8 @@ function get_control_target_value(ctrl, target::GroupRateTarget, cond, well, mod
     val = target.value
     d = model.domain
     group = d.well_to_group[well]
-    if target isa GroupTotalRateTarget
-        water = true
-        oil = true
-        gas = true
-    else
-        error("Unsupported group rate target type")
-    end
-    function sum_rates(c)
-        summed_rate = 0.0
-        if water
-            summed_rate += c.surface_aqueous_rate
-        end
-        if oil
-            summed_rate += c.surface_liquid_rate
-        end
-        if gas
-            summed_rate += c.surface_vapor_rate
-        end
-        return summed_rate
-    end
+    use_potentials = d.use_potentials[group]
+    rate_target = individual_rate_target(target)
     # Target is fraction of group rate after other entries are subtracted.
     cfg = state.WellGroupConfiguration
     ctrls = cfg.operating_controls
@@ -543,18 +544,26 @@ function get_control_target_value(ctrl, target::GroupRateTarget, cond, well, mod
         end
         other_is_injector = other_control isa InjectorControl
         other_is_injector == is_injector || error("Inconsistent control for group target: $well and $w are both in group $group, but have different control types")
-        well_potential = well_potential_factor(other_cond, other_control)
         other_is_group = other_control.target isa GroupRateTarget
         if other_is_group
+            typeof(other_control.target) == typeof(target) ||
+                throw(ArgumentError("Inconsistent group rate target for $well and $w in group $group"))
             # Potential gets added
+            well_potential = 1.0
+            if use_potentials
+                well_potential = well_potential_factor(other_cond, other_control)
+            end
             group_potential += well_potential
         else
             # Current rate gets subtracted from the target, and then reallocated
             # by potential value.
-            val -= sum_rates(other_cond)
+            val -= well_target_value(other_control, rate_target, other_cond, w, model, state)
         end
     end
-    self_potential = well_potential_factor(cond, ctrl)
+    self_potential = 1.0
+    if use_potentials
+        self_potential = well_potential_factor(cond, ctrl)
+    end
     fraction = self_potential / (self_potential + group_potential)
     return fraction * val
 end
@@ -616,24 +625,7 @@ function well_potential_factor(cond, ctrl)
 end
 
 function well_target_value(ctrl, target::GroupRateTarget, cond, well, model, state)
-    if target isa GroupTotalRateTarget
-        water = true
-        oil = true
-        gas = true
-    else
-        error("Unsupported group rate target type")
-    end
-    summed_rate = 0.0
-    if water
-        summed_rate += cond.surface_aqueous_rate
-    end
-    if oil
-        summed_rate += cond.surface_liquid_rate
-    end
-    if gas
-        summed_rate += cond.surface_vapor_rate
-    end
-    return summed_rate
+    return well_target_value(ctrl, individual_rate_target(target), cond, well, model, state)
 end
 
 function well_target_value(ctrl, target::WaterCutTarget, cond, well, model, state)

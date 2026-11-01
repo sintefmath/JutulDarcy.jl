@@ -61,6 +61,8 @@ module JutulDarcy
     export SinglePhaseRateTarget, DisabledTarget
     export SurfaceLiquidRateTarget, SurfaceOilRateTarget
     export SurfaceWaterRateTarget, SurfaceGasRateTarget
+    export GroupTotalRateTarget, GroupSurfaceLiquidRateTarget, GroupSurfaceOilRateTarget
+    export GroupSurfaceWaterRateTarget, GroupSurfaceGasRateTarget
     export HistoricalReservoirVoidageTarget, ReservoirVoidageTarget
     export SinglePhaseRateTarget, BottomHolePressureTarget
     export PerforationMask
