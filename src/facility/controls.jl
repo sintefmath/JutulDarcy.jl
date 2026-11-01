@@ -559,13 +559,15 @@ function get_control_target_value(ctrl, target::GroupRateTarget, cond, well, mod
         other_is_injector = other_control isa InjectorControl
         other_is_injector == is_injector || error("Inconsistent control for group target: $well and $w are both in group $group, but have different control types")
         other_is_group = other_control.target isa GroupRateTarget
+        other_rate = well_target_value(other_control, rate_target, other_cond, w, model, state)
         if other_is_group
             typeof(other_control.target) == typeof(target) ||
                 throw(ArgumentError("Inconsistent group rate target for $well and $w in group $group"))
             # Potential gets added
-            well_potential = 1.0
             if use_potentials
-                well_potential = well_potential_factor(other_cond, other_control)
+                well_potential = well_potential_factor(other_rate, other_cond, other_control)
+            else
+                well_potential = 1.0
             end
             group_potential += well_potential
         else
@@ -575,7 +577,8 @@ function get_control_target_value(ctrl, target::GroupRateTarget, cond, well, mod
         end
     end
     if use_potentials
-        self_potential = well_potential_factor(cond, ctrl)
+        self_rate = well_target_value(ctrl, rate_target, cond, well, model, state)
+        self_potential = well_potential_factor(self_rate, cond, ctrl)
     else
         self_potential = 1.0
     end
@@ -629,14 +632,19 @@ function well_target_value(ctrl, target::TotalMassRateTarget, cond, well, model,
     return cond.total_mass_rate
 end
 
-function well_potential_factor(cond, ctrl)
+function well_potential_factor(rate, cond, ctrl)
     if ctrl isa InjectorControl
         default_limit = 1e8 # 100 gigapascals
     else
         default_limit = 1.01325 # 1 atm
     end
+    rate = max(abs(rate), 1e-16)
     current_bhp = cond.bottom_hole_pressure
-    return default_limit / current_bhp
+    # Scale rate linearly as if the production/injection rate is proportional to
+    # the bottom hole pressure only. Also multiply by the number of seconds in a
+    # month to ensure a reasonably big number.
+    month = 3600*24*31
+    return month * rate * default_limit / current_bhp
 end
 
 function well_target_value(ctrl, target::GroupRateTarget, cond, well, model, state)
