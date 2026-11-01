@@ -36,8 +36,10 @@ for i in eachindex(producers)
 end
 
 # ## Group allocation
-# Group allocation uses potential weights by default. Set a group to false for equal weights.
-# Every well in a group receives the same target for the entire group.
+# Group allocation uses potential weights by default where each well receives a
+# share based on its maximal potential for injection or production at the
+# corresponding BHP limit. Set a group to false for equal weights. Every well
+# in a group receives the same target for the entire group.
 model = setup_reservoir_model(domain, :geothermal;
     wells,
     well_groups = Dict(:Injection => injectors, :Production => producers),
@@ -50,12 +52,13 @@ equilibrium = EquilibriumRegion(model, 120bar, 30.0;
     temperature = convert_to_si(140.0, :Celsius))
 state0 = setup_reservoir_state(model, equilibrium)
 
-# Inspect permeability and well locations, followed by the initial pressure.
-plot_reservoir(model; key = :permeability)
-plot_reservoir(model, state0[:Reservoir]; key = :Pressure)
+## Inspect permeability and well locations
+plot_reservoir(model; key = :permeability, fancy = false)
 
-# Both groups request 1200 surface cubic metres per day of water.
-# Injection is positive and production is negative.
+# ## Set up well constraints
+# Both groups request 1200 surface cubic metres per day of water. Injection is
+# positive and production is negative. We set the same group rate for all wells
+# in a group.
 rate = 1200.0/day
 injection = InjectorControl(GroupSurfaceWaterRateTarget(rate), [1.0];
     density = 1000.0, temperature = convert_to_si(40.0, :Celsius))
@@ -70,7 +73,8 @@ end
 
 # ## Individual limits
 # Pressure limits protect all wells. I1 and P1 also have tighter rate limits;
-# their unused shares are redistributed among the other group members.
+# their unused shares are redistributed among the other group members when they
+# are operating on the limits.
 limits = Dict{Symbol, Any}()
 for well in injectors
     limits[well] = (bhp = 170bar,)
@@ -91,14 +95,19 @@ end
 result = simulate_reservoir(state0, model, dt; forces)
 
 # Show the final temperature distribution and the individual well histories.
-plot_reservoir(model, result.states; key = :Temperature, step = length(result.states))
-##
-
+plot_reservoir(model, result.states; key = :Temperature, step = length(result.states), fancy = false)
+## Plot group summaries
 # Group totals stay at their targets while the remaining wells have capacity.
 # Production eventually falls below its target as producers reach the BHP limit.
 # Compare these curves with individual rates and BHPs in the well plot.
 # Group rates and cumulative volumes are included in the simulation summary.
 plot_summary(result; plots = [
     "Injection:GWIR", "Production:GWPR",
-    "Injection:GWIT", "Production:GWPT"
+    "Injection:GWIT", "Production:GWPT",
 ], cols = 2)
+## Plot the individual producers to see the limits
+plot_summary(result; plots = [
+    "P1:WWPR", "P1:WBHP",
+    "P2:WWPR", "P2:WBHP",
+    "P3:WWPR", "P3:WBHP"
+], cols = 3)
