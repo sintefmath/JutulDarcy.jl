@@ -76,7 +76,7 @@ plots = ["Injection:GWIR", "Production:GWPR"])` to plot named groups.
 
 `group_use_potentials = Dict(:Group => false)` gives equal weights instead of
 the default potential weighting. This is stored in `WellGroup.use_potentials`.
-See the [geothermal group control example](../../examples/geothermal/geothermal_groups.md).
+See the example [Geothermal example with group controls](@ref).
 
 ```@docs
 GroupTotalRateTarget
