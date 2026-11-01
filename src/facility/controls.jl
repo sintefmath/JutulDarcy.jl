@@ -284,7 +284,11 @@ function check_well_limits(limits, cond, control, well, model, state)
     current_name = translate_target_to_symbol(control.target)
     next_target = missing
     changed = false
-    if haskey(limits, current_name)
+    # Group allocations change when other wells switch controls. Check individual
+    # limits before the allocation has converged, or a small group residual can
+    # block BHP switching and drive other group members to zero rate.
+    is_group_target = control.target isa GroupRateTarget
+    if !is_group_target && haskey(limits, current_name)
         control_check = check_well_limit(current_name, limits[current_name], cond, control, well, model, state)
         control_ok = ismissing(control_check)
     else

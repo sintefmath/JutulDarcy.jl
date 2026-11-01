@@ -92,6 +92,22 @@ end
             end
             limits = merge(JutulDarcy.as_limit(target), (bhp = bhp_limit,))
             cfg.limits[:B] = limits
+            # A group residual must not prevent switching to an individual limit.
+            # Test both a nearly converged allocation and a large Newton residual.
+            saved_rates = copy(state.SurfacePhaseRates[:, 3])
+            for excess in (1e-7, 1.0)
+                cond = JutulDarcy.FacilityVariablesForWell(model, state, :B)
+                allocated = JutulDarcy.get_control_target_value(controls[:B], target, cond, :B, model, state)
+                state.SurfacePhaseRates[:, 3] .= 0.0
+                state.SurfacePhaseRates[first(phases), 3] = (1 + excess)*allocated
+                cond = JutulDarcy.FacilityVariablesForWell(model, state, :B)
+                @test !ismissing(JutulDarcy.check_well_limit(symbol, target.value,
+                    cond, controls[:B], :B, model, state))
+                switched, changed = JutulDarcy.check_well_limits(limits, cond, controls[:B], :B, model, state)
+                @test changed
+                @test switched.target == BottomHolePressureTarget(bhp_limit)
+            end
+            state.SurfacePhaseRates[:, 3] .= saved_rates
             cond = JutulDarcy.FacilityVariablesForWell(model, state, :B)
             JutulDarcy.apply_well_limits!(cfg, model, state, limits, controls[:B], :B, cond)
             limited = cfg.operating_controls[:B]

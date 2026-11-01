@@ -40,14 +40,10 @@ end
 # share based on its maximal potential for injection or production at the
 # corresponding BHP limit. Set a group to false for equal weights. Every well
 # in a group receives the same target for the entire group.
-#
-# We also disable shutting of wells, since this can lead to multiple solutions
-# for group control cases.
 model = setup_reservoir_model(domain, :geothermal;
     wells,
     well_groups = Dict(:Injection => injectors, :Production => producers),
-    group_use_potentials = Dict(:Injection => false),
-    can_shut_wells = false
+    group_use_potentials = Dict(:Injection => false)
 )
 
 # Initialize hydrostatic pressure from 120 bar at the reservoir's mid-depth.
