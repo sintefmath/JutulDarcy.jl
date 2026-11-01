@@ -1,4 +1,4 @@
-# # Geothermal well groups
+# # Geothermal example with group controls
 # <tags: Geothermal, Wells, Introduction> Three injectors maintain pressure
 # while four producers supply hot water. Group targets share a surface rate that
 # they collectively aim to achieve, with individual wells subject to their own
