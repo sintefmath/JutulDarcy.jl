@@ -449,7 +449,7 @@ the target value itself, scaled by a target scaling factor.
 """
 function well_control_equation(ctrl, cond, well, model, state)
     target = ctrl.target
-    val_t = get_control_target_value(target, model, state)
+    val_t = get_control_target_value(ctrl, target, cond, well, model, state)
     val = well_target_value(ctrl, target, cond, well, model, state)
     scale = target_scaling(target)
     return (val - val_t)/scale
@@ -464,7 +464,7 @@ const PhaseRateTarget = Union{
 
 function well_control_equation(ctrl::ProducerControl{T}, cond, well, model, state) where {T <: PhaseRateTarget}
     target = ctrl.target
-    val_t = get_control_target_value(target, model, state)
+    val_t = get_control_target_value(ctrl, target, cond, well, model, state)
     val = well_target_value(ctrl, target, cond, well, model, state)
     rate_slack = (val - val_t)/target_scaling(target)
     if is_zero_rate_control(ctrl) || iszero(ctrl.bhp_limit_scale)
@@ -489,11 +489,11 @@ function well_control_equation(ctrl::ProducerControl{T}, cond, well, model, stat
     return rate_slack + pressure_slack - sqrt(squared_norm)
 end
 
-function get_control_target_value(target::WellTarget, model, state)
+function get_control_target_value(ctrl, target::WellTarget, cond, well, model, state)
     return target.value
 end
 
-function get_control_target_value(target::ReinjectionTarget, model, state)
+function get_control_target_value(ctrl, target::ReinjectionTarget, cond, well, model, state)
     qtot = 0.0
     for well in target.wells
         cond_well = FacilityVariablesForWell(model, state, well)
@@ -501,6 +501,62 @@ function get_control_target_value(target::ReinjectionTarget, model, state)
     end
     qtot *= target.fraction
     return max(qtot, MIN_ACTIVE_WELL_RATE)
+end
+
+function get_control_target_value(ctrl, target::GroupRateTarget, cond, well, model, state)
+    is_injector = ctrl isa InjectorControl
+    val = target.value
+    d = model.domain
+    group = d.well_to_group[well]
+    if target isa GroupTotalRateTarget
+        water = true
+        oil = true
+        gas = true
+    else
+        error("Unsupported group rate target type")
+    end
+    function sum_rates(c)
+        summed_rate = 0.0
+        if water
+            summed_rate += c.surface_aqueous_rate
+        end
+        if oil
+            summed_rate += c.surface_liquid_rate
+        end
+        if gas
+            summed_rate += c.surface_vapor_rate
+        end
+        return summed_rate
+    end
+    # Target is fraction of group rate after other entries are subtracted.
+    cfg = state.WellGroupConfiguration
+    ctrls = cfg.operating_controls
+    group_potential = 0.0
+    for w in d.group_to_wells[group]
+        if w == well
+            continue
+        end
+        other_control = ctrls[w]
+        other_cond = FacilityVariablesForWell(model, state, w)
+        if other_control isa DisabledControl
+            continue
+        end
+        other_is_injector = other_control isa InjectorControl
+        other_is_injector == is_injector || error("Inconsistent control for group target: $well and $w are both in group $group, but have different control types")
+        well_potential = well_potential_factor(other_cond, other_control)
+        other_is_group = other_control.target isa GroupRateTarget
+        if other_is_group
+            # Potential gets added
+            group_potential += well_potential
+        else
+            # Current rate gets subtracted from the target, and then reallocated
+            # by potential value.
+            val -= sum_rates(other_cond)
+        end
+    end
+    self_potential = well_potential_factor(cond, ctrl)
+    fraction = self_potential / (self_potential + group_potential)
+    return fraction * val
 end
 
 """
@@ -559,12 +615,7 @@ function well_potential_factor(cond, ctrl)
     return default_limit / current_bhp
 end
 
-
 function well_target_value(ctrl, target::GroupRateTarget, cond, well, model, state)
-    is_injector = ctrl isa InjectorControl
-    val = target.value
-    d = model.domain
-    group = d.well_to_group[well]
     if target isa GroupTotalRateTarget
         water = true
         oil = true
@@ -572,49 +623,17 @@ function well_target_value(ctrl, target::GroupRateTarget, cond, well, model, sta
     else
         error("Unsupported group rate target type")
     end
-    function sum_rates(c)
-        summed_rate = 0.0
-        if water
-            summed_rate += c.surface_aqueous_rate
-        end
-        if oil
-            summed_rate += c.surface_liquid_rate
-        end
-        if gas
-            summed_rate += c.surface_vapor_rate
-        end
-        return summed_rate
+    summed_rate = 0.0
+    if water
+        summed_rate += cond.surface_aqueous_rate
     end
-    # Target is fraction of group rate after other entries are subtracted.
-    cfg = state.WellGroupConfiguration
-    ctrls = cfg.operating_controls
-    group_potential = 0.0
-    for w in d.group_to_wells[group]
-        if w == well
-            continue
-        end
-        other_control = ctrls[w]
-        other_cond = FacilityVariablesForWell(model, state, w)
-        if other_control isa DisabledControl
-            continue
-        end
-        other_is_injector = other_control isa InjectorControl
-        other_is_injector == is_injector || error("Inconsistent control for group target: $well and $w are both in group $group, but have different control types")
-        well_potential = well_potential_factor(other_cond, other_control)
-        other_is_group = other_control.target isa GroupRateTarget
-        if other_is_group
-            # Potential gets added
-            group_potential += well_potential
-        else
-            # Current rate gets subtracted from the target, and then reallocated
-            # by potential value.
-            val -= sum_rates(other_cond)
-        end
+    if oil
+        summed_rate += cond.surface_liquid_rate
     end
-    self_potential = well_potential_factor(cond, ctrl)
-    fraction = self_potential / (self_potential + group_potential)
-    @info "??" self_potential group_potential fraction val target.value
-    return fraction * val
+    if gas
+        summed_rate += cond.surface_vapor_rate
+    end
+    return summed_rate
 end
 
 function well_target_value(ctrl, target::WaterCutTarget, cond, well, model, state)
