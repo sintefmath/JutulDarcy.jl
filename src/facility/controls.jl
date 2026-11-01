@@ -560,11 +560,12 @@ function get_control_target_value(ctrl, target::GroupRateTarget, cond, well, mod
             val -= well_target_value(other_control, rate_target, other_cond, w, model, state)
         end
     end
-    self_potential = 1.0
     if use_potentials
         self_potential = well_potential_factor(cond, ctrl)
+    else
+        self_potential = 1.0
     end
-    fraction = self_potential / (self_potential + group_potential)
+    fraction = self_potential / max(self_potential + group_potential, 1e-16)
     return fraction * val
 end
 
