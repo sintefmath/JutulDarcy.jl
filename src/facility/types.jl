@@ -202,6 +202,7 @@ end
 
 abstract type WellTarget end
 abstract type SurfaceVolumeTarget <: WellTarget end
+abstract type GroupRateTarget <: WellTarget end
 
 """
     Perforations()
@@ -525,6 +526,26 @@ struct TotalRateTarget{T} <: SurfaceVolumeTarget where T<:AbstractFloat
     end
 end
 Base.show(io::IO, t::TotalRateTarget) = print(io, "TotalRateTarget with value $(t.value) [m^3/s]")
+
+"""
+    GroupTotalRateTarget(q)
+
+Well target of specified total rate (sum of all phases) with value `q` at
+surface conditions for a group of wells. Apply the target to all wells, and
+group the wells together using `well_groups` in the reservoir model.
+
+Often used for both [`InjectorControl`](@ref) [`ProducerControl`](@ref).
+"""
+struct GroupTotalRateTarget{T} <: GroupRateTarget where T<:AbstractFloat
+    value::T
+    function GroupTotalRateTarget(v::T) where T
+        if T == Float64
+            isfinite(v) || throw(ArgumentError("Rate must be finite, was $v"))
+        end
+        return new{T}(v)
+    end
+end
+Base.show(io::IO, t::GroupTotalRateTarget) = print(io, "GroupTotalRateTarget with value $(t.value) [m^3/s]")
 
 """
     TotalMassRateTarget(q)
@@ -1115,6 +1136,16 @@ function well_target_information(t::Union{TotalRateTarget, Val{:rate}})
     )
 end
 
+function well_target_information(t::Union{GroupTotalRateTarget, Val{:group_rate}})
+    return well_target_information(
+        symbol = :rate,
+        description = "Surface total rate for group",
+        explanation = "Total volumetric rate at surface conditions for a gorup. This is the sum of all phases. For most models, it is the sum of the mass rates divided by the prescribed surface densities. For compositional models the density is computed using a flash.",
+        unit_type = :liquid_volume_surface,
+        unit_label = "m³/s",
+        type = GroupTotalRateTarget
+    )
+end
 
 function well_target_information(t::Union{TotalReservoirRateTarget, Val{:resv_rate}})
     return well_target_information(
