@@ -589,7 +589,8 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         context = reservoir_context,
         general_ad = general_ad,
         kgrad = kgrad,
-        upwind = upwind
+        upwind = upwind,
+        discretization_arg...
     )
     system = rmodel.system
     if thermal
