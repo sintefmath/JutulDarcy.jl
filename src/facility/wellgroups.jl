@@ -144,7 +144,8 @@ function Jutul.update_equation_in_entity!(v, i, state, state0, eq::ControlEquati
     ctrl = operating_control(cfg, well)
     eq_val = well_control_equation(ctrl, cond, well, model, state)
     eq_val += 0*state.BottomHolePressure[i] + 0*state.SurfacePhaseRates[1, i]
-    for group in wcontroller.well_to_groups[well]
+    group = get(wcontroller.well_to_group, well, missing)
+    if !ismissing(group)
         for w_idx in wcontroller.group_to_well_numbers[group]
             eq_val += 0*state.BottomHolePressure[w_idx] + 0*state.SurfacePhaseRates[1, w_idx]
         end

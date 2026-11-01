@@ -17,7 +17,7 @@ mutable struct WellGroup <: WellControllerDomain
     can_shut_producers::Bool
     "Can temporarily shut injectors that try to reach zero rate multiple solves in a row"
     can_shut_injectors::Bool
-    well_to_groups::Dict{Symbol, Vector{Symbol}}
+    well_to_group::Dict{Symbol, Symbol}
     group_to_wells::Dict{Symbol, Vector{Symbol}}
     group_to_well_numbers::Dict{Symbol, Vector{Int}}
 end
@@ -34,21 +34,19 @@ function WellGroup(wells::Vector{Symbol};
         can_shut_producers = can_shut_wells
     )
     group_to_wells = Dict{Symbol, Vector{Symbol}}()
-    well_to_groups = Dict{Symbol, Vector{Symbol}}()
+    well_to_group = Dict{Symbol, Symbol}()
     group_to_well_numbers = Dict{Symbol, Vector{Int}}()
-    for well in wells
-        well_to_groups[well] = Symbol[]
-    end
     for (group, wells_in_group) in groups
         group_to_wells[group] = wells_in_group
         group_to_well_numbers[group] = Int[]
         for well in wells_in_group
-            push!(well_to_groups[well], group)
+            !haskey(well_to_group, well) || throw(ArgumentError("Well $well is already assigned to a group"))
+            well_to_group[well] = group
             idx = findfirst(==(well), wells_in_group)
             push!(group_to_well_numbers[group], idx)
         end
     end
-    return WellGroup(wells, can_shut_producers, can_shut_injectors, well_to_groups, group_to_wells, group_to_well_numbers)
+    return WellGroup(wells, can_shut_producers, can_shut_injectors, well_to_group, group_to_wells, group_to_well_numbers)
 end
 
 struct FacilityVariablesForWell{T}
