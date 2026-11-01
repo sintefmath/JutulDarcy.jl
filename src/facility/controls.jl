@@ -278,7 +278,7 @@ function set_facility_values_for_control!(state, model::FacilityModel, control, 
     return state
 end
 
-function check_well_limits(limits, cond, control, well = nothing, model = nothing, state = nothing)
+function check_well_limits(limits, cond, control, well, model, state)
     # current_target = control.target
     # next_target = current_target
     current_name = translate_target_to_symbol(control.target)
