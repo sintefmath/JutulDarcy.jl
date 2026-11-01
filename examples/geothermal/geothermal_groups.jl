@@ -4,11 +4,11 @@
 # they collectively aim to achieve, with individual wells subject to their own
 # limits (e.g. on bottom-hole-pressure).
 using Jutul, JutulDarcy, GLMakie
-
 bar, day, year, darcy = si_units(:bar, :day, :year, :darcy)
 
 # ## Reservoir and wells
-# A smooth permeability variation gives the wells different injectivities.
+# A smooth permeability variation gives the wells a bit different rates as the
+# pressure limit and consequently different allocations of the group rate.
 mesh = CartesianMesh((15, 11, 2), (1200.0, 800.0, 60.0))
 geometry = tpfv_geometry(mesh)
 permeability = zeros(number_of_cells(mesh))
@@ -36,7 +36,7 @@ for i in eachindex(producers)
 end
 
 # ## Group allocation
-# Use equal weights for injection and the default potential weights for production.
+# Group allocation uses potential weights by default. Set a group to false for equal weights.
 # Every well in a group receives the same target for the entire group.
 model = setup_reservoir_model(domain, :geothermal;
     wells,
@@ -93,24 +93,12 @@ result = simulate_reservoir(state0, model, dt; forces)
 # Show the final temperature distribution and the individual well histories.
 plot_reservoir(model, result.states; key = :Temperature, step = length(result.states))
 ##
-plot_well_results(result.wells)
 
 # Group totals stay at their targets while the remaining wells have capacity.
 # Production eventually falls below its target as producers reach the BHP limit.
 # Compare these curves with individual rates and BHPs in the well plot.
-time = result.time/year
-injected = zeros(length(time))
-produced = zeros(length(time))
-for well in injectors
-    injected .+= result.wells[well][:wrat]*day
-end
-for well in producers
-    produced .-= result.wells[well][:wrat]*day
-end
-fig = Figure()
-ax = Axis(fig[1, 1]; xlabel = "Time [years]", ylabel = "Water rate [m³/day]")
-lines!(ax, time, injected; label = "Injection group")
-lines!(ax, time, produced; label = "Production group")
-hlines!(ax, [rate*day]; color = :black, linestyle = :dash, label = "Group target")
-axislegend(ax)
-fig
+# Group rates and cumulative volumes are included in the simulation summary.
+plot_summary(result; plots = [
+    "Injection:GWIR", "Production:GWPR",
+    "Injection:GWIT", "Production:GWPT"
+], cols = 2)

@@ -50,10 +50,13 @@ compared in the same figure.
   both oil and water rates in the same plot. For wells, the name must be
   specified: `["W1:WBHP", "W2:WBHP"]` will show bottom hole pressures for wells
   named W1 and W2.
+  For groups, use the group name and `G`-prefixed quantities, for example
+  `["Injection:GWIR", "Production:GWPR,GWPT"]`.
+  The source selector lists Field first, followed by groups and then wells.
 - `cols`::Int: Number of columns in the layout.
 - `selectors`::Bool: Whether to show dropdown selectors for choosing which plots
   to show.
-- `extra_field/extra_well`: Additional reservoir measurables or well measurables
+- `extra_field/extra_well/extra_group`: Additional field, well or group measurables
   to include in the selection lists, for example to add custom composite plots.
   For example, adding `WBHP,WWIR` to `extra_well` will allow plotting bottom
   hole pressure together with water injection rate for wells.
@@ -61,8 +64,8 @@ compared in the same figure.
 # Keyboard shortcuts
 - `Left Arrow`: Previous response
 - `Right Arrow`: Next response
-- `Up Arrow`: Previous well (not active for field views)
-- `Down Arrow`: Next well (not active for field views)
+- `Up Arrow`: Previous well or group (not active for field views)
+- `Down Arrow`: Next well or group (not active for field views)
 """
 function plot_summary(arg...; kwarg...)
     Jutul.check_plotting_availability()

@@ -3185,11 +3185,13 @@ function reservoir_measurables(model, wellresult, states = missing;
         sum_well_rates!(flpr, :wrat, is_prod = true)
         sum_well_rates!(fwpr, :wrat, is_prod = true)
         sum_well_rates!(fwir, :wrat, is_prod = false)
+        sum_well_rates!(flir, :wrat, is_prod = false)
     end
     if has_oil
         sum_well_rates!(flpr, :orat, is_prod = true)
         sum_well_rates!(fopr, :orat, is_prod = true)
         sum_well_rates!(foir, :orat, is_prod = false)
+        sum_well_rates!(flir, :orat, is_prod = false)
     end
     if has_gas
         sum_well_rates!(fgpr, :grat, is_prod = true)
@@ -3289,8 +3291,11 @@ function reservoir_measurables(model, wellresult, states = missing;
 
     flpt = add_entry(:lpt)
     dt_for_cumsum = dt
+    if units != :si
+        dt_for_cumsum = dt/si_unit(:day)
+    end
     if prefix == 'w'
-        dt_for_cumsum = dt .* get(ws[only(wells)], :factor, 1.0)
+        dt_for_cumsum = dt_for_cumsum .* get(ws[only(wells)], :factor, 1.0)
     end
     flpt .= cumsum(flpr.*dt_for_cumsum)
     fwit = add_entry(:wit)
