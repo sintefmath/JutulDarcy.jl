@@ -40,10 +40,14 @@ end
 # share based on its maximal potential for injection or production at the
 # corresponding BHP limit. Set a group to false for equal weights. Every well
 # in a group receives the same target for the entire group.
+#
+# We also disable shutting of wells, since this can lead to multiple solutions
+# for group control cases.
 model = setup_reservoir_model(domain, :geothermal;
     wells,
     well_groups = Dict(:Injection => injectors, :Production => producers),
-    group_use_potentials = Dict(:Injection => false)
+    group_use_potentials = Dict(:Injection => false),
+    can_shut_wells = false
 )
 
 # Initialize hydrostatic pressure from 120 bar at the reservoir's mid-depth.
@@ -92,7 +96,8 @@ dt = [5day, 10day, 15day]
 for step in 1:40
     push!(dt, (10year - 30day)/40)
 end
-result = simulate_reservoir(state0, model, dt; forces)
+dt = fill(31day, 12*10)
+result = simulate_reservoir(state0, model, dt; forces = forces, output_substates = true)
 
 # Show the final temperature distribution and the individual well histories.
 plot_reservoir(model, result.states; key = :Temperature, step = length(result.states), fancy = false)
@@ -107,7 +112,7 @@ plot_summary(result; plots = [
 ], cols = 2)
 ## Plot the individual producers to see the limits
 plot_summary(result; plots = [
-    "P1:WWPR", "P1:WBHP",
-    "P2:WWPR", "P2:WBHP",
-    "P3:WWPR", "P3:WBHP"
+    "P1:WWPT", "P1:WBHP",
+    "P2:WWPT", "P2:WBHP",
+    "P3:WWPT", "P3:WBHP"
 ], cols = 3)
