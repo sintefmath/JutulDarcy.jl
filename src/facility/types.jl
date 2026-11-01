@@ -554,7 +554,7 @@ Well target of specified mass rate with value `q` (kg/s).
 - `q > 0` for injection control
 
 """
-struct  TotalMassRateTarget{T} <: WellTarget where T<:AbstractFloat
+struct TotalMassRateTarget{T} <: WellTarget where T<:AbstractFloat
     value::T
     function TotalMassRateTarget(v::T) where T
         if T == Float64
