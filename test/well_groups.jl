@@ -12,6 +12,8 @@ const group_rate_cases = (
     group = WellGroup([:P, :I2, :I1]; groups = Dict(:Injection => [:I1, :I2]))
     @test group.group_to_well_numbers[:Injection] == [3, 2]
     @test group.use_potentials == Dict(:Injection => true)
+    @test !group.lag_potentials
+    @test WellGroup([:W]; lag_potentials = true).lag_potentials
     @test_throws ArgumentError WellGroup([:W]; groups = Dict(:G => [:Unknown]))
     @test_throws ArgumentError WellGroup([:W]; groups = Dict(:G => [:W, :W]))
     @test_throws ArgumentError WellGroup([:W]; groups = Dict(:G1 => [:W], :G2 => [:W]))
@@ -97,6 +99,27 @@ end
             @test cfg.requested_controls[:B].target == target
         end
     end
+end
+
+@testset "Group remainder at other phase constraints" begin
+    sys = ImmiscibleSystem((AqueousPhase(), LiquidPhase(), VaporPhase()))
+    wells = [:P1, :P2]
+    domain = WellGroup(wells; groups = Dict(:G => wells), use_potentials = Dict(:G => false))
+    model = SimulationModel(domain, JutulDarcy.FacilitySystem(sys))
+    controls = Dict(:P1 => ProducerControl(GroupSurfaceOilRateTarget(-0.01)),
+        :P2 => ProducerControl(GroupSurfaceGasRateTarget(-0.02)))
+    rates = -[0.001 0.002; 0.003 0.004; 0.005 0.006]
+    cfg = JutulDarcy.WellGroupConfiguration(wells, controls)
+    state = JutulStorage(Dict(:BottomHolePressure => fill(2e7, 2),
+        :SurfacePhaseRates => rates,
+        :TotalSurfaceMassRate => vec(sum(JutulDarcy.reference_densities(sys).*rates; dims = 1)),
+        :WellGroupConfiguration => cfg))
+    ctrl = controls[:P1]
+    cond = JutulDarcy.FacilityVariablesForWell(model, state, :P1)
+    allocated() = JutulDarcy.get_control_target_value(ctrl, ctrl.target, cond, :P1, model, state)
+    @test allocated() ≈ -0.006
+    state.SurfacePhaseRates[2, 2] = -0.02
+    @test allocated() == 0.0
 end
 
 function well_group_test_case(Target = GroupTotalRateTarget; potentials = false, equal_densities = false)

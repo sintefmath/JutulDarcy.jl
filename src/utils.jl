@@ -490,6 +490,7 @@ low values can lead to slow convergence.
   models infeasible to simulate, but it can be useful to do so for simple models
   where you know that the wells should be operational.
 - `well_groups=Dict{Symbol, Vector{Symbol}}()`: Named groups for group rate targets.
+- `group_lag_potentials=false`: Hold potential guide weights fixed within each Newton linearization.
 - `group_use_potentials=Dict{Symbol, Bool}()`: Use potential weighting for each
   group (default `true`). Set a group to `false` for equal allocation.
 
@@ -537,7 +538,8 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         discretization_arg = NamedTuple(),
         groups = missing,
         well_groups::Dict{Symbol, Vector{Symbol}} = Dict{Symbol, Vector{Symbol}}(),
-        group_use_potentials::Dict{Symbol, Bool} = Dict{Symbol, Bool}()
+        group_use_potentials::Dict{Symbol, Bool} = Dict{Symbol, Bool}(),
+        group_lag_potentials::Bool = false
     )
     # Deal with wells, make sure that multisegment wells come last.
     if !(wells isa AbstractArray)
@@ -706,6 +708,7 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
                 map(x -> physical_representation(x).name, wells),
                 can_shut_wells = can_shut_wells,
                 groups = well_groups,
+                lag_potentials = group_lag_potentials,
                 use_potentials = group_use_potentials
             )
             F = SimulationModel(wg, facility_system, context = context, data_domain = DataDomain(wg))
@@ -1614,6 +1617,11 @@ function reservoir_simulation_input_defaults(input_data::AbstractDict)
     end
     tuning = get(first(steps), "TUNING", nothing)
     isnothing(tuning) && return NamedTuple()
+    # GeoEnergyIO stores the timestep and convergence records separately.
+    # Retain compatibility with decks parsed into a single timestep vector.
+    if first(tuning) isa AbstractVector
+        tuning = first(tuning)
+    end
     return (initial_dt = tuning[1], max_timestep = tuning[2],
         min_timestep = tuning[3], timestep_max_increase = tuning[5])
 end

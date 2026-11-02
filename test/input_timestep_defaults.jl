@@ -11,6 +11,10 @@ using Test, Jutul, GeoEnergyIO, JutulDarcy
     first(data["SCHEDULE"]["STEPS"])["TUNING"] = [0.1*86400,0.25*86400,0.01*86400,0.15*86400,2.0]
     tuned = setup_case_from_data_file(data)
     @test defaults(tuned.input_data) == (initial_dt=8640.,max_timestep=21600.,min_timestep=864.,timestep_max_increase=2.)
+    records = deepcopy(tuned.input_data)
+    initial = first(records["SCHEDULE"]["STEPS"])
+    initial["TUNING"] = [initial["TUNING"], [0.1, 1e-3, 1e-7]]
+    @test defaults(records) == defaults(tuned.input_data)
     result = simulate_reservoir(tuned;info_level=-1)
     cfg = result.extra[:config]
     @test cfg[:max_timestep] == 21600.

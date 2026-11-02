@@ -52,6 +52,12 @@ function Jutul.update_before_step_multimodel_backend!(
         well_was_shut = op_ctrls[key] == disabled || is_zero_rate_control(op_ctrls[key])
         retry_control = well_was_shut && !new_is_disabled && !is_zero_rate_control(newctrl)
         changed = (is_new_step && newctrl != oldctrl) || retry_control
+        if is_new_step && op_ctrls[key].target isa GroupRateTarget
+            group_target = op_ctrls[key].target
+            group_symbol = translate_target_to_symbol(group_target, shortname = true)
+            lim = cfg.limits[key]
+            changed |= isnothing(lim) || !haskey(lim, group_symbol) || lim[group_symbol] != group_target.value
+        end
         if !changed && !retry_control && !(new_is_disabled || old_is_disabled)
             # Handle the case where controls may be identical, but a higher type
             # might be incoming (e.g. use of AD)
@@ -288,7 +294,8 @@ function check_well_limits(limits, cond, control, well, model, state)
     # limits before the allocation has converged, or a small group residual can
     # block BHP switching and drive other group members to zero rate.
     is_group_target = control.target isa GroupRateTarget
-    if !is_group_target && haskey(limits, current_name)
+    has_group_limits = any(name -> startswith(string(name), "group_"), keys(limits))
+    if !is_group_target && !has_group_limits && haskey(limits, current_name)
         control_check = check_well_limit(current_name, limits[current_name], cond, control, well, model, state)
         control_ok = ismissing(control_check)
     else
@@ -558,11 +565,11 @@ function get_control_target_value(ctrl, target::GroupRateTarget, cond, well, mod
         end
         other_is_injector = other_control isa InjectorControl
         other_is_injector == is_injector || error("Inconsistent control for group target: $well and $w are both in group $group, but have different control types")
-        other_is_group = other_control.target isa GroupRateTarget
+        # A member constrained by a different group phase target contributes
+        # its actual rate, just like a member at an individual well limit.
+        other_is_group = typeof(other_control.target) == typeof(target)
         other_rate = well_target_value(other_control, rate_target, other_cond, w, model, state)
         if other_is_group
-            typeof(other_control.target) == typeof(target) ||
-                throw(ArgumentError("Inconsistent group rate target for $well and $w in group $group"))
             # Potential gets added
             if use_potentials
                 well_potential = well_potential_factor(other_rate, other_cond, other_control)
@@ -576,9 +583,23 @@ function get_control_target_value(ctrl, target::GroupRateTarget, cond, well, mod
             val -= well_target_value(other_control, rate_target, other_cond, w, model, state)
         end
     end
+    # An overproducing/injecting individual member can consume the whole
+    # target while controls are switching. The remainder then has zero flow,
+    # rather than a target with the opposite flow direction.
+    if is_injector
+        val = max(val, 0.0)
+    else
+        val = min(val, 0.0)
+    end
     if use_potentials
         self_rate = well_target_value(ctrl, rate_target, cond, well, model, state)
         self_potential = well_potential_factor(self_rate, cond, ctrl)
+        # Lagged guides avoid a degenerate q/sum(q) allocation Jacobian when
+        # many wells approach zero flow after a large group-target change.
+        if d.lag_potentials
+            group_potential = value(group_potential)
+            self_potential = value(self_potential)
+        end
     else
         self_potential = 1.0
     end

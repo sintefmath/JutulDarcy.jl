@@ -32,6 +32,14 @@ Additional arguments to the parser can be passed as key/values in a `NamedTuple`
 given as `parse_arg`. The optional input `include_data=true` will make the
 function return the parsed data in addition the case itself. Additional keyword
 arguments are passed on to [`setup_case_from_parsed_data`](@ref).
+
+Surface-rate `GCONPROD` and `GCONINJE` controls are mapped to well groups,
+including individual well limits and `GRUPTREE` ancestor lookup. Production
+groups are named `<group>_PRODUCTION`, and injection groups `<group>_<phase>`.
+Imported groups use lagged potential guide weights by default; pass
+`group_lag_potentials=false` to differentiate the weights in the linearization.
+Nested group constraints, dynamic allocation-group membership, guide-rate
+overrides and reservoir-volume group controls are not supported.
 """
 function setup_case_from_data_file(
         fn;
@@ -124,10 +132,11 @@ function setup_case_from_parsed_data(datafile;
     msg("Parsing schedule.")
     t_schedule = @elapsed if skip_forces
         wells = []
+        deck_groups = Dict{Symbol, Vector{Symbol}}()
         controls = limits = cstep = well_forces = missing
         dt = [1.0]
     else
-        wells, controls, limits, cstep, dt, well_forces = parse_schedule(domain, sys, datafile; simple_well = simple_well)
+        wells, controls, limits, cstep, dt, well_forces, deck_groups = parse_schedule(domain, sys, datafile; simple_well = simple_well, include_groups = true)
         if skip_wells
             empty!(wells)
         end
@@ -150,6 +159,12 @@ function setup_case_from_parsed_data(datafile;
     end
 
     extra_arg = Dict{Symbol, Any}()
+    if !skip_wells && !isempty(deck_groups) && !haskey(kwarg, :well_groups)
+        extra_arg[:well_groups] = deck_groups
+    end
+    if !isempty(deck_groups) && !haskey(kwarg, :group_lag_potentials)
+        extra_arg[:group_lag_potentials] = true
+    end
     if haskey(rs, "SALTS")
         extra_arg[:salt_mole_fractions] = rs["SALT_MOLE_FRACTIONS"]
         extra_arg[:salt_names] = rs["SALTS"]
@@ -511,10 +526,11 @@ function compdat_to_connection_factors(domain, wspec, v, step; sort = true, orde
     return (wc[ix], WI[ix], open[ix], mul[ix], fresh[ix], data)
 end
 
-function parse_schedule(domain, runspec, props, schedule, sys; simple_well = true)
+function parse_schedule(domain, runspec, props, schedule, sys; simple_well = true, include_groups = false)
     G = physical_representation(domain)
     ijk_lookup = ijk_lookup_dict(G)
-    dt, cstep, controls, status, completions, msdata, limits = parse_control_steps(runspec, props, schedule, sys)
+    parsed = parse_control_steps(runspec, props, schedule, sys)
+    dt, cstep, controls, status, completions, msdata, limits = parsed
     isempty(dt) && throw(ArgumentError("SCHEDULE contains no report steps (TSTEP, DATES or TIME); nothing to simulate."))
     completions, bad_wells = filter_inactive_completions!(completions, G, ijk_lookup)
     @assert length(controls) == length(completions)
@@ -575,7 +591,15 @@ function parse_schedule(domain, runspec, props, schedule, sys; simple_well = tru
         end
         push!(wells, W)
     end
-    return (wells, controls, limits, cstep, dt, well_forces)
+    out = (wells, controls, limits, cstep, dt, well_forces)
+    if include_groups
+        # Inactive cells can remove all completions of a deck well.
+        names = [physical_representation(w).name for w in wells]
+        groups = Dict(g => filter(in(names), members) for (g, members) in parsed.groups)
+        filter!(p -> !isempty(p.second), groups)
+        return (out..., groups)
+    end
+    return out
 end
 
 function ijk_lookup_dict(G)
@@ -1720,6 +1744,8 @@ function parse_control_steps(runspec, props, schedule, sys)
 
     wells = schedule["WELSPECS"]
     steps = schedule["STEPS"]
+    group_plan = parse_deck_group_steps(schedule)
+    group_requested = Set{String}()
     active_tracers = data_file_active_tracers(runspec, props)
     if !isempty(steps) && length(keys(steps[end])) == 0
         # Prune empty final record
@@ -1792,11 +1818,12 @@ function parse_control_steps(runspec, props, schedule, sys)
         push!(cstep, ctrl_ix)
     end
 
-    skip = ("WELLSTRE", "WINJGAS", "GINJGAS", "GRUPINJE", "WELLINJE", "WEFAC", "WTEMP", "WTRACER", "WPOLYMER", "FBHPDEF")
+    skip = ("WELLSTRE", "WINJGAS", "GINJGAS", "GRUPINJE", "WELLINJE", "WEFAC", "WTEMP", "WTRACER", "WPOLYMER", "FBHPDEF", "WELSPECS", "TUNING")
     bad_kw = Dict{String, Bool}()
     streams = setup_well_streams()
     default_bhp = nothing
     for (ctrl_ix, step) in enumerate(steps)
+        group_specs = group_plan.steps[ctrl_ix]
         found_time = false
         streams = parse_well_streams_for_step!(streams, step, props)
         default_bhp = get(step, "FBHPDEF", default_bhp)
@@ -1906,7 +1933,21 @@ function parse_control_steps(runspec, props, schedule, sys)
             elseif key in ("WCONINJE", "WCONPROD", "WCONHIST", "WCONINJ", "WCONINJH")
                 for wk in kword
                     name = wk[1]
-                    controls[name], limits[name], status[name] = keyword_to_control(sys, streams, wk, key,
+                    spec = get(group_specs, name, nothing)
+                    group_target = isnothing(spec) ? nothing : spec.target
+                    if (key == "WCONPROD" && wk[3] == "GRUP") || (key == "WCONINJE" && wk[4] == "GRUP")
+                        push!(group_requested, name)
+                    else
+                        delete!(group_requested, name)
+                    end
+                    # Keep the OPEN request even for a SHUT/STOP declaration so
+                    # a subsequent WELOPEN can restore its control and limits.
+                    open_wk = copy(wk)
+                    flag_ix = key in ("WCONPROD", "WCONHIST") ? 2 : 3
+                    flag = wk[flag_ix]
+                    open_wk[flag_ix] = "OPEN"
+                    requested, limits[name], status[name] = keyword_to_control(sys, streams, open_wk, key,
+                        group_target = group_target,
                         default_bhp = default_bhp,
                         factor = well_factor[name],
                         temperature = well_temp[name],
@@ -1914,18 +1955,24 @@ function parse_control_steps(runspec, props, schedule, sys)
                         tracer_concentrations = tracer_concentrations[name],
                         tracers = active_tracers
                     )
+                    active_controls[name] = requested
+                    status[name] = flag
+                    controls[name] = flag in ("SHUT", "STOP") ? DisabledControl() : requested
                 end
                 set_active_controls!(active_controls, controls)
             elseif key == "WELOPEN"
                 for wk in kword
                     apply_welopen!(controls, compdat, wk, active_controls)
+                    if all(isequal(-1), wk[3:7])
+                        status[wk[1]] = wk[2]
+                    end
                 end
             elseif key == "WELTARG"
                 for wk in kword
                     controls, limits = apply_weltarg!(controls, limits, wk)
                 end
                 set_active_controls!(active_controls, controls)
-            elseif key in skip
+            elseif key in skip || key in ("GRUPTREE", "GCONPROD", "GCONINJE", "WGRUPCON")
                 # Already handled
             elseif key in ("WSEGVALV", "COMPSEGS", "WELSEGS")
                 for val in kword
@@ -1937,6 +1984,24 @@ function parse_control_steps(runspec, props, schedule, sys)
                 end
             else
                 bad_kw[key] = true
+            end
+        end
+        # Group targets may change without another WCON record. Preserve the
+        # individual limits separately so old group limits do not persist.
+        for name in group_requested
+            spec = get(group_specs, name, nothing)
+            ctrl = active_controls[name]
+            ctrl isa DisabledControl && continue
+            if isnothing(spec)
+                lim = limits[name]
+                bhp = isnothing(lim) ? DEFAULT_MINIMUM_PRESSURE : get(lim, :bhp, DEFAULT_MINIMUM_PRESSURE)
+                target = BottomHolePressureTarget(bhp)
+            else
+                target = spec.target
+            end
+            active_controls[name] = replace_target(ctrl, target)
+            if !(controls[name] isa DisabledControl)
+                controls[name] = active_controls[name]
             end
         end
         # Temperature/tracer-only updates must also change existing injectors.
@@ -1953,7 +2018,8 @@ function parse_control_steps(runspec, props, schedule, sys)
         if found_time
             push!(all_compdat, deepcopy(compdat))
             push!(all_controls, deepcopy(controls))
-            push!(all_limits, deepcopy(limits))
+            step_limits = Dict(name => apply_deck_group_limits(lim, get(group_specs, name, nothing)) for (name, lim) in limits)
+            push!(all_limits, deepcopy(step_limits))
             push!(all_status, deepcopy(status))
         else
             @warn "Did not find supported time kw in step $ctrl_ix: Keys were $(keys(step))."
@@ -1969,7 +2035,8 @@ function parse_control_steps(runspec, props, schedule, sys)
         status = all_status,
         completions = all_compdat,
         multisegment = mswell_kw,
-        limits = all_limits
+        limits = all_limits,
+        groups = group_plan.groups
     )
 end
 
@@ -2085,7 +2152,7 @@ function producer_limits(; bhp = Inf, lrat = Inf, orat = Inf, wrat = Inf, grat =
     return NamedTuple(pairs(lims))
 end
 
-function producer_control(sys, flag, ctrl, orat, wrat, grat, lrat, bhp; is_hist = false, temperature = NaN, resv = 0.0, tracers = String[], polymer = 0.0, tracer_concentrations = nothing, kwarg...)
+function producer_control(sys, flag, ctrl, orat, wrat, grat, lrat, bhp; is_hist = false, temperature = NaN, resv = 0.0, tracers = String[], polymer = 0.0, tracer_concentrations = nothing, group_target = nothing, kwarg...)
     rho_s = reference_densities(sys)
     phases = get_phases(sys)
 
@@ -2107,6 +2174,10 @@ function producer_control(sys, flag, ctrl, orat, wrat, grat, lrat, bhp; is_hist 
         elseif ctrl == "GRAT"
             self_val = -grat
             t = SurfaceGasRateTarget(self_val)
+        elseif ctrl == "GRUP"
+            t = isnothing(group_target) ? BottomHolePressureTarget(isfinite(bhp) ? bhp : DEFAULT_MINIMUM_PRESSURE) : group_target
+            self_val = t.value
+            is_rate = false
         elseif ctrl == "BHP"
             self_val = bhp
             t = BottomHolePressureTarget(self_val)
@@ -2176,7 +2247,7 @@ function data_file_tracer_values(tracers, polymer, concentrations)
     end
 end
 
-function injector_control(sys, streams, name, flag, type, ctype, surf_rate, res_rate, bhp; is_hist = false, tracers = String[], polymer = 0.0, tracer_concentrations = Dict{String, Float64}(), kwarg...)
+function injector_control(sys, streams, name, flag, type, ctype, surf_rate, res_rate, bhp; is_hist = false, tracers = String[], polymer = 0.0, tracer_concentrations = Dict{String, Float64}(), group_target = nothing, kwarg...)
     if occursin('*', flag)
         # This is a bit of a hack.
         flag = "OPEN"
@@ -2191,6 +2262,10 @@ function injector_control(sys, streams, name, flag, type, ctype, surf_rate, res_
             else
                 well_is_disabled = true
             end
+        elseif ctype == "GRUP"
+            is_rate = false
+            t = isnothing(group_target) ? BottomHolePressureTarget(bhp) : group_target
+            isfinite(t.value) || throw(ArgumentError("GRUP injector $name has no group target or finite BHP limit."))
         elseif ctype == "BHP"
             is_rate = false
             if isfinite(bhp)
