@@ -489,6 +489,9 @@ low values can lead to slow convergence.
   repeatedly get rates with the wrong side. Disabling this can make certain
   models infeasible to simulate, but it can be useful to do so for simple models
   where you know that the wells should be operational.
+- `well_groups=Dict{Symbol, Vector{Symbol}}()`: Named groups for group rate targets.
+- `group_use_potentials=Dict{Symbol, Bool}()`: Use potential weighting for each
+  group (default `true`). Set a group to `false` for equal allocation.
 
 """
 function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
@@ -532,7 +535,9 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         wells_systems = missing,
         wells_as_cells = false,
         discretization_arg = NamedTuple(),
-        groups = missing
+        groups = missing,
+        well_groups::Dict{Symbol, Vector{Symbol}} = Dict{Symbol, Vector{Symbol}}(),
+        group_use_potentials::Dict{Symbol, Bool} = Dict{Symbol, Bool}()
     )
     # Deal with wells, make sure that multisegment wells come last.
     if !(wells isa AbstractArray)
@@ -589,7 +594,8 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         context = reservoir_context,
         general_ad = general_ad,
         kgrad = kgrad,
-        upwind = upwind
+        upwind = upwind,
+        discretization_arg...
     )
     system = rmodel.system
     if thermal
@@ -632,6 +638,9 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
     models[:Reservoir] = rmodel
     # Then we set up all the wells
     facility_system = FacilitySystem(system)
+    if split_wells && length(keys(well_groups)) > 0
+        error("Split wells is enabled but well groups are defined. This combination is not supported.")
+    end
     encountered_wells = Dict{Symbol, Bool}()
     if length(wells) > 0
         facility_to_add = OrderedDict()
@@ -693,7 +702,12 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
                 models[k] = v
             end
         else
-            wg = WellGroup(map(x -> physical_representation(x).name, wells), can_shut_wells = can_shut_wells)
+            wg = WellGroup(
+                map(x -> physical_representation(x).name, wells),
+                can_shut_wells = can_shut_wells,
+                groups = well_groups,
+                use_potentials = group_use_potentials
+            )
             F = SimulationModel(wg, facility_system, context = context, data_domain = DataDomain(wg))
             if thermal
                 add_thermal_to_facility!(F)
@@ -3171,11 +3185,13 @@ function reservoir_measurables(model, wellresult, states = missing;
         sum_well_rates!(flpr, :wrat, is_prod = true)
         sum_well_rates!(fwpr, :wrat, is_prod = true)
         sum_well_rates!(fwir, :wrat, is_prod = false)
+        sum_well_rates!(flir, :wrat, is_prod = false)
     end
     if has_oil
         sum_well_rates!(flpr, :orat, is_prod = true)
         sum_well_rates!(fopr, :orat, is_prod = true)
         sum_well_rates!(foir, :orat, is_prod = false)
+        sum_well_rates!(flir, :orat, is_prod = false)
     end
     if has_gas
         sum_well_rates!(fgpr, :grat, is_prod = true)
@@ -3275,8 +3291,11 @@ function reservoir_measurables(model, wellresult, states = missing;
 
     flpt = add_entry(:lpt)
     dt_for_cumsum = dt
+    if units != :si
+        dt_for_cumsum = dt/si_unit(:day)
+    end
     if prefix == 'w'
-        dt_for_cumsum = dt .* get(ws[only(wells)], :factor, 1.0)
+        dt_for_cumsum = dt_for_cumsum .* get(ws[only(wells)], :factor, 1.0)
     end
     flpt .= cumsum(flpr.*dt_for_cumsum)
     fwit = add_entry(:wit)
