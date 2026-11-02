@@ -30,7 +30,7 @@ module KernelExecution
 
     kernel_abstractions_backend(::Val{:ka}) = KernelAbstractions.CPU()
     kernel_abstractions_backend(::Val{:ka_cpu}) = KernelAbstractions.CPU()
-    kernel_abstractions_backend(::Val{:ka_cpu_static}) = KernelAbstractions.CPU(static = true)
+    kernel_abstractions_backend(::Val{:ka_cpu_static}) = KernelAbstractions.CPU()
 
     include("adapt.jl")
     include("cpr.jl")

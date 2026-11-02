@@ -6,7 +6,7 @@ function JutulDarcy.build_gpu_block_system(Ti, Tv, sz::Tuple{Int, Int}, blockDim
     dims = blockDim.*sz
     dir = 'C'
     nnz = length(nzVal)÷(blockDim^2)
-    J_bsr = CUDA.CUSPARSE.CuSparseMatrixBSR{Tv, Ti}(rowPtr, colVal, nzVal, dims, blockDim, dir, nnz)
+    J_bsr = CUDA.cuSPARSE.CuSparseMatrixBSR{Tv, Ti}(rowPtr, colVal, nzVal, dims, blockDim, dir, nnz)
     r_cu = CuVector{Tv}(vec(r0))
     return (J_bsr, r_cu)
 end
@@ -19,7 +19,7 @@ function JutulDarcy.build_gpu_block_system(Ti, Tv, sz::Tuple{Int, Int},
     dims = blockDim .* sz
     dir = 'C'
     nnzb = length(nzVal) ÷ blockDim^2
-    J_bsr = CUDA.CUSPARSE.CuSparseMatrixBSR{Tv, Ti}(
+    J_bsr = CUDA.cuSPARSE.CuSparseMatrixBSR{Tv, Ti}(
         rowPtr, colVal, nzVal, dims, blockDim, dir, nnzb)
     r_cu = convert(CuVector{Tv}, vec(r0))
     return (J_bsr, r_cu)
@@ -132,7 +132,7 @@ function copy_to_gpu(x::SparseMatrixCSC{Tvc, Tic}, Tv, Ti) where {Tvc, Tic}
     if Tvc != Tv || Tic != Ti
         x = SparseMatrixCSC{Tv, Ti}(x)
     end
-    return CUDA.CUSPARSE.CuSparseMatrixCSC(x)
+    return CUDA.cuSPARSE.CuSparseMatrixCSC(x)
 end
 
 function copy_to_gpu(x::Vector{Tvc}, Tv, Ti) where {Tvc}
@@ -148,7 +148,7 @@ function copy_to_gpu(x::Jutul.StaticSparsityMatrixCSR, Tv, Ti)
     rowptr = convert(CuVector{Ti}, x.rowptr)
     colval = convert(CuVector{Ti}, x.colval)
     nzval = convert(CuVector{Tv}, x.nzval)
-    return CUDA.CUSPARSE.CuSparseMatrixCSR{Tv, Ti}(
+    return CUDA.cuSPARSE.CuSparseMatrixCSR{Tv, Ti}(
         rowptr, colval, nzval, size(x))
 end
 

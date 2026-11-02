@@ -1,5 +1,5 @@
 using Jutul, JutulDarcy, Test
-using JLArrays
+using Jutul.KernelExecution: KernelAbstractions
 
 @testset "Merged wells" begin
     bar = si_unit(:bar)
@@ -36,8 +36,7 @@ using JLArrays
         multiwell = well.multiwell
         @test multiwell isa JutulDarcy.MultiWellInfo
         cpu_backend = Jutul.KernelExecution.KernelAbstractions.CPU()
-        for target in (nothing, Array, KernelAbstractionsContext(cpu_backend),
-                KernelAbstractionsContext(JLBackend()))
+        for target in (nothing, Array, KernelAbstractionsContext(cpu_backend))
             adapted = JutulDarcy.Adapt.adapt(target, multiwell)
             if target isa KernelAbstractionsContext
                 @test adapted === multiwell

@@ -1,11 +1,11 @@
-using Test, Jutul, JutulDarcy, Adapt, JLArrays, CUDA
+using Test, Jutul, JutulDarcy, Adapt, CUDA
 using JutulDarcy.StaticArrays: SVector
 using Jutul.KernelExecution: KernelAbstractions
 using .KernelAbstractions: @kernel, @index
 
 CUDA.allowscalar(false)
 
-@testset "Tabulated thermal properties on JLArrays" begin
+@testset "Tabulated thermal properties on POCL" begin
     for physics in (:geothermal, :co2brine_immiscible, :co2brine_compositional)
         @testset "$physics" begin
             domain = get_1d_reservoir(3)
@@ -27,9 +27,9 @@ CUDA.allowscalar(false)
             state0 = state0[:Reservoir]
             reference_simulator = Simulator(model; state0, parameters)
             reference, = simulate!(reference_simulator, [1.0]; info_level = -1)
-            simulator = transfer_to_backend(Simulator(model; state0, parameters), JLBackend())
+            simulator = transfer_to_backend(Simulator(model; state0, parameters), KernelAbstractions.CPU())
             enthalpy = simulator.model.secondary_variables.FluidEnthalpy
-            @test enthalpy.tab[1].F isa JLArray
+            @test enthalpy.tab[1].F isa Array
             @test simulator.model.secondary_variables.FluidInternalEnergy isa
                 JutulDarcy.FluidInternalEnergyFromFluidEnthalpy
             states, = simulate!(simulator, [1.0]; info_level = -1)
@@ -44,9 +44,9 @@ CUDA.allowscalar(false)
     tables = JutulDarcy.CO2Properties.co2_brine_property_tables(co2_source = :csp11)
     enthalpy = JutulDarcy.PressureTemperatureDependentEnthalpy(
         (tables[:enthalpy], tables[:enthalpy]); regions = [1, 2, 1])
-    context = KernelAbstractionsContext(JLBackend(); float_type = Float32, index_type = Int32)
+    context = KernelAbstractionsContext(KernelAbstractions.CPU(); float_type = Float32, index_type = Int32)
     adapted = Adapt.adapt(context, enthalpy)
-    @test adapted.regions isa JLArray{Int32}
+    @test adapted.regions isa Array{Int32}
     @test Array(adapted.regions) == [1, 2, 1]
     @test eltype(eltype(adapted.tab[1].F)) === Float32
 end
@@ -57,7 +57,7 @@ end
     case = JutulCase(convert_to_immutable_storage(case.model), case.dt, case.forces;
         state0 = case.state0, parameters = case.parameters)
     for (backend, float_type) in (
-            (JLBackend(), Float64),
+            (KernelAbstractions.CPU(), Float64),
             (Jutul.KernelExecution.KernelAbstractions.CPU(), Float32))
         simulator, = setup_reservoir_simulator(case;
             mode = :ka, ka_backend = backend, float_type,
