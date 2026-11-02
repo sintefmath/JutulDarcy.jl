@@ -147,7 +147,7 @@ module JutulDarcy
     using LazyArtifacts
     import PrettyTables: pretty_table
 
-    import DataStructures: OrderedDict
+    import OrderedCollections: OrderedDict
     using DocStringExtensions
 
     timeit_debug_enabled() = Jutul.timeit_debug_enabled()
