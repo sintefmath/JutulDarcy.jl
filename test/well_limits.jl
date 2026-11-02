@@ -1,7 +1,7 @@
 using Jutul, JutulDarcy, Test
 
 function limit_test_cond(bhp, qmass)
-    return JutulDarcy.FacilityVariablesForWell(1, :Well, bhp, qmass, 0.0, 0.0, 0.0)
+    return JutulDarcy.FacilityVariablesForWell(1, :Well, bhp, qmass, qmass/1000.0, 0.0, 0.0)
 end
 
 @testset "Mass rate limits" begin
@@ -11,8 +11,7 @@ end
         ctrl = ProducerControl(TotalMassRateTarget(-100.0))
         new_ctrl, changed = JutulDarcy.check_well_limits(limits, limit_test_cond(40e5, -100.0), ctrl, :Well, nothing, nothing)
         @test changed
-        @test new_ctrl.target isa BottomHolePressureTarget
-        @test new_ctrl.target.value == 50e5
+        @test new_ctrl.target == BottomHolePressureTarget(50e5)
         # Mass rate target, BHP limit satisfied
         new_ctrl, changed = JutulDarcy.check_well_limits(limits, limit_test_cond(60e5, -100.0), ctrl, :Well, nothing, nothing)
         @test !changed
@@ -20,8 +19,7 @@ end
         ctrl = ProducerControl(BottomHolePressureTarget(50e5))
         new_ctrl, changed = JutulDarcy.check_well_limits(limits, limit_test_cond(50e5, -150.0), ctrl, :Well, nothing, nothing)
         @test changed
-        @test new_ctrl.target isa TotalMassRateTarget
-        @test new_ctrl.target.value == -100.0
+        @test new_ctrl.target == TotalMassRateTarget(-100.0)
     end
     @testset "Injector" begin
         limits = (bhp = 200e5, mrat = 100.0)
@@ -29,8 +27,7 @@ end
         ctrl = InjectorControl(TotalMassRateTarget(100.0), [1.0]; density = 1000.0)
         new_ctrl, changed = JutulDarcy.check_well_limits(limits, limit_test_cond(250e5, 100.0), ctrl, :Well, nothing, nothing)
         @test changed
-        @test new_ctrl.target isa BottomHolePressureTarget
-        @test new_ctrl.target.value == 200e5
+        @test new_ctrl.target == BottomHolePressureTarget(200e5)
         # Mass rate target, BHP limit satisfied
         new_ctrl, changed = JutulDarcy.check_well_limits(limits, limit_test_cond(150e5, 100.0), ctrl, :Well, nothing, nothing)
         @test !changed
@@ -38,7 +35,6 @@ end
         ctrl = InjectorControl(BottomHolePressureTarget(200e5), [1.0]; density = 1000.0)
         new_ctrl, changed = JutulDarcy.check_well_limits(limits, limit_test_cond(200e5, 150.0), ctrl, :Well, nothing, nothing)
         @test changed
-        @test new_ctrl.target isa TotalMassRateTarget
-        @test new_ctrl.target.value == 100.0
+        @test new_ctrl.target == TotalMassRateTarget(100.0)
     end
 end
