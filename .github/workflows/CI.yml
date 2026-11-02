@@ -12,10 +12,59 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ startsWith(github.ref, 'refs/pull/') }}
 jobs:
+  test-prepare:
+    name: Prepare checked test environment
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      JULIA_CPU_TARGET: generic;sandybridge,-xsaveopt,clone_all;haswell,-rdrnd,base(1)
+      JULIA_NUM_PRECOMPILE_TASKS: '2'
+      OPENBLAS_NUM_THREADS: '1'
+    outputs:
+      julia-version: ${{ steps.julia-version.outputs.version }}
+      cache-key: ${{ steps.cache.outputs.cache-key }}
+      cache-paths: ${{ steps.cache.outputs.cache-paths }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure the shared test depot
+        run: echo "JULIA_DEPOT_PATH=$RUNNER_TEMP/jutuldarcy-test-depot:" >> "$GITHUB_ENV"
+      - uses: julia-actions/install-juliaup@v3
+        with:
+          channel: release
+      - name: Record the exact Julia version
+        id: julia-version
+        run: julia --startup-file=no -e 'println("version=", VERSION)' >> "$GITHUB_OUTPUT"
+      - uses: julia-actions/cache@v2
+        id: cache
+        with:
+          cache-name: jutuldarcy-tests-checked-v1-julia-${{ steps.julia-version.outputs.version }}
+          include-matrix: 'false'
+      - uses: julia-actions/julia-buildpkg@v1
+      - name: Prepare the full test sandbox with the groups' compilation flags
+        uses: julia-actions/julia-run-testitems@v2
+        with:
+          filter: ':infrastructure in tags'
+          juliaup-channel: ${{ steps.julia-version.outputs.version }}
+          max-workers: '1'
+          threads: '1'
+          check-bounds: 'yes'
+          coverage: 'true'
+          env: '{"JULIA_DEPOT_PATH":"${{ runner.temp }}/jutuldarcy-test-depot:","JULIA_NUM_PRECOMPILE_TASKS":"2","OPENBLAS_NUM_THREADS":"1"}'
+      - name: Share the resolved package manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: checked-test-manifest
+          path: Manifest.toml
+          if-no-files-found: error
   test:
     name: Tests - ${{ matrix.group }}
     runs-on: ubuntu-latest
+    needs: test-prepare
     timeout-minutes: 30
+    env:
+      JULIA_CPU_TARGET: generic;sandybridge,-xsaveopt,clone_all;haswell,-rdrnd,base(1)
+      JULIA_NUM_PRECOMPILE_TASKS: '2'
+      OPENBLAS_NUM_THREADS: '1'
     strategy:
       fail-fast: false
       max-parallel: 10
@@ -23,21 +72,35 @@ jobs:
         group: [core, flow, wells, backends, solvers, partitioned, thermal, compositional, adjoint_parameters, adjoint_controls]
     steps:
       - uses: actions/checkout@v4
+      - name: Configure the shared test depot
+        run: echo "JULIA_DEPOT_PATH=$RUNNER_TEMP/jutuldarcy-test-depot:" >> "$GITHUB_ENV"
       - uses: julia-actions/install-juliaup@v3
         with:
-          channel: release
-      - uses: julia-actions/cache@v2
-      - uses: julia-actions/julia-buildpkg@v1
+          channel: ${{ needs.test-prepare.outputs.julia-version }}
+      - name: Restore the prepared test environment
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ needs.test-prepare.outputs.cache-paths }}
+          key: ${{ needs.test-prepare.outputs.cache-key }}
+          fail-on-cache-miss: true
+      - uses: actions/download-artifact@v4
+        with:
+          name: checked-test-manifest
+          path: .
       - uses: julia-actions/julia-run-testitems@v2
         with:
           filter: ':ci_${{ matrix.group }} in tags'
-          juliaup-channel: release
+          juliaup-channel: ${{ needs.test-prepare.outputs.julia-version }}
           max-workers: '1'
           threads: '1'
           check-bounds: 'yes'
           gc-between-testitems: 'true'
+          # This sandbox is already prepared. A prolonged reactivation should
+          # report its captured diagnostics before the whole job times out.
+          activation-timeout: '600'
           results-path: test-results-${{ matrix.group }}.json
           coverage-lcov-path: lcov.info
+          env: '{"JULIA_DEPOT_PATH":"${{ runner.temp }}/jutuldarcy-test-depot:","JULIA_NUM_PRECOMPILE_TASKS":"2","OPENBLAS_NUM_THREADS":"1"}'
       - uses: actions/upload-artifact@v4
         if: always()
         with:

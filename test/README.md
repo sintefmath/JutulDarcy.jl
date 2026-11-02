@@ -62,7 +62,17 @@ These are sums from the supplied 114-minute serial run, not measured times for
 fresh CI workers. The target is 15 minutes per group including startup. Each job
 uses one test process so related items share compiled code. Results JSON artifacts
 and the aggregate report provide timings for tuning after the first CI run.
-The 30-minute job timeout leaves room for cold caches while collecting those data.
+One preparation job resolves the package manifest and warms the full test sandbox
+by running only the `:infrastructure` item with the same coverage and forced bounds
+checks as the groups. It uses a portable CPU target, then all groups restore its
+exact depot cache and package manifest with the exact same Julia version. The
+runner's own toolkit depot is separate from this test depot. Group jobs do not
+create ten redundant copies of that cache.
+
+A cold preparation can exceed the 15-minute target; its timeout is 45 minutes.
+The test groups retain a 30-minute timeout while their actual runtimes are measured.
+Reactivating the prepared environment has a separate 10-minute limit so a startup
+failure can produce test results and diagnostics before the job timeout kills it.
 
 The multimodel sensitivity item was split at its existing `Inner adjoint tests`
 testset so its original 16-minute runtime does not force one group over target.
