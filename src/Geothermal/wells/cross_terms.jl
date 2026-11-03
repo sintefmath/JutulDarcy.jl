@@ -1,4 +1,9 @@
 ## Abstract types for BTES cross terms
+#
+# Deprecated: Closed-loop wells should be set up as a single merged well (see
+# `merge_well_domains`), where the supply and return parts are connected by a
+# well segment. These cross terms are kept for backwards compatibility and will
+# be removed in a future release.
 
 abstract type AbstractClosedLoopCT <: Jutul.AdditiveCrossTerm end
 
