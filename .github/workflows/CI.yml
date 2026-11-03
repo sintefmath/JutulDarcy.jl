@@ -108,7 +108,7 @@ jobs:
       - uses: codecov/codecov-action@v5
         if: always()
         with:
-          files: lcov.info
+          files: lcov.info,parray-lcov.info
           flags: ${{ matrix.group }}
   test-report:
     name: Test results

@@ -78,7 +78,16 @@ end
 end
 
 @testitem "PArray solve" tags = [:ci_partitioned, :parallel, :mpi, :solvers] begin
-    include("parray.jl")
+    # JLD2 can resolve OrderedCollections to TestItemServer's vendored copy.
+    # Keep disk round trips in a clean process with the same environment,
+    # bounds checks and coverage flags as this test worker.
+    script = joinpath(@__DIR__, "parray.jl")
+    cmd = `$(Base.julia_cmd()) --startup-file=no --project=$(Base.active_project())`
+    if Base.JLOptions().code_coverage != 0
+        coverage_file = joinpath(@__DIR__, "..", "parray-lcov.info")
+        cmd = `$cmd --code-coverage=$coverage_file`
+    end
+    @test success(pipeline(`$cmd $script`; stdout = stdout, stderr = stderr))
 end
 
 @testitem "Scalarization" tags = [:ci_core, :backends, :scalarization] begin

@@ -32,7 +32,7 @@ covered by that item.
 | Area | Tags |
 | --- | --- |
 | Physics | `:flow`, `:singlephase`, `:immiscible`, `:blackoil`, `:compositional`, `:thermal`, `:co2`, `:tracers` |
-| Wells | `:wells`, `:controls`, `:groups`, `:multisegment` |
+| Wells | `:wells`, `:controls`, `:groups`, `:multisegment`, `:closed_loop` |
 | Properties | `:properties`, `:systems`, `:relperm`, `:capillary`, `:tabulation`, `:flash`, `:diffusion` |
 | Sensitivities | `:adjoint`, `:parameters`, `:derivatives`, `:optimization`, `:history_matching`, `:initialization`, `:equilibration` |
 | Numerics | `:solvers`, `:cpr`, `:nldd`, `:sequential`, `:discretization`, `:flux`, `:sparsity`, `:sources` |
@@ -69,6 +69,13 @@ exact depot cache and package manifest. Installation and test workers consistent
 use the `release` channel; the resolved version is recorded in the cache key. The
 runner's own toolkit depot is separate from this test depot. Group jobs do not
 create ten redundant copies of that cache.
+
+The PArray item launches `parray.jl` in a clean Julia subprocess. This avoids
+JLD2 resolving saved simulation dictionaries to the test server's vendored
+OrderedCollections module. The subprocess inherits the test environment, bounds
+checks and coverage flags; its output is captured and any failed assertion fails
+the item. Its separate `parray-lcov.info` report is uploaded alongside the runner's
+coverage report.
 
 A cold preparation can exceed the 15-minute target; its timeout is 45 minutes.
 The test groups retain a 30-minute timeout while their actual runtimes are measured.
