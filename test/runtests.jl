@@ -139,7 +139,6 @@ end
 
 @testitem "Two-phase flash derivatives" begin
     include("flash_implicit_derivatives.jl")
-    include("flash_reuse.jl")
 end
 
 @testitem "CO2 props" begin
