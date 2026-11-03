@@ -124,9 +124,9 @@ These examples can then be run using `include("jutuldarcy_examples/example_name.
 
 ## Citing JutulDarcy
 
-If you use JutulDarcy for a scientific publication, please cite [the main paper](https://doi.org/10.3997/2214-4609.202437111) the following way:
+If you use JutulDarcy for a scientific publication, please cite [the main paper](https://doi.org/10.1007/s10596-025-10366-6) the following way:
 
-> O. Møyner, (2024). JutulDarcy.jl - a Fully Differentiable High-Performance Reservoir Simulator Based on Automatic Differentiation. Computational Geosciences (2025), [Open Access: https://doi.org/10.1007/s10596-025-10366-6](https://doi.org/10.1007/s10596-025-10366-6)
+> O. Møyner, (2025). JutulDarcy.jl - a Fully Differentiable High-Performance Reservoir Simulator Based on Automatic Differentiation. Computational Geosciences (2025), [Open Access: https://doi.org/10.1007/s10596-025-10366-6](https://doi.org/10.1007/s10596-025-10366-6)
 
 ::: details Show BibTeX
 

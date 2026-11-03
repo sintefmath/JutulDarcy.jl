@@ -68,14 +68,15 @@ end
         # Injector temperature and mixture can differ from the local well state.
         p, T = 3e7, 283.15
         state = (Pressure = [p],)
+        evaluator = JutulDarcy.injection_enthalpy_evaluator(model[:INJ])
         for mix in ([1.0, 0.0], [0.0, 1.0], [0.25, 0.75])
             control = InjectorControl(TotalMassRateTarget(0.035), mix; temperature = T)
-            h = JutulDarcy.well_top_node_enthalpy(control, model[:INJ], state, T, 1)
+            h = JutulDarcy.well_top_node_enthalpy(control, model[:INJ], state, T, 1, evaluator)
             @test h ≈ sum(mix .* tables[:enthalpy](p, T))
         end
         for enthalpy in (12345.0, (p, T) -> p/T)
             control = InjectorControl(TotalMassRateTarget(0.035), [0.0, 1.0]; temperature = T, enthalpy)
-            h = JutulDarcy.well_top_node_enthalpy(control, model[:INJ], state, T, 1)
+            h = JutulDarcy.well_top_node_enthalpy(control, model[:INJ], state, T, 1, evaluator)
             @test h ≈ (enthalpy isa Real ? enthalpy : enthalpy(p, T))
         end
     end
@@ -103,7 +104,8 @@ end
         end
         p, T = 2e7, 310.0
         control = InjectorControl(TotalMassRateTarget(0.035), [1.0]; temperature = T)
-        h = JutulDarcy.well_top_node_enthalpy(control, model[:INJ], (; Pressure = [p]), T, 1)
+        evaluator = JutulDarcy.injection_enthalpy_evaluator(model[:INJ])
+        h = JutulDarcy.well_top_node_enthalpy(control, model[:INJ], (; Pressure = [p]), T, 1, evaluator)
         @test h ≈ tables[:enthalpy](p, T)
     end
 end

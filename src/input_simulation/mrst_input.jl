@@ -639,7 +639,10 @@ function deck_pc(props; oil, water, gas, satnum = nothing, is_co2 = false)
         for tab in T
             s = vec(tab[:, 1])
             pc = vec(tab[:, pc_ix])
-            found = found || any(x -> x != 0, pc)
+            if all(isnan, pc)
+                # A completely defaulted capillary-pressure column means zero.
+                pc .= 0.0
+            end
             if reverse
                 @. s = 1.0 - s
                 ix = length(s):-1:1
@@ -648,6 +651,7 @@ function deck_pc(props; oil, water, gas, satnum = nothing, is_co2 = false)
             end
             @. pc = sgn*pc
             s, pc = saturation_table_handle_defaults(s, pc)
+            found = found || any(!iszero, pc)
             if length(T) == 1
                 constant_dx = missing
             else
@@ -904,6 +908,7 @@ function set_thermal_deck_specialization!(model, props, pvtnum, oil, water, gas)
             push!(ix, 3)
         end
         tab = []
+        energy_tab = []
         for (i, specheat) in enumerate(props["SPECHEAT"])
             T = specheat[:, 1] .+ 273.15
             C_f = specheat[:, ix .+ 1]
@@ -914,25 +919,32 @@ function set_thermal_deck_specialization!(model, props, pvtnum, oil, water, gas)
                 push!(F, SVector{N, Float64}(C_f[i, :]...))
             end
             push!(tab, get_1d_interpolator(T, F))
+            push!(energy_tab, IntegratedHeatCapacity(T, F))
         end
         tab = tuple(tab...)
         v = TemperatureDependentVariable(tab, regions = pvtnum)
         set_secondary_variables!(model, ComponentHeatCapacity = v)
+        u = TemperatureDependentVariable(tuple(energy_tab...), regions = pvtnum)
+        set_secondary_variables!(model, FluidInternalEnergy = u)
     end
 
     if !model_or_domain_is_well(model) && haskey(props, "SPECROCK")
         rock_density = first(model.data_domain[:rock_density])
         tab = []
+        energy_tab = []
         for (i, specrock) in enumerate(props["SPECROCK"])
             T = specrock[:, 1] .+ 273.15
             # (1 / volume) / (mass / volume) = 1 / mass... Input file does not
             # know rock density.
             C_r = specrock[:, 2] ./ rock_density
             push!(tab, get_1d_interpolator(T, C_r))
+            push!(energy_tab, IntegratedHeatCapacity(T, map(c -> SVector(c), C_r)))
         end
         tab = tuple(tab...)
-        v = TemperatureDependentVariable(tab, regions = pvtnum)
+        v = TemperatureDependentVariable(tab, regions = reservoir_regions(model.data_domain, :satnum))
         set_secondary_variables!(model, RockHeatCapacity = v)
+        u = TemperatureDependentVariable(tuple(energy_tab...), regions = reservoir_regions(model.data_domain, :satnum))
+        set_secondary_variables!(model, RockInternalEnergy = u)
     end
 end
 

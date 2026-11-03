@@ -12,6 +12,25 @@ using Test, JutulDarcy, Jutul, Dates
     @test JutulDarcy.translate_target_to_symbol(TotalMassRateTarget(1.0)) == :mrat
 end
 
+@testset "Rate targets respect their lower pressure constraint" begin
+    day, bar = si_units(:day, :bar)
+    ctrl = ProducerControl(SurfaceWaterRateTarget(-125/day))
+    cfg = JutulDarcy.WellGroupConfiguration([:P], Dict(:P => ctrl), Dict(:P => (bhp = bar,)))
+    state = (WellGroupConfiguration = cfg,)
+    function control_residual(q, p)
+        cond = (surface_aqueous_rate = q, bottom_hole_pressure = p)
+        return JutulDarcy.well_control_equation(ctrl, cond, :P, nothing, state)
+    end
+    @test control_residual(-125/day, 180bar) ≈ 0 atol = 1e-12
+    @test control_residual(0.0, bar) == 0
+    @test control_residual(0.0, 180bar) > 0
+    @test control_residual(-126/day, 180bar) < 0
+    @test control_residual(0.0, 0.5bar) < 0
+    # The pressure constraint supplies a Jacobian entry even with no water.
+    @test Jutul.ForwardDiff.derivative(p -> control_residual(0.0, p), 180bar) != 0
+    @test all(isfinite, Jutul.ForwardDiff.gradient(v -> control_residual(v...), [-125/day, bar]))
+end
+
 @testset "WellResults" begin
     n = 10
     t = collect(range(1.0, 10.0, n))

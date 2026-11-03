@@ -143,7 +143,7 @@ function apply_well_limits!(cfg::WellGroupConfiguration, model, state, limits, c
     end
     # println("Checking: $well with limits $limits with $cond")
     old_control = control
-    control, changed = check_well_limits(limits, cond, control)
+    control, changed = check_well_limits(limits, cond, control, well, model, state)
     if changed
         @debug "Well $well switching control from $(old_control.target) to $(control.target) due to active limit." limits cond
         cfg.operating_controls[well] = control
@@ -278,14 +278,18 @@ function set_facility_values_for_control!(state, model::FacilityModel, control, 
     return state
 end
 
-function check_well_limits(limits, cond, control)
+function check_well_limits(limits, cond, control, well, model, state)
     # current_target = control.target
     # next_target = current_target
     current_name = translate_target_to_symbol(control.target)
     next_target = missing
     changed = false
-    if haskey(limits, current_name)
-        control_check = check_well_limit(current_name, limits[current_name], cond, control)
+    # Group allocations change when other wells switch controls. Check individual
+    # limits before the allocation has converged, or a small group residual can
+    # block BHP switching and drive other group members to zero rate.
+    is_group_target = control.target isa GroupRateTarget
+    if !is_group_target && haskey(limits, current_name)
+        control_check = check_well_limit(current_name, limits[current_name], cond, control, well, model, state)
         control_ok = ismissing(control_check)
     else
         control_ok = true
@@ -295,7 +299,7 @@ function check_well_limits(limits, cond, control)
             if name == current_name
                 continue
             end
-            next_target = check_well_limit(name, limit_value, cond, control)
+            next_target = check_well_limit(name, limit_value, cond, control, well, model, state)
             if !ismissing(next_target)
                 changed = true
                 break
@@ -307,6 +311,25 @@ function check_well_limits(limits, cond, control)
         control = replace_target(control, next_target)
     end
     return (control, changed)
+end
+
+function check_well_limit(name::Symbol, limit_value, cond, control, well, model, state)
+    if startswith(string(name), "group_")
+        if control isa ProducerControl
+            limit_value = -abs(limit_value)
+        end
+        target = well_target_information(name).type(limit_value)
+        group_control = replace_target(control, target)
+        allocated = get_control_target_value(group_control, target, cond, well, model, state)
+        rate_target = individual_rate_target(target)
+        rate_name = translate_target_to_symbol(rate_target)
+        if !ismissing(check_well_limit(rate_name, value(allocated), cond, control))
+            return target
+        end
+        return missing
+    else
+        return check_well_limit(name, limit_value, cond, control)
+    end
 end
 
 """
@@ -360,8 +383,13 @@ function check_well_limit(name::Symbol, limit_value, cond, control::InjectorCont
             if rate > limit_value
                 next_target = TotalMassRateTarget(limit_value)
             end
+        elseif name == :mrat
+            rate = cond.total_mass_rate
+            if rate > limit_value
+                next_target = TotalMassRateTarget(limit_value)
+            end
         else
-            error("Unsupported well producer constraint/limit $name")
+            error("Unsupported well injector constraint/limit $name")
         end
     end
     return next_target
@@ -425,8 +453,13 @@ function check_well_limit(name::Symbol, limit_value, cond::FacilityVariablesForW
                 if rate < limit_value
                     next_target = TotalRateTarget(-limit_value)
                 end
+            elseif name == :mrat
+                rate = -cond.total_mass_rate
+                if rate > limit_value
+                    next_target = TotalMassRateTarget(-limit_value)
+                end
             else
-                error("Unsupported well injector constraint/limit $name")
+                error("Unsupported well producer constraint/limit $name")
             end
         end
     end
@@ -449,25 +482,34 @@ the target value itself, scaled by a target scaling factor.
 """
 function well_control_equation(ctrl, cond, well, model, state)
     target = ctrl.target
-    val_t = get_control_target_value(target, model, state)
+    val_t = get_control_target_value(ctrl, target, cond, well, model, state)
     val = well_target_value(ctrl, target, cond, well, model, state)
     scale = target_scaling(target)
     return (val - val_t)/scale
 end
 
-function well_control_equation(ctrl::ProducerControl{T}, cond, well, model, state) where {T <: SurfaceVolumeTarget}
+const PhaseRateTarget = Union{
+    SurfaceWaterRateTarget,
+    SurfaceOilRateTarget,
+    SurfaceGasRateTarget,
+    SurfaceLiquidRateTarget
+}
+
+function well_control_equation(ctrl::ProducerControl{T}, cond, well, model, state) where {T <: PhaseRateTarget}
     target = ctrl.target
-    val_t = get_control_target_value(target, model, state)
+    val_t = get_control_target_value(ctrl, target, cond, well, model, state)
     val = well_target_value(ctrl, target, cond, well, model, state)
     rate_slack = (val - val_t)/target_scaling(target)
-    if is_zero_rate_control(ctrl)
+    if is_zero_rate_control(ctrl) || iszero(ctrl.bhp_limit_scale)
         return rate_slack
     end
     limits = current_limits(state.WellGroupConfiguration, well)
     if isnothing(limits) || !haskey(limits, :bhp)
         return rate_slack
     end
-    pressure_slack = (cond.bottom_hole_pressure - limits.bhp)/target_scaling(BottomHolePressureTarget(limits.bhp))
+    # The distance to the BHP limit is converted to a surface rate, so that the
+    # two slacks have the same units
+    pressure_slack = ctrl.bhp_limit_scale*(cond.bottom_hole_pressure - limits.bhp)/target_scaling(target)
     # Production may fall below its requested rate only at the lower BHP limit.
     # A rate equation alone is singular when its phase is absent. The
     # Fischer-Burmeister equation enforces both inequalities and their
@@ -480,11 +522,11 @@ function well_control_equation(ctrl::ProducerControl{T}, cond, well, model, stat
     return rate_slack + pressure_slack - sqrt(squared_norm)
 end
 
-function get_control_target_value(target::WellTarget, model, state)
+function get_control_target_value(ctrl, target::WellTarget, cond, well, model, state)
     return target.value
 end
 
-function get_control_target_value(target::ReinjectionTarget, model, state)
+function get_control_target_value(ctrl, target::ReinjectionTarget, cond, well, model, state)
     qtot = 0.0
     for well in target.wells
         cond_well = FacilityVariablesForWell(model, state, well)
@@ -492,6 +534,56 @@ function get_control_target_value(target::ReinjectionTarget, model, state)
     end
     qtot *= target.fraction
     return max(qtot, MIN_ACTIVE_WELL_RATE)
+end
+
+function get_control_target_value(ctrl, target::GroupRateTarget, cond, well, model, state)
+    is_injector = ctrl isa InjectorControl
+    val = target.value
+    d = model.domain
+    group = d.well_to_group[well]
+    use_potentials = d.use_potentials[group]
+    rate_target = individual_rate_target(target)
+    # Target is fraction of group rate after other entries are subtracted.
+    cfg = state.WellGroupConfiguration
+    ctrls = cfg.operating_controls
+    group_potential = 0.0
+    for w in d.group_to_wells[group]
+        if w == well
+            continue
+        end
+        other_control = ctrls[w]
+        other_cond = FacilityVariablesForWell(model, state, w)
+        if other_control isa DisabledControl
+            continue
+        end
+        other_is_injector = other_control isa InjectorControl
+        other_is_injector == is_injector || error("Inconsistent control for group target: $well and $w are both in group $group, but have different control types")
+        other_is_group = other_control.target isa GroupRateTarget
+        other_rate = well_target_value(other_control, rate_target, other_cond, w, model, state)
+        if other_is_group
+            typeof(other_control.target) == typeof(target) ||
+                throw(ArgumentError("Inconsistent group rate target for $well and $w in group $group"))
+            # Potential gets added
+            if use_potentials
+                well_potential = well_potential_factor(other_rate, other_cond, other_control)
+            else
+                well_potential = 1.0
+            end
+            group_potential += well_potential
+        else
+            # Current rate gets subtracted from the target, and then reallocated
+            # by potential value.
+            val -= well_target_value(other_control, rate_target, other_cond, w, model, state)
+        end
+    end
+    if use_potentials
+        self_rate = well_target_value(ctrl, rate_target, cond, well, model, state)
+        self_potential = well_potential_factor(self_rate, cond, ctrl)
+    else
+        self_potential = 1.0
+    end
+    fraction = self_potential / max(self_potential + group_potential, 1e-16)
+    return fraction * val
 end
 
 """
@@ -538,6 +630,25 @@ end
 
 function well_target_value(ctrl, target::TotalMassRateTarget, cond, well, model, state)
     return cond.total_mass_rate
+end
+
+function well_potential_factor(rate, cond, ctrl)
+    if ctrl isa InjectorControl
+        default_limit = 1e8 # 100 gigapascals
+    else
+        default_limit = 1.01325 # 1 atm
+    end
+    rate = max(abs(rate), 1e-16)
+    current_bhp = cond.bottom_hole_pressure
+    # Scale rate linearly as if the production/injection rate is proportional to
+    # the bottom hole pressure only. Also multiply by the number of seconds in a
+    # month to ensure a reasonably big number.
+    month = 3600*24*31
+    return month * rate * default_limit / current_bhp
+end
+
+function well_target_value(ctrl, target::GroupRateTarget, cond, well, model, state)
+    return well_target_value(ctrl, individual_rate_target(target), cond, well, model, state)
 end
 
 function well_target_value(ctrl, target::WaterCutTarget, cond, well, model, state)

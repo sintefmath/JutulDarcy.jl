@@ -432,6 +432,10 @@ impact simulation speed.
   libraries.
 - `context=DefaultContext()`: Context used for entire model. Not recommended to
   set up manually, use `backend` instead.
+- `secondary_scheme=:flat`: CPU secondary-variable scheduling. Use `:flat` for
+  contiguous worker batches, `:fused` for cache-sized tiles of dependent variables,
+  or `:strided` for interleaved worker batches. Explicit `context` and
+  `reservoir_context` settings take precedence.
 - `assemble_wells_together=true`: Assemble wells in a single big matrix rather
   than many small matrices.
 - `block_backend=true`: Use block sparse representation. This is needed by the
@@ -473,7 +477,7 @@ low values can lead to slow convergence.
   so comments about changing limits near zero above does not apply to typical
   reservoir temperatures)
 - `dT_max_abs=50.0`: Maximum absolute change in temperature (in °K/°C)
-- `T_min=convert_to_si(0.0, :Celsius)`: Minimum temperature in model (hard limit)
+- `T_min=0.0`: Minimum absolute temperature in Kelvin (hard limit)
 - `fast_flash=false`: Shorthand to enable `flash_reuse_guess` and
   `flash_stability_bypass`. These options can together speed up the time spent
   in flash solver for compositional models. Options are based on "Increasing the
@@ -487,12 +491,16 @@ low values can lead to slow convergence.
   repeatedly get rates with the wrong side. Disabling this can make certain
   models infeasible to simulate, but it can be useful to do so for simple models
   where you know that the wells should be operational.
+- `well_groups=Dict{Symbol, Vector{Symbol}}()`: Named groups for group rate targets.
+- `group_use_potentials=Dict{Symbol, Bool}()`: Use potential weighting for each
+  group (default `true`). Set a group to `false` for equal allocation.
 
 """
 function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         wells = [],
         tracers = [],
-        context = DefaultContext(),
+        secondary_scheme = :flat,
+        context = DefaultContext(secondary_scheme = secondary_scheme),
         reservoir_context = nothing,
         general_ad = false,
         backend = :csr,
@@ -514,7 +522,7 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         dr_max = Inf,
         dT_max_rel = nothing,
         dT_max_abs = 50.0,
-        T_min = convert_to_si(0.0, :Celsius),
+        T_min = minimum_value(Temperature()),
         fast_flash = false,
         can_shut_wells = true,
         flash_reuse_guess = fast_flash,
@@ -530,13 +538,15 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         facility_system = nothing,
         wells_as_cells = false,
         discretization_arg = NamedTuple(),
-        groups = missing
+        groups = missing,
+        well_groups::Dict{Symbol, Vector{Symbol}} = Dict{Symbol, Vector{Symbol}}(),
+        group_use_potentials::Dict{Symbol, Bool} = Dict{Symbol, Bool}()
     )
     # Deal with wells, make sure that multisegment wells come last.
     if !(wells isa AbstractArray)
         wells = [wells]
     end
-    if !(tracers isa AbstractArray)
+    if !(tracers isa AbstractArray) && !(tracers isa Tracers.TracerFluxType)
         tracers = [tracers]
     end
     mswells = []
@@ -558,14 +568,28 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
     end
     # List of models (order matters)
     models = OrderedDict{Symbol, Jutul.AbstractSimulationModel}()
-    reservoir_context, context = Jutul.select_contexts(
-        backend;
-        main_context = reservoir_context,
-        context = context,
-        block_backend = block_backend,
-        nthreads = nthreads,
-        minbatch = minbatch
-    )
+    if isnothing(context)
+        if backend == :csr
+            context = ParallelCSRContext(secondary_scheme = secondary_scheme)
+        else
+            context = DefaultContext(minbatch = minbatch, secondary_scheme = secondary_scheme)
+        end
+    end
+    if isnothing(reservoir_context)
+        layout = block_backend ? BlockMajorLayout() : EquationMajorLayout()
+        if backend == :csr
+            reservoir_context = ParallelCSRContext(nthreads;
+                matrix_layout = layout, minbatch = minbatch,
+                secondary_scheme = secondary_scheme)
+        elseif backend == :csc
+            @assert context isa DefaultContext
+            reservoir_context = DefaultContext(;
+                matrix_layout = layout, minbatch = minbatch, nthreads = nthreads,
+                secondary_scheme = secondary_scheme)
+        else
+            error("Unsupported context type $backend")
+        end
+    end
     # We first set up the reservoir
     rmodel = SimulationModel(
         reservoir,
@@ -573,7 +597,8 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         context = reservoir_context,
         general_ad = general_ad,
         kgrad = kgrad,
-        upwind = upwind
+        upwind = upwind,
+        discretization_arg...
     )
     system = rmodel.system
     if thermal
@@ -617,6 +642,9 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
     # Then we set up all the wells
     if isnothing(facility_system)
         facility_system = FacilitySystem(system)
+    end
+    if split_wells && length(keys(well_groups)) > 0
+        error("Split wells is enabled but well groups are defined. This combination is not supported.")
     end
     encountered_wells = Dict{Symbol, Bool}()
     if length(wells) > 0
@@ -679,7 +707,12 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
                 models[k] = v
             end
         else
-            wg = WellGroup(map(x -> physical_representation(x).name, wells), can_shut_wells = can_shut_wells)
+            wg = WellGroup(
+                map(x -> physical_representation(x).name, wells),
+                can_shut_wells = can_shut_wells,
+                groups = well_groups,
+                use_potentials = group_use_potentials
+            )
             F = SimulationModel(wg, facility_system, context = context, data_domain = DataDomain(wg))
             if thermal
                 add_thermal_to_facility!(F)
@@ -695,7 +728,7 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         immutable_model = immutable_model,
         groups = groups,
     )
-    if length(tracers) > 0
+    if tracers isa Tracers.TracerFluxType || length(tracers) > 0
         add_tracers_to_model!(model, tracers)
     end
     if extra_out
@@ -868,7 +901,7 @@ function set_reservoir_variable_defaults!(model;
         dr_max,
         dT_max_rel = nothing,
         dT_max_abs = nothing,
-        T_min = convert_to_si(0.0, :Celsius),
+        T_min = minimum_value(Temperature()),
         flash_reuse_guess = false,
         flash_stability_bypass = false
     )
@@ -1357,6 +1390,7 @@ function setup_reservoir_simulator(case::JutulCase;
             linear_float_type = linear_float_type,
             linear_index_type = linear_index_type,
             matrix_layout = Jutul.matrix_layout(sim_cpu.model.context),
+            secondary_scheme = Jutul.secondary_scheme(reservoir_model(sim_cpu.model)),
             workgroupsize = ka_workgroupsize,
             reduce_memory = reduce_memory)
         if ismissing(group_execution)
@@ -1854,6 +1888,7 @@ function reservoir_multimodel(models::AbstractDict;
         groups = missing
     )
     res_model = models[:Reservoir]
+    secondary_scheme = Jutul.secondary_scheme(res_model)
     is_block(x) = Jutul.is_cell_major(matrix_layout(x.context))
     block_backend = is_block(res_model)
     n = length(models)
@@ -1906,14 +1941,14 @@ function reservoir_multimodel(models::AbstractDict;
                 end
             end
             red = :schur_apply
-            outer_context = DefaultContext()
+            outer_context = DefaultContext(secondary_scheme = secondary_scheme)
         else
             outer_context = models[:Reservoir].context
             groups = nothing
             red = nothing
         end
     else
-        outer_context = DefaultContext()
+        outer_context = DefaultContext(secondary_scheme = secondary_scheme)
         red = :schur_apply
     end
     models = convert_to_immutable_storage(models)
@@ -2213,7 +2248,7 @@ function partitioner_input(model_or_domain::Union{JutulModel, DataDomain}, param
         end
     end
     if conn == :unit
-        T = ones(Int, nf)
+        T = ones(Int, size(N, 2))
     else
         trans = max.(trans, 1e-20)
         if conn == :trans
@@ -3155,11 +3190,13 @@ function reservoir_measurables(model, wellresult, states = missing;
         sum_well_rates!(flpr, :wrat, is_prod = true)
         sum_well_rates!(fwpr, :wrat, is_prod = true)
         sum_well_rates!(fwir, :wrat, is_prod = false)
+        sum_well_rates!(flir, :wrat, is_prod = false)
     end
     if has_oil
         sum_well_rates!(flpr, :orat, is_prod = true)
         sum_well_rates!(fopr, :orat, is_prod = true)
         sum_well_rates!(foir, :orat, is_prod = false)
+        sum_well_rates!(flir, :orat, is_prod = false)
     end
     if has_gas
         sum_well_rates!(fgpr, :grat, is_prod = true)
@@ -3259,8 +3296,11 @@ function reservoir_measurables(model, wellresult, states = missing;
 
     flpt = add_entry(:lpt)
     dt_for_cumsum = dt
+    if units != :si
+        dt_for_cumsum = dt/si_unit(:day)
+    end
     if prefix == 'w'
-        dt_for_cumsum = dt .* get(ws[only(wells)], :factor, 1.0)
+        dt_for_cumsum = dt_for_cumsum .* get(ws[only(wells)], :factor, 1.0)
     end
     flpt .= cumsum(flpr.*dt_for_cumsum)
     fwit = add_entry(:wit)

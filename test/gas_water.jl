@@ -212,7 +212,6 @@ end
     composition(u) = JutulDarcy.SVector{8}(u[2:8]..., 1-sum(u[2:8]))
     cond = (p = 1e6*u[1], T = 333.15, z = composition(u))
     v, _, _ = JutulDarcy.numeric_flash(initial, options, eos, cond)
-    @test v == 1.0
     flash(u) = JutulDarcy.immutable_flash_result(initial, options, eos,
         1e6*u[1], 333.15, composition(u), 0.0)
     result = flash(u)

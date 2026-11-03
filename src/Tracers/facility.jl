@@ -1,7 +1,8 @@
-struct WellFromFacilityTracerCT <: Jutul.AdditiveCrossTerm
+struct WellFromFacilityTracerCT{T} <: Jutul.AdditiveCrossTerm
     wells::Vector{Symbol}
     facility_cells::Vector{Int}
     well_cells::Vector{Int}
+    tracers::T
 end
 
 Jutul.cross_term_entities(ct::WellFromFacilityTracerCT, eq::ConservationLaw{:TracerMasses}, model) =
@@ -21,7 +22,7 @@ function Jutul.update_cross_term_in_entity!(out, i,
     ctrl = JutulDarcy.operating_control(cfg, well_symbol)
     qT = state_facility.TotalSurfaceMassRate[pos]
 
-    tracers = well.equations[:tracers].flux_type.tracers
+    tracers = ct.tracers
     T = eltype(out)
     N = length(tracers)
     S = state_well.Saturations
@@ -33,24 +34,7 @@ function Jutul.update_cross_term_in_entity!(out, i,
             out .= zero(T)
         else
             @assert length(ctrl.tracers) == N
-            mass_tot = zero(T)
-            for phase in 1:number_of_phases(well.system)
-                mass_tot += S[phase, wc]*rho[phase, wc]
-            end
-
-            for i in 1:N
-                mass = zero(T)
-                for phase in tracer_phase_indices(tracers[i])
-                    mass += S[phase, wc]*rho[phase, wc]
-                end
-                if mass > TRACER_TOL
-                    F = mass/mass_tot
-                    v = -qT*F*ctrl.tracers[i]
-                else
-                    v = zero(T)
-                end
-                out[i] = v
-            end
+            update_tracer_injection!(out, ctrl, qT, tracers, well.system, state_well, wc)
         end
     else
         mass_tot = zero(T)
@@ -70,6 +54,40 @@ function Jutul.update_cross_term_in_entity!(out, i,
     end
     return out
 end
+
+function update_tracer_injection!(out, ctrl, qT, tracers,
+        system::Union{JutulDarcy.BlackOilSystem, ImmiscibleSystem}, state, cell)
+    for i in eachindex(tracers)
+        F = zero(eltype(out))
+        for phase in tracer_phase_indices(tracers[i])
+            F += ctrl.injection_mixture[phase]
+        end
+        out[i] = -qT*F*ctrl.tracers[i]
+    end
+    return out
+end
+
+function update_tracer_injection!(out, ctrl, qT, tracers, system, state, cell)
+    S = state.Saturations
+    rho = state.PhaseMassDensities
+    mass_tot = zero(eltype(out))
+    for phase in 1:number_of_phases(system)
+        mass_tot += S[phase, cell]*rho[phase, cell]
+    end
+    for i in eachindex(tracers)
+        mass = zero(eltype(out))
+        for phase in tracer_phase_indices(tracers[i])
+            mass += S[phase, cell]*rho[phase, cell]
+        end
+        if mass > TRACER_TOL
+            out[i] = -qT*(mass/mass_tot)*ctrl.tracers[i]
+        else
+            out[i] = zero(eltype(out))
+        end
+    end
+    return out
+end
+
 struct ReservoirFromWellTracerCT{I<:AbstractVector} <: JutulDarcy.AbstractReservoirFromWellCT
     reservoir_cells::I
     well_cells::I
@@ -149,6 +167,6 @@ end
 
 function Jutul.apply_force_to_cross_term!(ct_s, cross_term::ReservoirFromWellTracerCT, target, source, model, storage, dt, force::PerforationMask; time = time)
     mask = force.values
-    apply_perforation_mask!(ct_s.target, mask, model.context)
-    apply_perforation_mask!(ct_s.source, mask, model.context)
+    JutulDarcy.apply_perforation_mask!(ct_s.target, mask, model.context)
+    JutulDarcy.apply_perforation_mask!(ct_s.source, mask, model.context)
 end

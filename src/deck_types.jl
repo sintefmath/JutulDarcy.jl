@@ -671,19 +671,50 @@ struct DeckThermalViscosityTable{T, V}
     rs_ref::V
 end
 
+"Piecewise-quadratic energy obtained by integrating tabulated heat capacity."
+struct IntegratedHeatCapacity{X, C, E}
+    temperature::X
+    capacity::C
+    energy::E
+end
+
+function IntegratedHeatCapacity(temperature, capacity)
+    energy = [first(temperature)*first(capacity)]
+    for i in 2:length(temperature)
+        dT = temperature[i] - temperature[i-1]
+        push!(energy, energy[end] + dT*(capacity[i-1] + capacity[i])/2)
+    end
+    return IntegratedHeatCapacity(temperature, capacity, energy)
+end
+
+function (table::IntegratedHeatCapacity)(T)
+    X, C, E = table.temperature, table.capacity, table.energy
+    if T <= first(X)
+        return first(C)*T
+    elseif T >= last(X)
+        return last(E) + last(C)*(T-last(X))
+    end
+    i = clamp(searchsortedlast(X, value(T)), 1, length(X)-1)
+    dT = T-X[i]
+    return E[i] + C[i]*dT + (C[i+1]-C[i])*(dT*dT/(2*(X[i+1]-X[i])))
+end
+
+Adapt.@adapt_structure IntegratedHeatCapacity
+
 function DeckThermalViscosityTable(props::AbstractDict, pvt, water, oil, gas)
     visc_tab = []
     function tab_to_interp(tab)
         return map(x -> get_1d_interpolator(x[:, 1] .+ 273.15, x[:, 2]), tab)
     end
-    if water
-        push!(visc_tab, tab_to_interp(props["WATVISCT"]))
-    end
-    if oil
-        push!(visc_tab, tab_to_interp(props["OILVISCT"]))
-    end
-    if gas
-        push!(visc_tab, tab_to_interp(props["GASVISCT"]))
+    for (active, keyword) in ((water, "WATVISCT"), (oil, "OILVISCT"), (gas, "GASVISCT"))
+        if active
+            if haskey(props, keyword)
+                tables = tab_to_interp(props[keyword])
+            else
+                tables = nothing
+            end
+            push!(visc_tab, tables)
+        end
     end
     visc_tab = Tuple(visc_tab)
     if haskey(props, "VISCREF")
@@ -691,7 +722,7 @@ function DeckThermalViscosityTable(props::AbstractDict, pvt, water, oil, gas)
         rs_ref = map(x -> x[2], vref)
         p_ref = map(x -> x[1], vref)
     else
-        nreg = length(first(visc_tab))
+        nreg = length(first(pvt).tab)
         rs_ref = fill(NaN, nreg)
         p_ref = fill(NaN, nreg)
     end

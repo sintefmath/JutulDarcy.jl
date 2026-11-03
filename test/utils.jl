@@ -128,3 +128,16 @@ end
         end
     end
 end
+
+@testset "partitioner_input with faults" begin
+    g = UnstructuredMesh(CartesianMesh((4, 4, 1)))
+    Jutul.set_mesh_entity_tag!(g, Faces(), :faults, :f1, [1, 2])
+    d = reservoir_domain(g)
+    nf = number_of_faces(g)
+    for conn in (:unit, :trans, :logtrans)
+        N, T, = JutulDarcy.partitioner_input(d, conn = conn)
+        @test size(N, 2) == length(T) == nf - 2
+        N, T, = JutulDarcy.partitioner_input(d, conn = conn, preserve_faults = false)
+        @test size(N, 2) == length(T) == nf
+    end
+end

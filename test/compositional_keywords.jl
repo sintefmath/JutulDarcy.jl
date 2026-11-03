@@ -162,10 +162,14 @@ end
 
         for water in (false, true)
             write(path, compositional_keyword_deck(; water = water))
-            case = setup_case_from_data_file(path)
+            case = setup_case_from_data_file(path;
+                well_groups = Dict(:Injection => [:I]),
+                group_use_potentials = Dict(:Injection => false))
             model = reservoir_model(case)
             well_system = case.model[:I].system
             facility_system = case.model[:Facility].system.multiphase
+            @test case.model[:Facility].domain.group_to_wells[:Injection] == [:I]
+            @test !case.model[:Facility].domain.use_potentials[:Injection]
             @test model.system.equation_of_state.volume_shift == (0.01, 0.02, 0.03)
             @test well_system.equation_of_state.volume_shift == (0.01, 0.02, 0.03)
             @test facility_system.equation_of_state.volume_shift == (0.04, 0.05, 0.06)

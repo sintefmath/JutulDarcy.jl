@@ -11,6 +11,7 @@ function JutulDarcy.plot_summary_impl(arg...;
         plots = ["FIELD:FPR"],
         extra_field = String[],
         extra_well = String[],
+        extra_group = String[],
         events = missing,
         linecolor = :black,
         selectors = true,
@@ -64,19 +65,28 @@ function JutulDarcy.plot_summary_impl(arg...;
     end
     extra_well_internal = String[]
     extra_field_internal = String[]
+    extra_group_internal = String[]
     for k in plots
         well_or_fld, name = split_name(k)
-        dest = well_or_fld == "FIELD" ? extra_field_internal : extra_well_internal
+        if startswith(name, "G")
+            dest = extra_group_internal
+        elseif well_or_fld == "FIELD"
+            dest = extra_field_internal
+        else
+            dest = extra_well_internal
+        end
         if !(name in dest)
             push!(dest, name)
         end
     end
-    for (prefix, dest) in zip(["F", "W"], [extra_field_internal, extra_well_internal])
+    for (prefix, dest) in zip(["F", "W", "G"], [extra_field_internal, extra_well_internal, extra_group_internal])
         push!(dest, "$(prefix)WPR,$(prefix)OPR,$(prefix)GPR")
         push!(dest, "$(prefix)WPT,$(prefix)OPT,$(prefix)GPT")
         push!(dest, "$(prefix)WIT,$(prefix)WPT")
-        push!(dest, "$(prefix)OIP,$(prefix)OPT")
-        push!(dest, "$(prefix)WIP,$(prefix)WPT")
+        if prefix != "G"
+            push!(dest, "$(prefix)OIP,$(prefix)OPT")
+            push!(dest, "$(prefix)WIP,$(prefix)WPT")
+        end
     end
 
     get_summary(r::JutulDarcy.ReservoirSimResult) = r.summary
@@ -85,7 +95,9 @@ function JutulDarcy.plot_summary_impl(arg...;
     nsmry = length(names)
     nsmry == length(summaries) || error("Number of names ($nsmry) must match number of summaries ($(length(summaries))).")
     for (i, s) in enumerate(summaries)
-        summaries[i] = copy(s)
+        s = copy(s)
+        s["VALUES"] = copy(s["VALUES"])
+        summaries[i] = s
         if !haskey(s, "UNIT_SYSTEM")
             println("Warning: Summary $i has no UNIT_SYSTEM key, assuming metric.")
             s["UNIT_SYSTEM"] = "metric"
@@ -93,6 +105,11 @@ function JutulDarcy.plot_summary_impl(arg...;
         if !haskey(s["VALUES"], "FIELD")
             println("Warning: Summary $i has no FIELD values, adding empty.")
             s["VALUES"]["FIELD"] = Dict{String, Any}()
+        end
+        for scope in ("WELLS", "GROUP")
+            if !haskey(s["VALUES"], scope)
+                s["VALUES"][scope] = Dict{String, Any}()
+            end
         end
     end
     if ismissing(colormap)
@@ -107,35 +124,25 @@ function JutulDarcy.plot_summary_impl(arg...;
     end
     summary_sample = summaries[1]
     # The source of the data
+    group_names = collect(keys(summary_sample["VALUES"]["GROUP"]))
     well_names = collect(keys(summary_sample["VALUES"]["WELLS"]))
-
-    source_keys = copy(well_names)
     for i in 2:nsmry
-        # Find intersection of well names
+        # Find common well and group names.
         smry = summaries[i]
-        wnames_i = collect(keys(smry["VALUES"]["WELLS"]))
-        source_keys = intersect(source_keys, wnames_i)
+        group_names = intersect(group_names, keys(smry["VALUES"]["GROUP"]))
+        well_names = intersect(well_names, keys(smry["VALUES"]["WELLS"]))
     end
 
-    sort!(source_keys)
-    pushfirst!(source_keys, "FIELD")
+    sort!(group_names)
+    sort!(well_names)
+    source_keys = unique(vcat(["FIELD"], group_names, well_names))
     # Field types
     field_quantity_keys = collect(keys(summary_sample["VALUES"]["FIELD"]))
     sort!(field_quantity_keys)
     add_legend_to_keys!(field_quantity_keys, lookup)
 
-    function get_well_quantity_keys(wname)
-        wk = collect(keys(summary_sample["VALUES"]["WELLS"][wname]))
-        add_legend_to_keys!(wk, lookup)
-        for k in cat(extra_well, extra_well_internal; dims = 1)
-            if !(k in wk)
-                push!(wk, k)
-            end
-        end
-        return wk
-    end
-
     function get_quantity_options(kind)
+        opts = String[]
         if kind == "FIELD"
             opts = copy(field_quantity_keys)
             for k in cat(extra_field, extra_field_internal; dims = 1)
@@ -143,9 +150,20 @@ function JutulDarcy.plot_summary_impl(arg...;
                     push!(opts, k)
                 end
             end
-        else
-            opts = get_well_quantity_keys(kind)
         end
+        for (scope, extra, internal) in (("WELLS", extra_well, extra_well_internal),
+                ("GROUP", extra_group, extra_group_internal))
+            data = summary_sample["VALUES"][scope]
+            if haskey(data, kind)
+                keys_for_source = collect(keys(data[kind]))
+                sort!(keys_for_source)
+                add_legend_to_keys!(keys_for_source, lookup)
+                append!(opts, keys_for_source)
+                append!(opts, extra)
+                append!(opts, internal)
+            end
+        end
+        unique!(opts)
         pushfirst!(opts, "NONE")
         return opts
     end
@@ -164,11 +182,11 @@ function JutulDarcy.plot_summary_impl(arg...;
     function plot_data(kind, valtype, idx, info, units)
         smry = summaries[idx]
         t = smry["TIME"].seconds
-        if occursin(" - ", valtype)
-            valtype = first(split(valtype, ": "))
-        end
         if valtype == "NONE"
             v = zeros(length(t))
+        elseif startswith(valtype, "G") || (kind != "FIELD" && !haskey(smry["VALUES"]["WELLS"], kind))
+            data = get(smry["VALUES"]["GROUP"], kind, Dict())
+            v = get(data, valtype, missing)
         elseif kind == "FIELD"
             v = get(smry["VALUES"]["FIELD"], valtype, missing)
         else
@@ -270,6 +288,7 @@ function JutulDarcy.plot_summary_impl(arg...;
             nplts = length(plot_names)
             nlines = nplts*nsmry
             for (pn_idx, pname) in enumerate(plot_names)
+                pname = first(split(pname, ": "; limit = 2))
                 info = get(lookup, pname, missing)
                 units = unit_menu.selection[]
 

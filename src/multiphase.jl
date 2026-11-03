@@ -587,8 +587,8 @@ function convergence_criterion(model::SimulationModel{D, S}, storage, eq::Conser
 end
 
 function cnv_error_for_phase(r, Φ, ρ, dt, phase)
-    residual = view(r, phase, :)
-    density = view(ρ, phase, :)
+    residual = Jutul.matrix_row_view(r, phase)
+    density = Jutul.matrix_row_view(ρ, phase)
     function normalized_residual(residual, density, pore_volume)
         return dt*abs(value(residual))/(value(density)*value(pore_volume))
     end
@@ -596,8 +596,8 @@ function cnv_error_for_phase(r, Φ, ρ, dt, phase)
 end
 
 function mb_error_for_phase(r, total_pore_volume, ρ, dt, phase)
-    residual = view(r, phase, :)
-    density = view(ρ, phase, :)
+    residual = Jutul.matrix_row_view(r, phase)
+    density = Jutul.matrix_row_view(ρ, phase)
     residual_sum = sum(value, residual)
     average_density = sum(x -> abs(value(x)), density)/length(density)
     return (dt/total_pore_volume)*abs(residual_sum)/average_density
