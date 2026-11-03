@@ -411,8 +411,12 @@ end
 
 function reservoir_conductivity(reservoir::DataDomain)
     phi = reservoir[:porosity]
-    C = reservoir[:rock_thermal_conductivity]
-    T = compute_face_trans(reservoir, (1.0 .- phi).*C)
+    if haskey(reservoir, :bulk_thermal_conductivity)
+        C = reservoir[:bulk_thermal_conductivity]
+    else
+        C = (1.0 .- phi).*reservoir[:rock_thermal_conductivity]
+    end
+    T = compute_face_trans(reservoir, C)
     if haskey(reservoir, :nnc)
         nnc = reservoir[:nnc]
         nnc::NonNeighboringConnections

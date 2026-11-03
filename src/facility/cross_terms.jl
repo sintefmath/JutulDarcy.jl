@@ -313,10 +313,78 @@ function Jutul.apply_force_to_cross_term!(ct_s, cross_term::ReservoirFromWellThe
     apply_perforation_mask!(ct_s.source, mask, model.context)
 end
 
-struct WellFromFacilityThermalCT <: Jutul.AdditiveCrossTerm
+"Constitutive evaluator passed explicitly to the well/facility energy cross term."
+struct InjectionEnthalpyEvaluator{E}
+    energy::E
+end
+
+Adapt.@adapt_structure InjectionEnthalpyEvaluator
+
+"""
+Placeholder evaluator for fluid systems without a known way of computing the
+injected enthalpy from pressure and temperature. Setup succeeds, so that
+injectors with an explicitly given enthalpy can be used. An error is thrown only
+if the injected enthalpy has to be computed.
+"""
+struct UnsupportedInjectionEnthalpy{E} end
+
+"""
+    injection_enthalpy_evaluator(model)
+
+Return the evaluator used to compute the enthalpy of injected fluid from
+pressure and temperature for injectors without an explicitly given enthalpy.
+Packages with other fluid systems can add methods for their models, together
+with a corresponding `injected_fluid_enthalpy` method.
+"""
+function injection_enthalpy_evaluator(model)
+    # Resolve constitutive laws during simulator setup. Kernel models
+    # intentionally do not carry variable definitions.
+    enthalpy = model[:FluidEnthalpy]
+    if enthalpy isa PressureTemperatureDependentEnthalpy
+        return enthalpy
+    end
+    energy = model[:FluidInternalEnergy]
+    if energy isa FluidInternalEnergy
+        energy = nothing
+    elseif !(energy isa TemperatureDependentVariable)
+        return UnsupportedInjectionEnthalpy{typeof(energy)}()
+    end
+    return InjectionEnthalpyEvaluator(energy)
+end
+
+struct WellFromFacilityThermalCT{H} <: Jutul.AdditiveCrossTerm
     wells::Vector{Symbol}
     facility_cells::Vector{Int}
     well_cells::Vector{Int}
+    enthalpy_evaluator::H
+end
+
+WellFromFacilityThermalCT(wells, facility_cells, well_cells) =
+    WellFromFacilityThermalCT(wells, facility_cells, well_cells, nothing)
+
+WellFromFacilityThermalCT(ct::WellFromFacilityThermalCT, evaluator) =
+    WellFromFacilityThermalCT(ct.wells, ct.facility_cells, ct.well_cells, evaluator)
+
+function Jutul.setup_cross_term_storage(ct::WellFromFacilityThermalCT{Nothing},
+        eq_t, eq_s, well, facility, storage_t, storage_s; kwarg...)
+    evaluator = injection_enthalpy_evaluator(well)
+    storage = Jutul.setup_cross_term_storage(WellFromFacilityThermalCT(ct, evaluator),
+        eq_t, eq_s, well, facility, storage_t, storage_s; kwarg...)
+    storage[:injection_enthalpy_evaluator] = evaluator
+    return storage
+end
+
+function Jutul.update_cross_term!(storage::Union{Jutul.JutulStorage, Jutul.ImmutableJutulStorage},
+        ct::WellFromFacilityThermalCT{Nothing}, eq, storage_t, storage_s, well, facility, dt)
+    cross_term = WellFromFacilityThermalCT(ct, storage.injection_enthalpy_evaluator)
+    return Jutul.update_cross_term!(storage, cross_term, eq, storage_t, storage_s, well, facility, dt)
+end
+
+function Jutul.KernelExecution.setup_cross_term_evaluation(storage,
+        ct::WellFromFacilityThermalCT{Nothing}, eq, storage_t, storage_s, well, facility)
+    cross_term = WellFromFacilityThermalCT(ct, storage.injection_enthalpy_evaluator)
+    return Jutul.KernelExecution.setup_cross_term_evaluation(storage, cross_term,
+        eq, storage_t, storage_s, well, facility)
 end
 
 Jutul.cross_term_entities(ct::WellFromFacilityThermalCT, eq::ConservationLaw, model) =
@@ -346,7 +414,7 @@ function update_cross_term_in_entity!(out, i,
     cell = ct.well_cells[i]
     qT += 0*state_well.Pressure[cell]
 
-    H = get_target_enthalpy(ctrl, ctrl.target, facility, state_facility, well, state_well, cell)
+    H = get_target_enthalpy(ctrl, ctrl.target, facility, state_facility, well, state_well, cell, ct.enthalpy_evaluator)
     Q = -qT*H
     if eq isa ConservationLaw{:TotalEnergy}
         # Mass entering/leaving through the top node carries the potential
@@ -356,19 +424,19 @@ function update_cross_term_in_entity!(out, i,
     out[] = Q
 end
 
-function get_target_enthalpy(ctrl, target, facility, state_facility, model, state_well, cell)
+function get_target_enthalpy(ctrl, target, facility, state_facility, model, state_well, cell, evaluator)
     return well_top_node_enthalpy(model, state_well, cell)
 end
 
-function get_target_enthalpy(ctrl::InjectorControl, target, facility, state_facility, model, state_well, cell)
+function get_target_enthalpy(ctrl::InjectorControl, target, facility, state_facility, model, state_well, cell, evaluator)
     T = get_target_temperature(ctrl, target, facility, state_facility)
-    return well_top_node_enthalpy(ctrl, model, state_well, T, cell)
+    return well_top_node_enthalpy(ctrl, model, state_well, T, cell, evaluator)
 end
 
-function get_target_enthalpy(ctrl::InjectorControl, target::ReinjectionTarget, facility, state_facility, model, state_well, cell)
+function get_target_enthalpy(ctrl::InjectorControl, target::ReinjectionTarget, facility, state_facility, model, state_well, cell, evaluator)
     if !ismissing(ctrl.enthalpy) || !isnan(ctrl.temperature)
         T = get_target_temperature(ctrl, target, facility, state_facility)
-        return well_top_node_enthalpy(ctrl, model, state_well, T, cell)
+        return well_top_node_enthalpy(ctrl, model, state_well, T, cell, evaluator)
     end
 
     q = qh = Htot = 0.0
@@ -412,29 +480,31 @@ end
 
 function well_top_node_enthalpy(model, state_well, cell)
     if haskey(state_well, :Enthalpy)
-        return state_well.Enthalpy[cell]
+        return state_well[:Enthalpy][cell]
     end
-    H = state_well.FluidEnthalpy
+    H = state_well[:FluidEnthalpy]
     if haskey(state_well, :Saturations)
-        S = state_well.Saturations
+        S = state_well[:Saturations]
+        rho = state_well[:PhaseMassDensities]
         H_w = zero(H[1, cell])
+        total_mass = zero(H_w)
         for ph in axes(H, 1)
-            H_w += H[ph, cell]*S[ph, cell]
+            mass = S[ph, cell]*rho[ph, cell]
+            H_w += H[ph, cell]*mass
+            total_mass += mass
         end
+        H_w /= total_mass
     else
         H_w = H[1, cell]
     end
     return H_w
 end
 
-function well_top_node_enthalpy(ctrl::InjectorControl, model, state_well, T, cell)
+function well_top_node_enthalpy(ctrl::InjectorControl, model, state_well, T, cell, evaluator)
     p = state_well.Pressure[cell]
-    # density = ctrl.mixture_density
-    # T = ctrl.temperature
     H_w = ctrl.enthalpy
     if ismissing(H_w)
-        enthalpy = Jutul.get_secondary_variables(model)[:FluidEnthalpy]
-        H = injected_fluid_enthalpy(ctrl, enthalpy, model, state_well, p, T, cell)
+        H = injected_fluid_enthalpy(ctrl, evaluator, model, state_well, p, T, cell)
     elseif H_w isa Real
         H = H_w
     elseif H_w isa Function
@@ -445,30 +515,57 @@ function well_top_node_enthalpy(ctrl::InjectorControl, model, state_well, T, cel
     return H
 end
 
-function injected_fluid_enthalpy(ctrl, enthalpy, model, state_well, p, T, cell)
+function injected_fluid_enthalpy(ctrl, evaluator::InjectionEnthalpyEvaluator, model, state_well, p, T, cell)
     H = zero(p*T)
-    for ph in axes(state_well.Saturations, 1)
-        S = state_well.Saturations[ph, cell]
-        dens = state_well.PhaseMassDensities[ph, cell]
-        C = state_well.ComponentHeatCapacity[ph, cell]
-        H += S*(C*T + p/dens)
+    law = evaluator.energy
+    energy = evaluate_table_by_region(law.tab, region(law.regions, cell), T)
+    for c in eachindex(ctrl.injection_mixture)
+        H += ctrl.injection_mixture[c]*energy[c]
     end
+    H += injection_pressure_work(ctrl, model, state_well, p, cell)
     return H
 end
 
-function injected_fluid_enthalpy(ctrl, enthalpy::PressureTemperatureDependentEnthalpy{Tab, R, N}, model, state_well, p, T, cell) where {Tab, R, N}
+function injected_fluid_enthalpy(ctrl, evaluator::InjectionEnthalpyEvaluator{Nothing}, model, state, p, T, cell)
+    H = zero(p*T)
+    for c in eachindex(ctrl.injection_mixture)
+        H += ctrl.injection_mixture[c]*state.ComponentHeatCapacity[c, cell]*T
+    end
+    return H + injection_pressure_work(ctrl, model, state, p, cell)
+end
+
+function injected_fluid_enthalpy(ctrl, ::UnsupportedInjectionEnthalpy{E}, model, state, p, T, cell) where E
+    throw(ArgumentError("Cannot compute the injected enthalpy for $E. Give the \
+        enthalpy explicitly in InjectorControl, or add methods for \
+        injection_enthalpy_evaluator and injected_fluid_enthalpy."))
+end
+
+function injected_fluid_enthalpy(ctrl, enthalpy::PressureTemperatureDependentEnthalpy, model, state, p, T, cell)
     component_H = tabulated_enthalpy(enthalpy, p, T, cell)
-    # The control specifies the injected component mass fractions. Evaluate at
-    # the injection temperature, which can differ from the well temperature.
-    H = zero(component_H[1]*ctrl.injection_mixture[1])
-    for c in 1:N
+    H = zero(p*T)
+    for c in eachindex(ctrl.injection_mixture)
         H += ctrl.injection_mixture[c]*component_H[c]
     end
     return H
 end
 
-function well_top_node_enthalpy(ctrl, model, state_well, T, cell)
-    return well_top_node_enthalpy(model, state_well, cell)
+@inline function injection_pressure_work(ctrl, model, state, p, cell)
+    work = zero(p)
+    if model.system isa CompositionalSystem
+        total_mass = zero(p)
+        total_volume = zero(p)
+        for ph in axes(state.Saturations, 1)
+            saturation = state.Saturations[ph, cell]
+            total_mass += saturation*state.PhaseMassDensities[ph, cell]
+            total_volume += saturation
+        end
+        work = p*total_volume/total_mass
+    else
+        for ph in eachindex(ctrl.injection_mixture)
+            work += ctrl.injection_mixture[ph]*p/state.PhaseMassDensities[ph, cell]
+        end
+    end
+    return work
 end
 
 struct FacilityFromWellTemperatureCT <: Jutul.AdditiveCrossTerm

@@ -121,6 +121,7 @@ rate_weighted(::DisabledTarget) = false
 target_scaling(::Any) = 1.0
 target_scaling(::BottomHolePressureTarget) = 1e5
 target_scaling(::SurfaceVolumeTarget) = 1.0/(3600*24.0) # weight by day
+target_scaling(t::GroupRateTarget) = target_scaling(individual_rate_target(t))
 target_scaling(::TotalMassRateTarget) = 1.0/(3600*24.0) # weight by day
 
 Jutul.associated_entity(::ControlEquationWell) = Wells()
@@ -136,12 +137,21 @@ function Jutul.prepare_equation_in_entity!(i, eq::ControlEquationWell, eq_s, sta
 end
 
 function Jutul.update_equation_in_entity!(v, i, state, state0, eq::ControlEquationWell, model, dt, ldisc = local_discretization(eq, i))
-    well = model.domain.well_symbols[i]
+    wcontroller = model.domain
+    wcontroller::WellGroup
+    well = wcontroller.well_symbols[i]
     cond = FacilityVariablesForWell(model, state, well)
     cfg = state.WellGroupConfiguration
     ctrl = operating_control(cfg, well)
     eq_val = well_control_equation(ctrl, cond, well, model, state)
-    v[1] = eq_val + 0*state.BottomHolePressure[i] + 0*state.SurfacePhaseRates[1, i]
+    eq_val += 0*state.BottomHolePressure[i] + 0*state.SurfacePhaseRates[1, i]
+    group = get(wcontroller.well_to_group, well, missing)
+    if !ismissing(group)
+        for w_idx in wcontroller.group_to_well_numbers[group]
+            eq_val += 0*state.BottomHolePressure[w_idx] + 0*state.SurfacePhaseRates[1, w_idx]
+        end
+    end
+    v[1] = eq_val
 end
 
 Jutul.associated_entity(::SurfaceTemperatureEquation) = Wells()

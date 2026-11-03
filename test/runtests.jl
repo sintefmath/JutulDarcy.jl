@@ -12,6 +12,7 @@ end
     include("secondary_scheme.jl")
     include("input_timestep_defaults.jl")
     include("efficiency_summary.jl")
+    include("group_summary.jl")
 end
 
 @testitem "Rel. Perm." begin
@@ -52,6 +53,14 @@ end
     include("well_shutting.jl")
 end
 
+@testitem "Well group controls" begin
+    include("well_groups.jl")
+end
+
+@testitem "Well limits" begin
+    include("well_limits.jl")
+end
+
 @testitem "Multisegment wells" begin
     include("mswells.jl")
 end
@@ -78,6 +87,10 @@ end
 
 @testitem "Thermal" begin
     include("thermal.jl")
+end
+
+@testitem "Thermal DATA and passive tracers" begin
+    include("thermal_data.jl")
 end
 
 @testitem "Tabulated thermal properties" begin

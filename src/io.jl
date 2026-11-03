@@ -78,13 +78,16 @@ end
 """
     summary_result(model::MultiModel, wellresult, states)
 
-Low level version of `summary_result` that works directly on a `MultiModel`,
+Low level version of `summary_result` that works directly on a `MultiModel`.
+Named well groups are included under `summary["VALUES"]["GROUP"]` with `G`-prefixed
+rates, cumulative totals and ratios. Set `groups = false` to omit them.
 """
 function summary_result(model::MultiModel, wellresult, states = missing, usys = missing;
         input_data = missing,
         wells = !ismissing(wellresult),
         start_date = missing,
-        field = wells
+        field = wells,
+        groups = wells
     )
     function to_summary(x::Dict)
         x_c = Dict{String, Vector{Float64}}()
@@ -150,6 +153,19 @@ function summary_result(model::MultiModel, wellresult, states = missing, usys = 
         end
         vals["WELLS"] = w_smry
     end
+    if groups
+        g_smry = Dict()
+        for facility in wellgroup_symbols(model)
+            for (group, members) in model[facility].domain.group_to_wells
+                gi = get_values(:group; wells = members)
+                g_smry[string(group)] = to_summary(gi)
+                if ismissing(t)
+                    t = gi[:time]
+                end
+            end
+        end
+        vals["GROUP"] = g_smry
+    end
 
     if ismissing(start_date)
         if has_data && haskey(data["RUNSPEC"], "START")
@@ -204,6 +220,11 @@ function convert_summary(s; unit_system = get(s, "UNIT_SYSTEM", "METRIC"))
                         out["VALUES"]["WELLS"][wk] = Dict{String, Any}()
                     end
                     out["VALUES"]["WELLS"][wk][k] = wv
+                elseif startswith(k, "G")
+                    if !haskey(out["VALUES"]["GROUP"], wk)
+                        out["VALUES"]["GROUP"][wk] = Dict{String, Any}()
+                    end
+                    out["VALUES"]["GROUP"][wk][k] = wv
                 elseif wv isa AbstractArray
                     out["VALUES"]["FIELD"][k] = v
                 end

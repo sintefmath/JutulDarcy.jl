@@ -313,7 +313,7 @@ function setup_reservoir_state(model::MultiModel, equil::Union{Missing, Vector, 
         end
     end
 
-    res_eval = res_state
+    res_eval = nothing
     if is_thermal && !haskey(res_state, :Enthalpy)
         # The surface enthalpy is initialized from the fluid enthalpy, which is
         # a secondary variable that is not evaluated by setup_state. This is
@@ -353,18 +353,12 @@ function setup_reservoir_state(model::MultiModel, equil::Union{Missing, Vector, 
                     end
                     if haskey(res_state, :Enthalpy)
                         enth[i] = res_state[:Enthalpy][wc]
+                    elseif isnothing(res_eval)
+                        # Secondary evaluation was skipped: retain a zero
+                        # initial guess for the facility's algebraic variable.
+                        enth[i] = zero(T)
                     elseif haskey(res_eval, :FluidEnthalpy)
-                        H = res_eval[:FluidEnthalpy]
-                        if haskey(res_eval, :Saturations)
-                            S = res_eval[:Saturations]
-                            enth_i = zero(H[1, wc])
-                            for ph in axes(H, 1)
-                                enth_i += H[ph, wc]*S[ph, wc]
-                            end
-                            enth[i] = enth_i
-                        else
-                            enth[i] = H[1, wc]
-                        end
+                        enth[i] = well_top_node_enthalpy(rmodel, res_eval, wc)
                     else
                         @error "Enthalpy/FluidEnthalpy variable not found in \
                         reservoir state, but model is thermal. Cannot \
@@ -392,6 +386,14 @@ function values_for_secondary_evaluation(state)
             T = eltype(v)
             if T <: AbstractFloat
                 out[k] = v
+            elseif T <: Integer || T <: Enum
+                out[k] = v
+            elseif T <: BlackOilX
+                if all(x -> value(x.val) isa AbstractFloat, v)
+                    out[k] = map(x -> BlackOilX(value(x.val), x.phases_present, x.sat_close), v)
+                else
+                    return nothing
+                end
             elseif T <: ForwardDiff.Dual
                 # ForwardDiff.value also strips duals with foreign tags (e.g.
                 # when differentiating through the case setup)

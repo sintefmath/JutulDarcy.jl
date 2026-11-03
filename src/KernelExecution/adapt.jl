@@ -99,7 +99,10 @@ function Adapt.adapt_structure(to, table::DeckThermalViscosityTable)
     # The outer vector is a small set of PVT regions. Keeping it as a tuple
     # lets Adapt recursively transfer each interpolant's arrays.
     visc_tab = map(table.visc_tab) do phase_tables
-        map(x -> Adapt.adapt(to, x), Tuple(phase_tables))
+        if isnothing(phase_tables)
+            return nothing
+        end
+        return map(x -> Adapt.adapt(to, x), Tuple(phase_tables))
     end
     return DeckThermalViscosityTable(
         visc_tab,

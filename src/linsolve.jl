@@ -112,7 +112,7 @@ function select_reservoir_linear_solver(model, precond = :cpr;
             bs = "$(typeof(ka_backend))"
             array_type = split(bs, "Backend")[1]
         end
-        is_accelerator_ka = Jutul.KernelExecution.KernelAbstractions.isgpu(ka_backend)
+        is_accelerator_ka = !is_ka_cpu
         !is_equation_major || throw(ArgumentError(
             "Equation-major storage is not supported for KernelAbstractions solvers. Set backend = :csr when setting up the model."))
         solver != :lu || throw(ArgumentError(
@@ -138,7 +138,7 @@ function select_reservoir_linear_solver(model, precond = :cpr;
         else
             amg_type = :amgx
         end
-        if smoother_type != :ilu0
+        if !ismissing(smoother_type) && smoother_type != :ilu0
             jutul_message("CUDA", "Smoother $smoother_type not supported for CUDA, falling back to ILU(0). Maybe you want :ka as the backend?")
             smoother_type = :ilu0
         end

@@ -1,0 +1,116 @@
+-- Self-contained thermal oil/water five-spot with a passive water tracer.
+RUNSPEC
+TITLE
+Small thermal oil-water five-spot
+DIMENS
+ 5 7 3 /
+WELLDIMS
+ 5 3 2 5 /
+OIL
+WATER
+METRIC
+TEMP
+TRACERS
+ 0 1 0 0 NODIFF /
+START
+ 1 JAN 2021 /
+GRID
+DX
+ 105*12.192 /
+DY
+ 105*6.096 /
+DZ
+ 105*3.048 /
+TOPS
+ 35*3657.6 /
+PORO
+ 105*0.175 /
+PERMX
+ 105*364.5 /
+PERMY
+ 105*364.5 /
+PERMZ
+ 105*60 /
+THCONR
+ 105*155.52 /
+PROPS
+TRACER
+ BBB WAT /
+/
+PVTW
+ 200 1.026 3.6e-5 0.35 0 /
+DENSITY
+ 800 1000 1 /
+PVCDO
+ 200 1.12 4e-5 1.5 0 /
+SPECHEAT
+ 15 0.5 4.18 0.5
+ 150 0.5 4.32 0.5
+ 195 0.5 4.46 0.5 /
+ROCK
+ 300 4e-5 /
+SWOF
+ 0 0 1 1*
+ 0.1 0 0.76563 1*
+ 0.4 0.11111 0.25 1*
+ 0.7 0.44444 0.01563 1*
+ 0.8 0.60494 0 1*
+ 1 1 0 1* /
+SPECROCK
+ 0 2.2
+ 150 2.2 /
+REGIONS
+SOLUTION
+RTEMPVD
+ 3000 150
+ 4000 195 /
+EQUIL
+ 3657.6 180 4267.2 1* 3650 6* /
+TVDPFBBB
+ 3000 0
+ 4000 0 /
+SUMMARY
+ALL
+SCHEDULE
+WELSPECS
+ I1 I 3 4 1* WATER /
+ P1 P 1 1 1* WATER /
+ P2 P 5 1 1* WATER /
+ P3 P 1 7 1* WATER /
+ P4 P 5 7 1* WATER /
+/
+COMPDAT
+ I1 2* 1 3 OPEN 2* 0.3048 3* Z /
+ P1 2* 1 3 OPEN 2* 0.3048 3* Z /
+ P2 2* 1 3 OPEN 2* 0.3048 3* Z /
+ P3 2* 1 3 OPEN 2* 0.3048 3* Z /
+ P4 2* 1 3 OPEN 2* 0.3048 3* Z /
+/
+WCONINJE
+ I1 WATER OPEN RATE 5 /
+/
+WTEMP
+ I1 100 /
+/
+WTRACER
+ I1 BBB 1 /
+/
+WCONPROD
+-- Water-rate targets with the original lower BHP limit at dry-water startup.
+ P1 OPEN WRAT 1* 1.25 3* 1 /
+ P2 OPEN WRAT 1* 1.25 3* 1 /
+ P3 OPEN WRAT 1* 1.25 3* 1 /
+ P4 OPEN WRAT 1* 1.25 3* 1 /
+/
+TSTEP
+ 1.15740740740741e-5 0.1 2 /
+-- Exercise changes without repeating WCONINJE.
+WTEMP
+ I1 90 /
+/
+WTRACER
+ I1 BBB 0.5 /
+/
+TSTEP
+ 10 /
+END
