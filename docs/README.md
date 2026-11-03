@@ -23,7 +23,8 @@ Literate executes the scripts and saves static Markdown and figure assets in
 `docs/src/examples/`. The final Documenter pass consumes those results without
 executing the example scripts again. Inline examples in the manual still run in
 Documenter, and notebooks are generated as before. Worker logs are in
-`docs/example_logs/` and are uploaded by CI even when an example fails.
+`docs/example_logs/` and are uploaded by CI even when an example fails. Worker
+output is also streamed into the CI log, with a start message for every example.
 Failed workers fail the build. Successful pages have source fingerprints;
 `--docs-only` rejects missing or stale pages.
 Embedded HTML PNG/JPEG images are saved as separate assets. Text output is bounded

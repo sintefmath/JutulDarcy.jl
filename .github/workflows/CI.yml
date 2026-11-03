@@ -21,7 +21,6 @@ jobs:
       JULIA_NUM_PRECOMPILE_TASKS: '2'
       OPENBLAS_NUM_THREADS: '1'
     outputs:
-      julia-version: ${{ steps.julia-version.outputs.version }}
       cache-key: ${{ steps.cache.outputs.cache-key }}
       cache-paths: ${{ steps.cache.outputs.cache-paths }}
     steps:
@@ -44,7 +43,7 @@ jobs:
         uses: julia-actions/julia-run-testitems@v2
         with:
           filter: ':infrastructure in tags'
-          juliaup-channel: ${{ steps.julia-version.outputs.version }}
+          juliaup-channel: release
           max-workers: '1'
           threads: '1'
           check-bounds: 'yes'
@@ -76,7 +75,7 @@ jobs:
         run: echo "JULIA_DEPOT_PATH=$RUNNER_TEMP/jutuldarcy-test-depot:" >> "$GITHUB_ENV"
       - uses: julia-actions/install-juliaup@v3
         with:
-          channel: ${{ needs.test-prepare.outputs.julia-version }}
+          channel: release
       - name: Restore the prepared test environment
         uses: actions/cache/restore@v4
         with:
@@ -90,7 +89,7 @@ jobs:
       - uses: julia-actions/julia-run-testitems@v2
         with:
           filter: ':ci_${{ matrix.group }} in tags'
-          juliaup-channel: ${{ needs.test-prepare.outputs.julia-version }}
+          juliaup-channel: release
           max-workers: '1'
           threads: '1'
           check-bounds: 'yes'
@@ -133,9 +132,9 @@ jobs:
       JULIA_NUM_THREADS: '1'
     steps:
       - uses: actions/checkout@v4
-      - uses: julia-actions/setup-julia@v2
+      - uses: julia-actions/install-juliaup@v3
         with:
-          version: '1'
+          channel: release
       - uses: julia-actions/cache@v2
       - name: Instantiate MPI test environment
         run: julia --project=test/mpi -e 'using Pkg; Pkg.develop(PackageSpec(path=pwd())); Pkg.instantiate()'
@@ -158,9 +157,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
       - name: Julia
-        uses: julia-actions/setup-julia@v2
+        uses: julia-actions/install-juliaup@v3
         with:
-          version: '1'
+          channel: release
       - name: Julia cache
         uses: julia-actions/cache@v2
       - name: "BuildPkg"

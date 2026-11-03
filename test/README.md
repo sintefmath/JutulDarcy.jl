@@ -65,7 +65,8 @@ and the aggregate report provide timings for tuning after the first CI run.
 One preparation job resolves the package manifest and warms the full test sandbox
 by running only the `:infrastructure` item with the same coverage and forced bounds
 checks as the groups. It uses a portable CPU target, then all groups restore its
-exact depot cache and package manifest with the exact same Julia version. The
+exact depot cache and package manifest. Installation and test workers consistently
+use the `release` channel; the resolved version is recorded in the cache key. The
 runner's own toolkit depot is separate from this test depot. Group jobs do not
 create ten redundant copies of that cache.
 

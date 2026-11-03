@@ -40,6 +40,9 @@ include("../literate_examples.jl")
             write(joinpath(input, "index.jl"), i == 1 ? replace(source, "\n" => "\r\n") : source)
         end
         prebuild_examples(examples; workers = 2)
+        for i in 1:2
+            @test occursin("Starting example", read(joinpath(repo, "docs", "example_logs", "worker-$i.log"), String))
+        end
         for output in outputs
             md = read(joinpath(output, "index.md"), String)
             @test !occursin("@example", md)

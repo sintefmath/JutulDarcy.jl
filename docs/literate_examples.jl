@@ -354,12 +354,23 @@ function prebuild_examples(examples; workers = 2)
             log = joinpath(logs, "worker-$i.log")
             @info "Starting example worker" i examples = args log
             open(log, "w") do io
+                output = Pipe()
                 try
-                    run(pipeline(addenv(cmd, "OPENBLAS_NUM_THREADS" => "1"), stdout = io, stderr = io))
-                catch
-                    flush(io)
-                    print(stderr, read(log, String))
-                    rethrow()
+                    proc = run(pipeline(addenv(cmd, "OPENBLAS_NUM_THREADS" => "1"),
+                        stdout = output, stderr = output); wait = false)
+                    close(output.in)
+                    # Keep a complete worker log and show progress immediately in
+                    # CI, including which example is running when a build stops.
+                    for line in eachline(output)
+                        println(io, line)
+                        flush(io)
+                        println("[example worker $i] ", line)
+                        flush(stdout)
+                    end
+                    wait(proc)
+                    success(proc) || error("Example worker $i failed with exit code $(proc.exitcode). See $log.")
+                finally
+                    close(output)
                 end
             end
         end
