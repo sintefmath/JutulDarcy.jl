@@ -12,6 +12,7 @@ end
     include("secondary_scheme.jl")
     include("input_timestep_defaults.jl")
     include("efficiency_summary.jl")
+    include("group_summary.jl")
 end
 
 @testitem "Rel. Perm." begin
@@ -50,6 +51,14 @@ end
 
 @testitem "Runtime well shutting" begin
     include("well_shutting.jl")
+end
+
+@testitem "Well group controls" begin
+    include("well_groups.jl")
+end
+
+@testitem "Well limits" begin
+    include("well_limits.jl")
 end
 
 @testitem "Multisegment wells" begin

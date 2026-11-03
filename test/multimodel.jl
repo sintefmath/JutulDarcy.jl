@@ -1,5 +1,5 @@
 using Jutul, JutulDarcy
-using JLArrays
+using Jutul.KernelExecution: KernelAbstractions
 using Test
 
 import JutulDarcy: simulate_mini_wellcase
@@ -217,8 +217,8 @@ end
             @test all(isfinite, state[:Saturations])
         end
 
-        @testset "All physics with CPR on JLArrays" begin
-            setup = ka_setup(JLBackend())
+        @testset "All physics with CPR on POCL" begin
+            setup = ka_setup(KernelAbstractions.CPU())
             @testset "Compositional" begin
                 test_compositional_with_wells(;
                     fast_flash = false, model_arg...)
@@ -236,7 +236,6 @@ end
         @testset "2ph Krylov and KA backends" begin
             backends = (
                 cpu = Jutul.KernelExecution.KernelAbstractions.CPU(),
-                jlarrays = JLBackend(),
             )
             for (backend_name, ka_backend) in pairs(backends)
                 for linear_solver in (:bicgstab, :gmres)
@@ -249,7 +248,7 @@ end
             end
         end
 
-        @testset "2ph CPR variants on JLArrays" begin
+        @testset "2ph CPR variants on POCL" begin
             # Keep the smoother/coarsening comparison independent of the
             # Krylov method comparison above.
             variants = (
@@ -259,7 +258,7 @@ end
             )
             for (name, precond, linear_solver_arg) in variants
                 @testset "$name" begin
-                    setup = ka_setup(JLBackend();
+                    setup = ka_setup(KernelAbstractions.CPU();
                         precond = precond,
                         linear_solver = :gmres,
                         linear_solver_arg = linear_solver_arg)
@@ -269,13 +268,13 @@ end
 
             for smoother in (:ilu0, :dilu, :spai0)
                 @testset "system smoother:$smoother" begin
-                    setup = ka_setup(JLBackend();
+                    setup = ka_setup(KernelAbstractions.CPU();
                         linear_solver = :gmres,
                         linear_solver_arg = (smoother_type = smoother,))
                     test_egg_first_step(setup)
                 end
                 @testset "AMG smoother:$smoother" begin
-                    setup = ka_setup(JLBackend();
+                    setup = ka_setup(KernelAbstractions.CPU();
                         linear_solver = :gmres,
                         linear_solver_arg = (
                             amg_arg = (smoother_type = smoother,),))
