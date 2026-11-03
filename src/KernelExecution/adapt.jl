@@ -48,7 +48,9 @@ function Adapt.adapt_structure(ctx::Jutul.KernelAbstractionsContext,
     F = Jutul.float_type(ctx)
     return BlackOilUnknown(
         dr_max = convert(F, variable.dr_max),
-        ds_max = convert(F, variable.ds_max))
+        ds_max = convert(F, variable.ds_max),
+        rs_scale = convert(F, variable.rs_scale),
+        rv_scale = convert(F, variable.rv_scale))
 end
 
 function Adapt.adapt_structure(to,

@@ -69,7 +69,8 @@ function Jutul.line_plot_data(model::SimulationModel, ::Rv)
 end
 
 """
-    BlackOilUnknown(dr_max = Inf, ds_max = Inf)
+    BlackOilUnknown(; dr_max = Inf, ds_max = 0.2, rs_scale = 1.0, rv_scale = 1.0)
+    BlackOilUnknown(system::BlackOilSystem; kwarg...)
 
 Variable defining the variable switching black-oil variable. The `ds_max`
 argument limits the maximum saturation change over a single Newton iteration
@@ -79,10 +80,43 @@ the undersaturated variable.
 
 During simulation, this variable can take on the following interpretations: Gas
 saturation, Rs or Rv, depending on the phase conditions and miscibility model.
+The `rs_scale` and `rv_scale` arguments scale the linearized unknown and its
+Newton increment when it represents Rs and Rv, respectively. Stored values stay
+in physical units. When a system is supplied, each scale defaults to the largest
+value in its saturated-ratio tables across all PVT regions, or one if disabled
+or specified as a function without table values.
 """
 Base.@kwdef struct BlackOilUnknown{R} <: ScalarVariable
     dr_max::R = Inf
     ds_max::R = 0.2
+    rs_scale::R = one(dr_max)
+    rv_scale::R = one(dr_max)
+end
+
+function BlackOilUnknown(dr_max, ds_max, rs_scale, rv_scale)
+    return BlackOilUnknown(promote(dr_max, ds_max, rs_scale, rv_scale)...)
+end
+
+BlackOilUnknown(dr_max, ds_max) = BlackOilUnknown(; dr_max = dr_max, ds_max = ds_max)
+
+function BlackOilUnknown(system::BlackOilSystem;
+        rs_scale = blackoil_ratio_scale(system.rs_max),
+        rv_scale = blackoil_ratio_scale(system.rv_max), kwarg...)
+    return BlackOilUnknown(; rs_scale = rs_scale, rv_scale = rv_scale, kwarg...)
+end
+
+blackoil_ratio_scale(::Nothing) = 1.0
+function blackoil_ratio_scale(tables)
+    return maximum(tables) do table
+        hasproperty(table, :F) ? maximum(table.F) : 1.0
+    end
+end
+
+# Keep the physical value and scale its derivatives. Applying this when reading
+# Rs/Rv also handles changes in phase state without changing the primary AD seed.
+@inline function scaled_blackoil_ratio(x, scale)
+    xval = value(x)
+    return xval + (x - xval)*scale
 end
 
 struct BlackOilX{T}
@@ -227,8 +261,8 @@ function Jutul.increment_norm(dX, state, model, X, pvar::BlackOilUnknown)
     rv = blackoil_increment_norm(dX, X, GasOnly)
     return (
         sg_sum = sg.sum, sg_max = sg.max,
-        rs_sum = rs.sum, rs_max = rs.max,
-        rv_sum = rv.sum, rv_max = rv.max,
+        rs_sum = pvar.rs_scale*rs.sum, rs_max = pvar.rs_scale*rs.max,
+        rv_sum = pvar.rv_scale*rv.sum, rv_max = pvar.rv_scale*rv.max,
     )
 end
 

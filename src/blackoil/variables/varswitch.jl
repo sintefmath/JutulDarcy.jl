@@ -7,6 +7,8 @@ function update_primary_variable!(state, pvar::BlackOilUnknown, state_symbol, mo
     rv_tab = sys.rv_max
     dr_max = pvar.dr_max
     ds_max = pvar.ds_max
+    rs_scale = pvar.rs_scale
+    rv_scale = pvar.rv_scale
     keep_bub = sys.keep_bubble_flag
     sat_chop = sys.saturated_chop
     pressure = state.Pressure
@@ -29,20 +31,27 @@ function update_primary_variable!(state, pvar::BlackOilUnknown, state_symbol, mo
     end
     update_bo_internal!(v, Dx, dr_max, ds_max, rs_tab, rv_tab, reg_rs,
         reg_rv, keep_bub, sat_chop, pressure, active, sw, ϵ, w,
-        model.context)
+        model.context, rs_scale, rv_scale)
 end
 
 @inline water_saturation(::Nothing, i) = 0.0
 @inline water_saturation(sat, i) = value(sat[i])
 
 function update_bo_internal!(v, Dx, dr_max, ds_max, rs_tab, rv_tab, reg_rs,
-        reg_rv, keep_bub, sat_chop, pressure, active, sw, ϵ, w, context)
+        reg_rv, keep_bub, sat_chop, pressure, active, sw, ϵ, w, context,
+        rs_scale = 1.0, rv_scale = 1.0)
     function update(local_index)
         @inbounds i = active[local_index]
         @inbounds dx = Dx[local_index]
         swi = water_saturation(sw, i)
         rs_tab_i = table_by_region(rs_tab, region(reg_rs, i))
         rv_tab_i = table_by_region(rv_tab, region(reg_rv, i))
+        phases = v[i].phases_present
+        if phases == OilOnly
+            dx *= rs_scale
+        elseif phases == GasOnly
+            dx *= rv_scale
+        end
         varswitch_update_inner!(v, i, dx, dr_max, ds_max, rs_tab_i,
             rv_tab_i, keep_bub, sat_chop, pressure, swi, ϵ, w)
     end
@@ -312,11 +321,12 @@ end
 
 @jutul_secondary function update_rs!(rs, ph::Rs, model::SimulationModel{D, S}, Pressure, BlackOilUnknown, ix)  where {D, S<:BlackOilVariableSwitchingSystem}
     T = eltype(rs)
+    scale = Jutul.get_variable(model, :BlackOilUnknown).rs_scale
     @inbounds for i in ix
         X = BlackOilUnknown[i]
         phases = X.phases_present
         if phases == OilOnly
-            r = X.val
+            r = scaled_blackoil_ratio(X.val, scale)
         else
             p = @inbounds Pressure[i]
             reg_i = region(ph.regions, i)
@@ -329,11 +339,12 @@ end
 
 @jutul_secondary function update_rv!(rv, ph::Rv, model::SimulationModel{D, S}, Pressure, BlackOilUnknown, ix)  where {D, S<:BlackOilVariableSwitchingSystem}
     T = eltype(rv)
+    scale = Jutul.get_variable(model, :BlackOilUnknown).rv_scale
     @inbounds for i in ix
         X = BlackOilUnknown[i]
         phases = X.phases_present
         if X.phases_present == GasOnly
-            r = X.val
+            r = scaled_blackoil_ratio(X.val, scale)
         else
             p = @inbounds Pressure[i]
             reg_i = region(ph.regions, i)

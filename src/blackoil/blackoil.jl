@@ -16,7 +16,7 @@ function select_primary_variables!(S, system::BlackOilSystem, model)
     end
     bf = blackoil_formulation(system)
     if bf == :varswitch
-        S[:BlackOilUnknown] = BlackOilUnknown()
+        S[:BlackOilUnknown] = BlackOilUnknown(system)
     elseif bf == :zg
         S[:GasMassFraction] = GasMassFraction(dz_max = 0.1)
     else
