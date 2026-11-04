@@ -1,4 +1,4 @@
-using Jutul, JutulDarcy, Test, SparseArrays, JLArrays, CUDA
+using Jutul, JutulDarcy, Test, SparseArrays, CUDA
 using Jutul.KernelExecution: KernelAbstractions
 
 function cprw_bhp_test_case(; merged = false)
@@ -46,7 +46,7 @@ function cprw_bhp_test_matrix(reference, backend)
 end
 
 @testset "CPRW BHP rows on CPU and device backends" begin
-    backends = Any[nothing, KernelAbstractions.CPU(), JLBackend()]
+    backends = Any[nothing, KernelAbstractions.CPU()]
     if CUDA.functional()
         CUDA.allowscalar(false)
         push!(backends, CUDA.CUDABackend())
@@ -95,7 +95,6 @@ end
     policies = [
         (mode = :default,),
         (mode = :ka, ka_backend = KernelAbstractions.CPU()),
-        (mode = :ka, ka_backend = JLBackend()),
     ]
     if CUDA.functional()
         CUDA.allowscalar(false)

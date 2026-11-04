@@ -1813,7 +1813,7 @@ function parse_control_steps(runspec, props, schedule, sys)
         push!(cstep, ctrl_ix)
     end
 
-    skip = ("WELLSTRE", "WINJGAS", "GINJGAS", "GRUPINJE", "WELLINJE", "WEFAC", "WTEMP", "WTRACER", "WPOLYMER", "FBHPDEF", "WELSPECS", "TUNING")
+    skip = ("WELLSTRE", "WINJGAS", "GINJGAS", "GRUPINJE", "WELLINJE", "WEFAC", "WTEMP", "WTRACER", "WPOLYMER", "FBHPDEF", "WELSPECS")
     bad_kw = Dict{String, Bool}()
     streams = setup_well_streams()
     default_bhp = nothing
@@ -1967,6 +1967,8 @@ function parse_control_steps(runspec, props, schedule, sys)
                     controls, limits = apply_weltarg!(controls, limits, wk)
                 end
                 set_active_controls!(active_controls, controls)
+            elseif key == "TUNING"
+                # Initial settings are applied in setup_reservoir_simulator.
             elseif key in skip || key in ("GRUPTREE", "GCONPROD", "GCONINJE", "WGRUPCON")
                 # Already handled
             elseif key in ("WSEGVALV", "COMPSEGS", "WELSEGS")

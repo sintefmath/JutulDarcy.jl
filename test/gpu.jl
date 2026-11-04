@@ -412,8 +412,8 @@ if CUDA.functional()
         free_optimization_parameter!(dopt, "multiplier";
             abs_min = 0.5, abs_max = 2.0)
         problem = JutulDarcy.reservoir_optimization_problem(dopt, objective;
+            mode = :ka_cuda,
             simulator_arg = (
-                mode = :ka_cuda,
                 linear_solver = nothing,
                 timesteps = :none,
             ))

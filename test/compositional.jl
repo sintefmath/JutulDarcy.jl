@@ -78,11 +78,14 @@ end
         initial, reuse_only, eos, 1.0e6, 300.0, z, 0.0)
     @test previous_two_phase.state == MultiComponentFlash.two_phase_lv
     V0 = previous_two_phase.V
-    @test JutulDarcy.estimated_K_from_previous_flash(
-        previous_two_phase, V0, z) ≈ previous_two_phase.K rtol = 1e-8
+    liquid, vapor = JutulDarcy.estimated_phase_amounts_from_previous_flash(
+        previous_two_phase, V0, z)
+    @test (vapor/sum(vapor)) ./ (liquid/sum(liquid)) ≈ previous_two_phase.K rtol = 1e-8
     z_near = @SVector [0.599, 0.101, 0.3]
-    estimated_K = JutulDarcy.estimated_K_from_previous_flash(
+    liquid, vapor = JutulDarcy.estimated_phase_amounts_from_previous_flash(
         previous_two_phase, V0, z_near)
+    estimated_K = (vapor/sum(vapor)) ./ (liquid/sum(liquid))
+    @test liquid + vapor ≈ z_near
     @test all(isfinite, estimated_K)
     @test norm(estimated_K - previous_two_phase.K) > 1e-5
 
