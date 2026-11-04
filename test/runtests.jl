@@ -130,6 +130,10 @@ end
     include("compositional.jl")
 end
 
+@testitem "Compositional deck keywords" begin
+    include("compositional_keywords.jl")
+end
+
 @testitem "Compositional flux sparsity tracing" begin
     include("compositional_flux.jl")
 end

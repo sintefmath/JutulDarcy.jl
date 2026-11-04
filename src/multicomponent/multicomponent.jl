@@ -1,4 +1,5 @@
 using MultiComponentFlash
+include("deck_eos.jl")
 const MINIMUM_COMPOSITIONAL_SATURATION = 1e-10
 
 @inline function is_pure_single_phase(s_immiscible)

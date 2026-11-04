@@ -395,6 +395,8 @@ reservoir and that facility.
 
 - `wells=[]`: Vector of wells (e.g. from [`setup_well`](@ref)) that are to be
   used in the model. Each well must have a unique name.
+- `facility_system=nothing`: System for the well controllers and surface
+  flashes. Defaults to `FacilitySystem(system)`.
 - `extra_out=false`: Return both the model and the parameters instead of just the
   model.
 - `thermal = false`: Add additional equations for conservation of energy and
@@ -542,6 +544,7 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         upwind = nothing,
         immutable_model = false,
         wells_systems = missing,
+        facility_system = nothing,
         wells_as_cells = false,
         discretization_arg = NamedTuple(),
         groups = missing,
@@ -646,7 +649,9 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
     end
     models[:Reservoir] = rmodel
     # Then we set up all the wells
-    facility_system = FacilitySystem(system)
+    if isnothing(facility_system)
+        facility_system = FacilitySystem(system)
+    end
     if split_wells && length(keys(well_groups)) > 0
         error("Split wells is enabled but well groups are defined. This combination is not supported.")
     end

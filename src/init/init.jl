@@ -400,7 +400,11 @@ function equilibrium_phase_density(p, z, ::Val{ph}, rho::Union{ThreePhaseComposi
     else
         @assert !ismissing(composition) "Composition must be present for equilibrium calculations for compositional models."
         @assert !ismissing(T_z) "Temperature must be present for equilibrium calculations for compositional models."
-        z_i = Vector{Float64}(composition(z))
+        if composition isa COMPVDComposition
+            z_i = Vector{Float64}(composition(z, phases[ph]))
+        else
+            z_i = Vector{Float64}(composition(z))
+        end
         T = T_z(z)
         eos = model.system.equation_of_state
         f = MultiComponentFlash.flashed_mixture_2ph(eos, (p = p, T = T, z = z_i))
@@ -728,7 +732,9 @@ function parse_state0_equil(model, datafile; normalize = :sum, cell_nz = 1)
                 else
                     rs = rv = missing
                 end
-                if haskey(props, "ZMFVD")
+                if haskey(props, "COMPVD")
+                    composition = compvd_composition_function(props["COMPVD"][ereg], goc; normalize = normalize)
+                elseif haskey(props, "ZMFVD")
                     ztab = props["ZMFVD"][ereg]
                     N = size(ztab, 2) - 1
                     Sz = SVector{N, Float64}
@@ -1374,3 +1380,4 @@ function equil_setup_density_function(rho, T_z, fake_state, model, rs, rv, compo
 end
 
 include("gas_water.jl")
+include("compositional.jl")
