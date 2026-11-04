@@ -757,14 +757,6 @@ function parse_state0_equil(model, datafile; normalize = :sum, cell_nz = 1)
                         z_i = ztab[row, 1]
                         push!(ztab_z, z_i)
                         push!(ztab_static, mf_i)
-                        if row == 1
-                            push!(ztab_z, z_i-1.0)
-                            push!(ztab_static, mf_i)
-                        end
-                        if row == size(ztab, 1)
-                            push!(ztab_z, z_i+1.0)
-                            push!(ztab_static, mf_i)
-                        end
                     end
                     if num_renormalized > 0 && normalize != false
                         jutul_message("Initialization", "$num_renormalized entries ZMFVD were normalized in equilibriation region $ereg.")
