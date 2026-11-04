@@ -594,12 +594,6 @@ function get_control_target_value(ctrl, target::GroupRateTarget, cond, well, mod
     if use_potentials
         self_rate = well_target_value(ctrl, rate_target, cond, well, model, state)
         self_potential = well_potential_factor(self_rate, cond, ctrl)
-        # Lagged guides avoid a degenerate q/sum(q) allocation Jacobian when
-        # many wells approach zero flow after a large group-target change.
-        if d.lag_potentials
-            group_potential = value(group_potential)
-            self_potential = value(self_potential)
-        end
     else
         self_potential = 1.0
     end

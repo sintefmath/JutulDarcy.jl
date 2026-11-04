@@ -36,8 +36,6 @@ arguments are passed on to [`setup_case_from_parsed_data`](@ref).
 Surface-rate `GCONPROD` and `GCONINJE` controls are mapped to well groups,
 including individual well limits and `GRUPTREE` ancestor lookup. Production
 groups are named `<group>_PRODUCTION`, and injection groups `<group>_<phase>`.
-Imported groups use lagged potential guide weights by default; pass
-`group_lag_potentials=false` to differentiate the weights in the linearization.
 Nested group constraints, dynamic allocation-group membership, guide-rate
 overrides and reservoir-volume group controls are not supported.
 """
@@ -161,9 +159,6 @@ function setup_case_from_parsed_data(datafile;
     extra_arg = Dict{Symbol, Any}()
     if !skip_wells && !isempty(deck_groups) && !haskey(kwarg, :well_groups)
         extra_arg[:well_groups] = deck_groups
-    end
-    if !isempty(deck_groups) && !haskey(kwarg, :group_lag_potentials)
-        extra_arg[:group_lag_potentials] = true
     end
     if haskey(rs, "SALTS")
         extra_arg[:salt_mole_fractions] = rs["SALT_MOLE_FRACTIONS"]

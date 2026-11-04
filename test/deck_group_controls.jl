@@ -114,7 +114,6 @@ TSTEP
     data = deck_group_test_data(schedule)
     case = setup_case_from_data_file(data; group_use_potentials = Dict(:PROD_PRODUCTION => false, :INJ_WATER => false))
     @test Set(case.model[:Facility].domain.group_to_wells[:PROD_PRODUCTION]) == Set([:P1, :P2])
-    @test case.model[:Facility].domain.lag_potentials
     @test Set(case.model[:Facility].domain.group_to_wells[:INJ_WATER]) == Set([:I1, :I2])
     @test case.forces[1][:Facility].control[:P1].target == GroupSurfaceOilRateTarget(-1e-3)
     @test case.forces[2][:Facility].control[:P1].target == GroupSurfaceOilRateTarget(-0.5e-3)

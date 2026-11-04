@@ -12,8 +12,6 @@ const group_rate_cases = (
     group = WellGroup([:P, :I2, :I1]; groups = Dict(:Injection => [:I1, :I2]))
     @test group.group_to_well_numbers[:Injection] == [3, 2]
     @test group.use_potentials == Dict(:Injection => true)
-    @test !group.lag_potentials
-    @test WellGroup([:W]; lag_potentials = true).lag_potentials
     @test_throws ArgumentError WellGroup([:W]; groups = Dict(:G => [:Unknown]))
     @test_throws ArgumentError WellGroup([:W]; groups = Dict(:G => [:W, :W]))
     @test_throws ArgumentError WellGroup([:W]; groups = Dict(:G1 => [:W], :G2 => [:W]))

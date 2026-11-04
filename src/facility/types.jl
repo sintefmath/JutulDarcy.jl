@@ -21,23 +21,19 @@ mutable struct WellGroup <: WellControllerDomain
     group_to_wells::Dict{Symbol, Vector{Symbol}}
     group_to_well_numbers::Dict{Symbol, Vector{Int}}
     use_potentials::Dict{Symbol, Bool}
-    lag_potentials::Bool
 end
 
 """
-    WellGroup(wells::Vector{Symbol}; groups = Dict(), use_potentials = Dict(), lag_potentials = false, can_shut_wells = true)
+    WellGroup(wells::Vector{Symbol}; groups = Dict(), use_potentials = Dict(), can_shut_wells = true)
 
 Create a well group that can control the given set of wells.
 `groups` maps group names to well names. `use_potentials` selects potential
 weighting for each group (default `true`); `false` gives equal weights to wells
 under group control. Wells at individual limits use their current rates.
-`lag_potentials=true` holds guide weights fixed when linearizing each Newton
-iterate. The default differentiates the potential weights with the well rates.
 """
 function WellGroup(wells::Vector{Symbol};
         groups = Dict{Symbol, Vector{Symbol}}(),
         use_potentials = Dict{Symbol, Bool}(),
-        lag_potentials::Bool = false,
         can_shut_wells = true,
         can_shut_injectors = can_shut_wells,
         can_shut_producers = can_shut_wells
@@ -60,7 +56,7 @@ function WellGroup(wells::Vector{Symbol};
             push!(group_to_well_numbers[group], idx)
         end
     end
-    return WellGroup(wells, can_shut_producers, can_shut_injectors, well_to_group, group_to_wells, group_to_well_numbers, group_use_potentials, lag_potentials)
+    return WellGroup(wells, can_shut_producers, can_shut_injectors, well_to_group, group_to_wells, group_to_well_numbers, group_use_potentials)
 end
 
 struct FacilityVariablesForWell{T}
