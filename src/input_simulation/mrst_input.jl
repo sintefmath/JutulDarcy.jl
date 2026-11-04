@@ -313,9 +313,11 @@ function deck_pvt_water(props; scaling = missing)
     if haskey(props, "PVTW_EXTENDED")
         t = rescale_btable(props["PVTW_EXTENDED"], scaling)
         pvt = PVTW_EXTENDED(t)
-    else
+    elseif haskey(props, "PVTW")
         t = rescale_btable(props["PVTW"], scaling)
         pvt = PVTW(t)
+    else
+        pvt = PVTW(ConstMuBTable(14.7*si_unit(:psi), 1.0, 0.0, 0.5, 0.0))
     end
     return pvt
 end
