@@ -11,7 +11,7 @@ module NLDD
     using Jutul, Base.Threads
     using JutulDarcy
     using Polyester
-    using DataStructures
+    using OrderedCollections: OrderedDict
     using LinearAlgebra
     using TimerOutputs
     using ProgressMeter

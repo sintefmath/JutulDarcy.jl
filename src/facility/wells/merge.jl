@@ -1,7 +1,7 @@
 module WellMerging
 
 using Jutul
-using DataStructures: OrderedDict
+using OrderedCollections: OrderedDict
 
 import ..JutulDarcy:
     SimpleWell, MultiSegmentWell, MultiWellInfo, WellDomain, PerforationMask,
