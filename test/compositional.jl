@@ -133,3 +133,86 @@ end
     @test !combined_two_phase.report.liquid.trivial
     @test combined_single_phase.bypassed
 end
+
+@testset "ZMFVD initial composition" begin
+    deck = """
+    RUNSPEC
+    METRIC
+    OIL
+    GAS
+    DIMENS
+    1 1 4 /
+    COMPS
+    2 /
+    TABDIMS
+    /
+    EQLDIMS
+    /
+    START
+    1 'JAN' 2016 /
+    GRID
+    DX
+    4*5 /
+    DY
+    4*5 /
+    DZ
+    4*5 /
+    TOPS
+    1*2000.0 /
+    PORO
+    4*0.3 /
+    PERMX
+    4*100 /
+    PERMY
+    4*100 /
+    PERMZ
+    4*100 /
+    PROPS
+    CNAMES
+    METHANE
+    DECANE
+    /
+    EOS
+    PR /
+    BIC
+    0 /
+    ACF
+    0.01142 0.4884 /
+    PCRIT
+    45.992 21.03 /
+    TCRIT
+    190.564 617.7 /
+    MW
+    16.04 142.28 /
+    VCRIT
+    0.09863 0.6098 /
+    RTEMP
+    100 /
+    ROCK
+    68.9476 0 /
+    SGOF
+    0 0 1 0
+    1 1 0 0 /
+    ZMFVD
+    2000 0.5 0.5
+    2100 0.3 0.7 /
+    STCOND
+    15.0 1.01325 /
+    SOLUTION
+    EQUIL
+    2010 150 2300 0 2000 0 /
+    SCHEDULE
+    TSTEP
+    1 /
+    END
+    """
+    mktempdir() do dir
+        filename = joinpath(dir, "ZMFVD.DATA")
+        write(filename, deck)
+        case = setup_case_from_data_file(filename)
+        z = case.state0[:Reservoir][:OverallMoleFractions]
+        for (i, depth) in enumerate(2002.5:5.0:2017.5)
+            @test z[1, i] ≈ 0.5 - 0.2*(depth - 2000.0)/100.0
+        end
+    end
+end
