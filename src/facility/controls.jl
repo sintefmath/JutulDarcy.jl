@@ -553,6 +553,7 @@ function get_control_target_value(ctrl, target::GroupRateTarget, cond, well, mod
     # Target is fraction of group rate after other entries are subtracted.
     cfg = state.WellGroupConfiguration
     ctrls = cfg.operating_controls
+    limits = cfg.limits
     group_potential = 0.0
     for w in d.group_to_wells[group]
         if w == well
@@ -572,7 +573,8 @@ function get_control_target_value(ctrl, target::GroupRateTarget, cond, well, mod
         if other_is_group
             # Potential gets added
             if use_potentials
-                well_potential = well_potential_factor(other_rate, other_cond, other_control)
+                bhp_limit = get(limits[w], :bhp, missing)
+                well_potential = well_potential_factor(other_rate, other_cond, other_control, bhp_limit)
             else
                 well_potential = 1.0
             end
@@ -593,7 +595,8 @@ function get_control_target_value(ctrl, target::GroupRateTarget, cond, well, mod
     end
     if use_potentials
         self_rate = well_target_value(ctrl, rate_target, cond, well, model, state)
-        self_potential = well_potential_factor(self_rate, cond, ctrl)
+        bhp_limit = get(limits[well], :bhp, missing)
+        self_potential = well_potential_factor(self_rate, cond, ctrl, bhp_limit)
     else
         self_potential = 1.0
     end
@@ -647,19 +650,29 @@ function well_target_value(ctrl, target::TotalMassRateTarget, cond, well, model,
     return cond.total_mass_rate
 end
 
-function well_potential_factor(rate, cond, ctrl)
-    if ctrl isa InjectorControl
-        default_limit = 1e8 # 100 gigapascals
+function well_potential_factor(rate, cond, ctrl, limit)
+    is_injector = ctrl isa InjectorControl
+    p_max = 1e8 # 100 gigapascals
+    p_min = 1.01325 # 1 atm
+    current_bhp = cond.bottom_hole_pressure
+    epsval = 1e-3
+    if is_injector
+        if ismissing(limit)
+            limit = p_max
+        end
+        factor = max(limit - current_bhp, epsval)/max(limit - p_min, epsval)
     else
-        default_limit = 1.01325 # 1 atm
+        if ismissing(limit)
+            limit = p_min
+        end
+        factor = max(current_bhp - limit, epsval)/max(p_max - limit, epsval)
     end
     rate = max(abs(rate), 1e-16)
-    current_bhp = cond.bottom_hole_pressure
     # Scale rate linearly as if the production/injection rate is proportional to
-    # the bottom hole pressure only. Also multiply by the number of seconds in a
-    # month to ensure a reasonably big number.
-    month = 3600*24*31
-    return month * rate * default_limit / current_bhp
+    # the bottom hole pressure only. Also scale by a big pressure value to avoid
+    # small values.
+    p_scale = p_max
+    return p_scale * rate * factor
 end
 
 function well_target_value(ctrl, target::GroupRateTarget, cond, well, model, state)
