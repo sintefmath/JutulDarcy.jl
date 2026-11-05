@@ -99,6 +99,81 @@ end
     end
 end
 
+@testset "Group remainder at other phase constraints" begin
+    sys = ImmiscibleSystem((AqueousPhase(), LiquidPhase(), VaporPhase()))
+    wells = [:P1, :P2]
+    domain = WellGroup(wells; groups = Dict(:G => wells), use_potentials = Dict(:G => false))
+    model = SimulationModel(domain, JutulDarcy.FacilitySystem(sys))
+    controls = Dict(:P1 => ProducerControl(GroupSurfaceOilRateTarget(-0.01)),
+        :P2 => ProducerControl(GroupSurfaceGasRateTarget(-0.02)))
+    rates = -[0.001 0.002; 0.003 0.004; 0.005 0.006]
+    cfg = JutulDarcy.WellGroupConfiguration(wells, controls)
+    state = JutulStorage(Dict(:BottomHolePressure => fill(2e7, 2),
+        :SurfacePhaseRates => rates,
+        :TotalSurfaceMassRate => vec(sum(JutulDarcy.reference_densities(sys).*rates; dims = 1)),
+        :WellGroupConfiguration => cfg))
+    ctrl = controls[:P1]
+    cond = JutulDarcy.FacilityVariablesForWell(model, state, :P1)
+    allocated = () -> JutulDarcy.get_control_target_value(ctrl, ctrl.target, cond, :P1, model, state)
+    @test allocated() ≈ -0.006
+    state.SurfacePhaseRates[2, 2] = -0.02
+    @test allocated() == 0.0
+end
+
+@testset "Potential allocation at pressure bounds" begin
+    sys = ImmiscibleSystem((LiquidPhase(),))
+    wells = [:W1, :W2]
+    for inject in (false, true)
+        target = GroupSurfaceOilRateTarget(ifelse(inject, 0.01, -0.01))
+        if inject
+            ctrl = InjectorControl(target, [1.0]; density = 800.0)
+            pressure = 1e8
+        else
+            ctrl = ProducerControl(target)
+            pressure = si_unit(:atm)
+        end
+        controls = Dict(w => ctrl for w in wells)
+        cfg = JutulDarcy.WellGroupConfiguration(wells, controls)
+        domain = WellGroup(wells; groups = Dict(:G => wells))
+        model = SimulationModel(domain, JutulDarcy.FacilitySystem(sys))
+        state = JutulStorage(Dict(:BottomHolePressure => fill(pressure, 2),
+            :SurfacePhaseRates => zeros(1, 2), :TotalSurfaceMassRate => zeros(2),
+            :WellGroupConfiguration => cfg))
+        # Zero initial flow must still allocate the entire group request, even
+        # at the default pressure bound where the weights are very small.
+        for w in wells
+            cond = JutulDarcy.FacilityVariablesForWell(model, state, w)
+            allocated = JutulDarcy.get_control_target_value(ctrl, target, cond, w, model, state)
+            @test allocated ≈ target.value/2
+            @test JutulDarcy.well_potential_factor(0.01, cond, ctrl) ≈
+                JutulDarcy.well_potential_factor(0.01, cond, ctrl, Inf)
+            at_bound = JutulDarcy.well_potential_factor(0.01, cond, ctrl)
+            state.BottomHolePressure[cond.idx] = pressure + ifelse(inject, -1e5, 1e5)
+            interior = JutulDarcy.FacilityVariablesForWell(model, state, w)
+            @test 0 < at_bound < 1e-6*JutulDarcy.well_potential_factor(0.01, interior, ctrl)
+            state.BottomHolePressure[cond.idx] = pressure
+        end
+    end
+end
+
+@testset "Group allocation with mixed rate precision" begin
+    sys = ImmiscibleSystem((LiquidPhase(),))
+    wells = [:P1, :P2]
+    for potentials in (false, true)
+        target = GroupSurfaceOilRateTarget(-0.01)
+        controls = Dict(:P1 => ProducerControl(target),
+            :P2 => ProducerControl(GroupSurfaceOilRateTarget(Float32(-0.01))))
+        cfg = JutulDarcy.WellGroupConfiguration(wells, controls)
+        domain = WellGroup(wells; groups = Dict(:G => wells), use_potentials = Dict(:G => potentials))
+        model = SimulationModel(domain, JutulDarcy.FacilitySystem(sys))
+        state = JutulStorage(Dict(:BottomHolePressure => fill(2e7, 2),
+            :SurfacePhaseRates => fill(-0.001, 1, 2), :TotalSurfaceMassRate => fill(-0.8, 2),
+            :WellGroupConfiguration => cfg))
+        cond = JutulDarcy.FacilityVariablesForWell(model, state, :P1)
+        @test JutulDarcy.get_control_target_value(controls[:P1], target, cond, :P1, model, state) ≈ -0.005
+    end
+end
+
 function well_group_test_case(Target = GroupTotalRateTarget; potentials = false, equal_densities = false)
     mesh = CartesianMesh((6, 4, 1), (600.0, 400.0, 30.0))
     permeability = [0.2e-12*(1 + i/24) for i in 1:24]
@@ -107,7 +182,11 @@ function well_group_test_case(Target = GroupTotalRateTarget; potentials = false,
     wells = [setup_vertical_well(domain, i, j; name, simple_well = true)
         for (name, i, j) in ((:I1, 1, 1), (:P1, 6, 1), (:I2, 1, 4), (:P2, 6, 4))]
     groups = Dict(:Injection => [:I2, :I1], :Production => [:P2, :P1])
-    densities = equal_densities ? fill(1000.0, 3) : [1000.0, 800.0, 100.0]
+    if equal_densities
+        densities = fill(1000.0, 3)
+    else
+        densities = [1000.0, 800.0, 100.0]
+    end
     sys = ImmiscibleSystem((AqueousPhase(), LiquidPhase(), VaporPhase());
         reference_densities = densities)
     model = setup_reservoir_model(domain, sys; wells, well_groups = groups,
@@ -125,14 +204,20 @@ function well_group_test_case(Target = GroupTotalRateTarget; potentials = false,
 end
 
 function simulate_well_group_case(case, forces)
-    nstep = forces isa AbstractVector ? length(forces) : 2
+    if forces isa AbstractVector
+        nstep = length(forces)
+    else
+        nstep = 2
+    end
     result = simulate_reservoir(case.state0, case.model, fill(0.1*si_unit(:day), nstep);
         forces, info_level = -1, timesteps = :none, error_on_incomplete = true)
     @test length(result.result.states) == nstep
     return [state[:Facility] for state in result.result.states]
 end
 
-well_group_phase_rate(facility, phases, well_index) = sum(facility[:SurfacePhaseRates][ph, well_index] for ph in phases)
+function well_group_phase_rate(facility, phases, well_index)
+    return sum(facility[:SurfacePhaseRates][ph, well_index] for ph in phases)
+end
 
 function test_group_totals(facility, phases, rate)
     # The absolute tolerance is 0.1% of the group target, also for small shares.
@@ -204,6 +289,18 @@ end
                 @test sum(facility[:SurfacePhaseRates][:, 1]) <= cap + 1e-3*rate
                 @test -sum(facility[:SurfacePhaseRates][:, 2]) <= cap + 1e-3*rate
             end
+        end
+    end
+
+    @testset "Potential weighting with individual BHP bounds" begin
+        case = well_group_test_case(; potentials = true, equal_densities = true)
+        (; model, controls, rate) = case
+        limits = Dict(:I1 => (bhp = 200.5e5,), :P1 => (bhp = 199.5e5,))
+        forces = setup_reservoir_forces(model; control = controls, limits)
+        for facility in simulate_well_group_case(case, forces)
+            test_group_totals(facility, (1, 2, 3), rate)
+            @test facility[:BottomHolePressure][1] <= limits[:I1].bhp + 0.01*si_unit(:bar)
+            @test facility[:BottomHolePressure][2] >= limits[:P1].bhp - 0.01*si_unit(:bar)
         end
     end
 

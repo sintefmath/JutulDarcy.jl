@@ -59,6 +59,7 @@ end
 
 @testitem "Well group controls" begin
     include("well_groups.jl")
+    include("deck_group_controls.jl")
 end
 
 @testitem "Well limits" begin
