@@ -234,7 +234,7 @@ function setup_case_from_parsed_data(datafile;
                     PhaseMassDensities = rho
                 )
             else
-                if water && sys isa CompositionalSystem
+                if sys isa CompositionalSystem && has_other_phase(sys)
                     if model_or_domain_is_well(submodel)
                         pvt_i = wells_pvt[submodel.domain.representation.name]
                     else
