@@ -69,7 +69,11 @@ function Jutul.update_before_step_multimodel_backend!(
         end
         pos = get_well_position(model.domain, key)
         if q_t isa Vector
-            q_t[pos] = valid_surface_rate_for_control(q_t[pos], newctrl)
+            if changed && well_was_shut && newctrl isa InjectorControl && newctrl.target isa TotalRateTarget
+                initialize_injector_rate!(storage.state, pos, newctrl)
+            else
+                q_t[pos] = valid_surface_rate_for_control(q_t[pos], newctrl)
+            end
         end
         if changed && !new_is_disabled
             if isnothing(cfg.limits[key])
@@ -102,6 +106,21 @@ function Jutul.update_before_step_multimodel_backend!(
             backend_reservoir_model = backend_model[:Reservoir])
     end
     return nothing
+end
+
+function initialize_injector_rate!(state, well, control::InjectorControl)
+    rate = control.target.value
+    mass_rate = rate*control.mixture_density
+    state.TotalSurfaceMassRate[well] = Jutul.replace_value(state.TotalSurfaceMassRate[well], mass_rate)
+    for c in axes(state.SurfaceComponentRates, 1)
+        state.SurfaceComponentRates[c, well] = Jutul.replace_value(
+            state.SurfaceComponentRates[c, well], mass_rate*control.injection_mixture[c])
+    end
+    for (phase, fraction) in control.phases
+        state.SurfacePhaseRates[phase, well] = Jutul.replace_value(
+            state.SurfacePhaseRates[phase, well], rate*fraction)
+    end
+    return state
 end
 
 

@@ -396,7 +396,8 @@ function equilibrium_phase_density(p, z, ::Val{ph}, rho::Union{ThreePhaseComposi
         end
     end
     if phases[ph] == AqueousPhase()
-        phase_density = rho_s[ph]*JutulDarcy.shrinkage(rho.immiscible_pvt, p)
+        pvt = compositional_water_table_for_region(rho.immiscible_pvt, pvtnum)
+        phase_density = rho_s[ph]*JutulDarcy.shrinkage(pvt, p)
     else
         @assert !ismissing(composition) "Composition must be present for equilibrium calculations for compositional models."
         @assert !ismissing(T_z) "Temperature must be present for equilibrium calculations for compositional models."
@@ -409,7 +410,10 @@ function equilibrium_phase_density(p, z, ::Val{ph}, rho::Union{ThreePhaseComposi
         eos = model.system.equation_of_state
         f = MultiComponentFlash.flashed_mixture_2ph(eos, (p = p, T = T, z = z_i))
         rho_l, rho_v = mass_densities(eos, p, T, f)
-        if phases[ph] == VaporPhase() || rho_l == 0
+        if composition isa COMPVDComposition && composition.mode == 1
+            sl, sv = phase_saturations(eos, p, T, f)
+            phase_density = sl*rho_l + sv*rho_v
+        elseif phases[ph] == VaporPhase() || rho_l == 0
             phase_density = rho_v
         else
             phase_density = rho_l
@@ -505,6 +509,9 @@ function parse_state0_equil(model, datafile; normalize = :sum, cell_nz = 1)
 
     has_sat_reg = haskey(d, :satnum)
     ncells = number_of_cells(d)
+    if sys isa CompositionalSystem
+        d[:phase_label_factor] = ones(ncells)
+    end
     if has_sat_reg
         satnum = d[:satnum]
     else
@@ -733,7 +740,7 @@ function parse_state0_equil(model, datafile; normalize = :sum, cell_nz = 1)
                     rs = rv = missing
                 end
                 if haskey(props, "COMPVD")
-                    composition = compvd_composition_function(props["COMPVD"][ereg], goc; normalize = normalize)
+                    composition = compvd_composition_function(props["COMPVD"][ereg], goc; normalize = normalize, mode = eq[10])
                 elseif haskey(props, "ZMFVD")
                     ztab = props["ZMFVD"][ereg]
                     N = size(ztab, 2) - 1
@@ -764,6 +771,40 @@ function parse_state0_equil(model, datafile; normalize = :sum, cell_nz = 1)
                     composition = get_1d_interpolator(ztab_z, ztab_static)
                 else
                     composition = missing
+                end
+                if sys isa CompositionalSystem && eq[10] in (2, 3) && !ismissing(composition)
+                    phase = ifelse(eq[10] == 3, LiquidPhase(), VaporPhase())
+                    if composition isa COMPVDComposition
+                        z_contact = composition(goc, phase)
+                    else
+                        z_contact = composition(goc)
+                    end
+                    p_contact, x_contact, y_contact = compositional_contact_state(sys.equation_of_state, T_z(goc), z_contact, eq[10])
+                    if !(composition isa COMPVDComposition)
+                        n = length(z_contact)
+                        x = SVector{n}(x_contact)
+                        y = SVector{n}(y_contact)
+                        liquid = ifelse(eq[10] == 3, composition, depth -> x)
+                        vapor = ifelse(eq[10] == 2, composition, depth -> y)
+                        composition = COMPVDComposition(vapor, liquid, goc, composition, Int(eq[10]))
+                    end
+                    if eq[11] == 0
+                        datum_depth, datum_pressure = goc, p_contact
+                    end
+                end
+                if sys isa CompositionalSystem && !ismissing(composition)
+                    if haskey(props, "FACTLI")
+                        factor = props["FACTLI"][ereg]
+                    elseif eq[10] == 1 && minimum(d[:cell_centroids][3, cells_eqlnum]) < goc < maximum(d[:cell_centroids][3, cells_eqlnum]) &&
+                            !isapprox(composition(minimum(d[:cell_centroids][3, cells_eqlnum])), composition(maximum(d[:cell_centroids][3, cells_eqlnum])))
+                        factor = T_z(goc)/li_critical_temperature(sys.equation_of_state, composition(goc))
+                        if !(0.7 <= factor <= 1.3)
+                            jutul_message("FACTLI", "Computed factor $factor in equilibrium region $ereg is far from one. Check the COMPVD/ZMFVD composition at the gas-oil contact $goc.", color = :yellow)
+                        end
+                    else
+                        factor = 1.0
+                    end
+                    d[:phase_label_factor][cells] .= factor
                 end
                 if haskey(props, "SWATINIT")
                     sw = props["SWATINIT"][actnum_ix[cells]]

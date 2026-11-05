@@ -45,6 +45,7 @@ end
 function select_parameters!(prm, system::CompositionalSystem, model)
     select_default_darcy_parameters!(prm, model.domain, system, model.formulation)
     prm[:Temperature] = Temperature()
+    prm[:PhaseLabelFactor] = PhaseLabelFactor()
 end
 
 function convergence_criterion(model::CompositionalModel, storage, eq::ConservationLaw{:TotalMasses}, eq_s, r; dt = 1.0, update_report = missing)

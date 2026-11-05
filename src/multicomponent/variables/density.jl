@@ -1,5 +1,27 @@
 abstract type AbstractCompositionalDensities <: PhaseMassDensities end
 
+"Water PVT tables and PVTNUM regions for an immiscible compositional phase."
+struct DeckCompositionalWaterPVT{T, R}
+    tables::T
+    regions::R
+end
+
+function compositional_water_table(pvt, cell)
+    return pvt
+end
+
+function compositional_water_table(pvt::DeckCompositionalWaterPVT, cell)
+    return table_by_region(pvt.tables, region(pvt.regions, cell))
+end
+
+function compositional_water_table_for_region(pvt, reg)
+    return pvt
+end
+
+function compositional_water_table_for_region(pvt::DeckCompositionalWaterPVT, reg)
+    return table_by_region(pvt.tables, reg)
+end
+
 struct TwoPhaseCompositionalDensities <: AbstractCompositionalDensities end
 
 struct ThreePhaseCompositionalDensitiesLV{T} <: AbstractCompositionalDensities
@@ -23,9 +45,9 @@ end
     eos = sys.equation_of_state
     rhos = reference_densities(sys)
 
-    pvt = m.immiscible_pvt
     a, l, v = phase_indices(sys)
     @inbounds for i in ix
+        pvt = compositional_water_table(m.immiscible_pvt, i)
         p = Pressure[i]
         T = Temperature[i]
         rho[l, i], rho[v, i] = mass_densities(eos, p, T, FlashResults[i])

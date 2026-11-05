@@ -183,7 +183,14 @@ end
             surface_density, = JutulDarcy.select_injector_mixture_spec(facility_system, "I", streams, "GAS")
             well_density, = JutulDarcy.select_injector_mixture_spec(well_system, "I", streams, "GAS")
             @test controls[1].mixture_density ≈ surface_density
-            @test surface_density != well_density
+            # GAS rates use standard ideal-gas volumes, independently of EOS
+            # volume shifts. Check both stream compositions against rho = p*M/RT.
+            molar_masses = (0.9*0.044 + 0.1*0.01604, 0.1*0.044 + 0.9*0.01604)
+            for (control, molar_mass) in zip(controls, molar_masses)
+                expected_density = 101325*molar_mass/(8.314462618*(273.15 + 15.56))
+                @test control.mixture_density ≈ expected_density rtol = 1e-8
+            end
+            @test surface_density ≈ well_density
             adapted = JutulDarcy.Adapt.adapt(Jutul.DefaultContext(), well_system)
             @test collect(adapted.equation_of_state.volume_shift) ≈ [0.01, 0.02, 0.03]
             adapted_facility = JutulDarcy.Adapt.adapt(Jutul.DefaultContext(), case.model[:Facility].system)
@@ -227,18 +234,33 @@ end
     end
 end
 
-@testset "COMPVD phase interpolation" begin
+@testset "COMPVD interpolation" begin
     table = [1000 0.1 0.9 0 1e7; 1100 0.3 0.7 0 1e7;
              1200 0.8 0.2 1 1e7; 1300 0.6 0.4 1 1e7]
-    composition = JutulDarcy.compvd_composition_function(table, 1150)
-    @test composition(1050) ≈ [0.2, 0.8]
-    @test composition(1125) ≈ [0.3, 0.7]
-    @test composition(1175) ≈ [0.8, 0.2]
-    @test composition(1250) ≈ [0.7, 0.3]
-    @test composition(500) ≈ [0.1, 0.9]
-    @test composition(2000) ≈ [0.6, 0.4]
-    @test composition(1200, VaporPhase()) ≈ [0.3, 0.7]
-    @test composition(1000, LiquidPhase()) ≈ [0.8, 0.2]
+    @testset "Continuous overall composition (mode 1, default)" begin
+        composition = JutulDarcy.compvd_composition_function(table, 1150)
+        @test composition(1050) ≈ [0.2, 0.8]
+        @test composition(1125) ≈ [0.425, 0.575]
+        @test composition(1150) ≈ [0.55, 0.45]
+        @test composition(1175) ≈ [0.675, 0.325]
+        @test composition(1250) ≈ [0.7, 0.3]
+        @test composition(500) ≈ [0.1, 0.9]
+        @test composition(2000) ≈ [0.6, 0.4]
+        for phase in (VaporPhase(), LiquidPhase())
+            @test composition(1150, phase) ≈ [0.55, 0.45]
+        end
+    end
+    @testset "Phase compositions (mode $mode)" for mode in (2, 3)
+        composition = JutulDarcy.compvd_composition_function(table, 1150; mode = mode)
+        @test composition(1050) ≈ [0.2, 0.8]
+        @test composition(1125) ≈ [0.3, 0.7]
+        @test composition(1175) ≈ [0.8, 0.2]
+        @test composition(1250) ≈ [0.7, 0.3]
+        @test composition(500) ≈ [0.1, 0.9]
+        @test composition(2000) ≈ [0.6, 0.4]
+        @test composition(1200, VaporPhase()) ≈ [0.3, 0.7]
+        @test composition(1000, LiquidPhase()) ≈ [0.8, 0.2]
+    end
     invalid = copy(table)
     invalid[1, end-1] = 2
     @test_throws ArgumentError JutulDarcy.compvd_composition_function(invalid, 1150)

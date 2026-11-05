@@ -765,8 +765,11 @@ struct SurfaceWellConditions{T, R} <: ScalarVariable
     storage::Vector{T}
     separator_conditions::Vector{Vector{NamedTuple{(:p, :T), Tuple{R, R}}}}
     separator_targets::Vector{Vector{Tuple{Int, Int}}}
-    function SurfaceWellConditions(S::Vector{T}, c, t, R::DataType = Float64) where T
-        new{T, R}(S, c, t)
+    surface_conditions::Vector{NamedTuple{(:p, :T), Tuple{R, R}}}
+    ideal_gas::Bool
+    function SurfaceWellConditions(S::Vector{T}, c, t, R::DataType = Float64;
+            surface_conditions = fill(default_surface_cond(), length(S)), ideal_gas = false) where T
+        new{T, R}(S, c, t, surface_conditions, ideal_gas)
     end
 end
 
@@ -775,7 +778,7 @@ function SurfaceWellConditions(sys::JutulSystem, n = 1; kwarg...)
     S_t = typeof(default_surface_cond())
     cond = [S_t[] for _ in 1:n]
     targets = [Tuple{Int, Int}[] for _ in 1:n]
-    return SurfaceWellConditions(s, cond, targets)
+    return SurfaceWellConditions(s, cond, targets; kwarg...)
 end
 
 struct PrepareStepWellSolver end
