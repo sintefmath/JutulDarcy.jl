@@ -773,15 +773,19 @@ function parse_state0_equil(model, datafile; normalize = :sum, cell_nz = 1)
                     composition = missing
                 end
                 if sys isa CompositionalSystem && eq[10] in (2, 3) && !ismissing(composition)
-                    phase = eq[10] == 3 ? LiquidPhase() : VaporPhase()
-                    z_contact = composition isa COMPVDComposition ? composition(goc, phase) : composition(goc)
+                    phase = ifelse(eq[10] == 3, LiquidPhase(), VaporPhase())
+                    if composition isa COMPVDComposition
+                        z_contact = composition(goc, phase)
+                    else
+                        z_contact = composition(goc)
+                    end
                     p_contact, x_contact, y_contact = compositional_contact_state(sys.equation_of_state, T_z(goc), z_contact, eq[10])
                     if !(composition isa COMPVDComposition)
                         n = length(z_contact)
                         x = SVector{n}(x_contact)
                         y = SVector{n}(y_contact)
-                        liquid = eq[10] == 3 ? composition : z -> x
-                        vapor = eq[10] == 2 ? composition : z -> y
+                        liquid = ifelse(eq[10] == 3, composition, depth -> x)
+                        vapor = ifelse(eq[10] == 2, composition, depth -> y)
                         composition = COMPVDComposition(vapor, liquid, goc, composition, Int(eq[10]))
                     end
                     if eq[11] == 0

@@ -585,7 +585,7 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         end
     end
     if isnothing(reservoir_context)
-        layout = block_backend ? BlockMajorLayout() : EquationMajorLayout()
+        layout = ifelse(block_backend, BlockMajorLayout(), EquationMajorLayout())
         if backend == :csr
             reservoir_context = ParallelCSRContext(nthreads;
                 matrix_layout = layout, minbatch = minbatch,
@@ -1319,7 +1319,11 @@ function setup_reservoir_simulator(case::JutulCase;
         linear_solver = :bicgstab,
         linear_solver_backend = :auto,
         max_dt = missing,
-        max_timestep = ismissing(max_dt) ? reservoir_simulation_input_defaults(case, :max_timestep) : max_dt,
+        max_timestep = if ismissing(max_dt)
+            reservoir_simulation_input_defaults(case, :max_timestep)
+        else
+            max_dt
+        end,
         min_timestep = reservoir_simulation_input_defaults(case, :min_timestep),
         rtol = missing,
         initial_dt = reservoir_simulation_input_defaults(case, :initial_dt),

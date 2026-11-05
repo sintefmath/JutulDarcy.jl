@@ -42,14 +42,7 @@ function Jutul.update_primary_variable!(state, massrate::TotalSurfaceMassRate, s
         # Compare primal rates: AD partials must not affect the shut decision.
         v_val = value(v)
         limit_rate = MIN_INITIAL_WELL_RATE
-        # A transient negative Newton update does not make a prescribed
-        # positive rate infeasible, even after a transient BHP-limit switch.
-        # Only an explicitly requested pressure control may shut for reverse
-        # flow; a rate request must converge or trigger a timestep cut.
-        requested = wcfg.requested_controls[s]
-        pressure_requested = requested isa InjectorControl && requested.target isa BottomHolePressureTarget
-        if v_val <= limit_rate && v_val + value(dx) < limit_rate &&
-                model.domain.can_shut_injectors && ctrl.target isa BottomHolePressureTarget && pressure_requested
+        if v_val <= limit_rate && v_val + value(dx) < limit_rate && model.domain.can_shut_injectors
             @debug "$s Approaching zero rate, setting zero-rate injector target for current step"
             wcfg.operating_controls[s] = replace_target(ctrl, TotalRateTarget(0.0))
             next = Jutul.update_value(v, -v_val)

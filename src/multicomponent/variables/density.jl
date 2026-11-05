@@ -6,10 +6,21 @@ struct DeckCompositionalWaterPVT{T, R}
     regions::R
 end
 
-compositional_water_table(pvt, cell) = pvt
-compositional_water_table(pvt::DeckCompositionalWaterPVT, cell) = table_by_region(pvt.tables, region(pvt.regions, cell))
-compositional_water_table_for_region(pvt, reg) = pvt
-compositional_water_table_for_region(pvt::DeckCompositionalWaterPVT, reg) = table_by_region(pvt.tables, reg)
+function compositional_water_table(pvt, cell)
+    return pvt
+end
+
+function compositional_water_table(pvt::DeckCompositionalWaterPVT, cell)
+    return table_by_region(pvt.tables, region(pvt.regions, cell))
+end
+
+function compositional_water_table_for_region(pvt, reg)
+    return pvt
+end
+
+function compositional_water_table_for_region(pvt::DeckCompositionalWaterPVT, reg)
+    return table_by_region(pvt.tables, reg)
+end
 
 struct TwoPhaseCompositionalDensities <: AbstractCompositionalDensities end
 

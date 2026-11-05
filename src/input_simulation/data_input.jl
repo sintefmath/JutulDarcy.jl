@@ -142,7 +142,11 @@ function setup_case_from_parsed_data(datafile;
     for wdomain in wells
         w = physical_representation(wdomain)
         c = first(w.perforations.reservoir)
-        reg_w = isnothing(pvt_reg) ? 1 : pvt_reg[c]
+        if isnothing(pvt_reg)
+            reg_w = 1
+        else
+            reg_w = pvt_reg[c]
+        end
         if reg_w != 1
             sys_w, pvt_w = parse_physics_types(datafile; pvt_region = reg_w)
         else
@@ -231,7 +235,11 @@ function setup_case_from_parsed_data(datafile;
                 )
             else
                 if water && sys isa CompositionalSystem
-                    pvt_i = model_or_domain_is_well(submodel) ? wells_pvt[submodel.domain.representation.name] : pvt
+                    if model_or_domain_is_well(submodel)
+                        pvt_i = wells_pvt[submodel.domain.representation.name]
+                    else
+                        pvt_i = pvt
+                    end
                     regions_i = reservoir_regions(submodel.data_domain, :pvtnum)
                     water_pvt = DeckCompositionalWaterPVT(first(pvt_i).tab, regions_i)
                     set_secondary_variables!(submodel,
@@ -1690,7 +1698,7 @@ function parse_physics_types(datafile; pvt_region = missing, for_facility = fals
         if haskey(props, "EOS")
             eos_str = uppercase(first(props["EOS"]))
             if eos_str == "PR"
-                eos_type = haskey(props, "PRCORR") || haskey(runspec, "PRCORR") ? PengRobinsonCorrected() : PengRobinson()
+                eos_type = ifelse(haskey(props, "PRCORR") || haskey(runspec, "PRCORR"), PengRobinsonCorrected(), PengRobinson())
             elseif eos_str == "SRK"
                 eos_type = SoaveRedlichKwong()
             elseif eos_str == "RK"
@@ -1700,7 +1708,7 @@ function parse_physics_types(datafile; pvt_region = missing, for_facility = fals
                 eos_type = ZudkevitchJoffe()
             end
         else
-            eos_type = haskey(props, "PRCORR") || haskey(runspec, "PRCORR") ? PengRobinsonCorrected() : PengRobinson()
+            eos_type = ifelse(haskey(props, "PRCORR") || haskey(runspec, "PRCORR"), PengRobinsonCorrected(), PengRobinson())
         end
         if is_gaswat
             eos_type isa MultiComponentFlash.AbstractPengRobinson || throw(ArgumentError("GASWAT requires the Peng-Robinson EOS."))
@@ -1708,7 +1716,7 @@ function parse_physics_types(datafile; pvt_region = missing, for_facility = fals
                 molality = get(props, "SALINITY", 0.0))
         end
         eos_type = deck_cubic_coefficients(eos_type, props, length(mp))
-        shift_key = for_facility && haskey(props, "SSHIFTS") ? "SSHIFTS" : "SSHIFT"
+        shift_key = ifelse(for_facility && haskey(props, "SSHIFTS"), "SSHIFTS", "SSHIFT")
         if haskey(props, shift_key)
             vshift = Tuple(first(props[shift_key]))
             all(isfinite, vshift) || throw(ArgumentError("$shift_key volume shifts must be finite."))
@@ -2160,9 +2168,13 @@ function refresh_injection_streams!(controls, sys, streams)
         ctrl isa InjectorControl || continue
         has_water = has_other_phase(sys)
         has_water && ctrl.injection_mixture[end] == 1.0 && continue
-        l, v = has_water ? phase_indices(sys)[2:3] : phase_indices(sys)
+        if has_water
+            l, v = phase_indices(sys)[2:3]
+        else
+            l, v = phase_indices(sys)
+        end
         gas_fraction = sum(fraction for (phase, fraction) in ctrl.phases if phase == v)
-        type = gas_fraction > 0 ? "GAS" : "OIL"
+        type = ifelse(gas_fraction > 0, "GAS", "OIL")
         rho, mix, phases = select_injector_mixture_spec(sys, name, streams, type)
         controls[name] = InjectorControl(ctrl.target, mix;
             density = rho, phases = phases, temperature = ctrl.temperature,

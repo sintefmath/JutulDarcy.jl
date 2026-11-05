@@ -2,9 +2,16 @@
 
 "Multiplier of the Li critical temperature used to label a single phase."
 struct PhaseLabelFactor <: ScalarVariable end
-Jutul.default_value(model, ::PhaseLabelFactor) = 1.0
+function Jutul.default_value(model, ::PhaseLabelFactor)
+    return 1.0
+end
+
 function Jutul.default_parameter_values(domain, model, ::PhaseLabelFactor, symb)
-    return haskey(domain, :phase_label_factor) ? copy(domain[:phase_label_factor]) : ones(number_of_cells(domain))
+    if haskey(domain, :phase_label_factor)
+        return copy(domain[:phase_label_factor])
+    else
+        return ones(number_of_cells(domain))
+    end
 end
 
 struct FlashResults{M, StabilityBypass, ReuseGuess} <: ScalarVariable
@@ -154,8 +161,7 @@ end
 @inline function single_phase_flash_result(eos, cond, cond_numeric,
         K_numeric, stability, is_vapor::Bool)
     Num = flash_condition_type(cond)
-    state = is_vapor ? MultiComponentFlash.single_phase_v :
-        MultiComponentFlash.single_phase_l
+    state = ifelse(is_vapor, MultiComponentFlash.single_phase_v, MultiComponentFlash.single_phase_l)
     V = convert(Num, is_vapor)
     x = y = cond.z
     if is_vapor

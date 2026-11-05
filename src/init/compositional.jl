@@ -8,17 +8,21 @@ struct COMPVDComposition{V, L, D, F}
 end
 
 function (composition::COMPVDComposition)(depth, phase::AbstractPhase)
-    composition.mode == 1 && return composition.overall(depth)
-    curve = phase isa VaporPhase ? composition.vapor : composition.liquid
+    if composition.mode == 1
+        return composition.overall(depth)
+    end
+    curve = ifelse(phase isa VaporPhase, composition.vapor, composition.liquid)
     if isnothing(curve)
-        curve = phase isa VaporPhase ? composition.liquid : composition.vapor
+        curve = ifelse(phase isa VaporPhase, composition.liquid, composition.vapor)
     end
     return curve(depth)
 end
 
 function (composition::COMPVDComposition)(depth)
-    composition.mode == 1 && return composition.overall(depth)
-    phase = depth < composition.contact ? VaporPhase() : LiquidPhase()
+    if composition.mode == 1
+        return composition.overall(depth)
+    end
+    phase = ifelse(depth < composition.contact, VaporPhase(), LiquidPhase())
     return composition(depth, phase)
 end
 
@@ -27,7 +31,9 @@ function compvd_composition_function(table, contact; normalize = :sum, mode = 1)
     flags = table[:, end-1]
     all(x -> x == 0 || x == 1, flags) || throw(ArgumentError("COMPVD phase flags must be 0 (vapor) or 1 (liquid)."))
     function curve(rows)
-        isempty(rows) && return nothing
+        if isempty(rows)
+            return nothing
+        end
         depths = table[rows, 1]
         all(diff(depths) .> 0) || throw(ArgumentError("COMPVD depths must increase."))
         fractions = map(rows) do row
@@ -62,7 +68,9 @@ end
 
 function compositional_contact_state(eos, T, z, mode)
     MCF = MultiComponentFlash
-    flash(p) = MCF.flashed_mixture_2ph(eos, (p=p, T=T, z=Vector{Float64}(z)); tolerance=1e-10, maxiter=300)
+    function flash(p)
+        return MCF.flashed_mixture_2ph(eos, (p=p, T=T, z=Vector{Float64}(z)); tolerance=1e-10, maxiter=300)
+    end
     upper = 1e8
     previous = upper
     lower = NaN
@@ -82,10 +90,12 @@ function compositional_contact_state(eos, T, z, mode)
         else
             upper = p
         end
-        upper-lower < 1e-9*upper && break
+        if upper-lower < 1e-9*upper
+            break
+        end
     end
     f = flash(lower*(1-1e-7))
-    expected = mode == 3 ? f.V < 0.5 : f.V > 0.5
+    expected = ifelse(mode == 3, f.V < 0.5, f.V > 0.5)
     expected || throw(ArgumentError("EQUIL option $mode specifies the wrong phase composition at the gas-oil contact."))
     return (upper+lower)/2, f.liquid.mole_fractions, f.vapor.mole_fractions
 end

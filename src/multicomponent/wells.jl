@@ -200,7 +200,13 @@ function separator_flash!(flash, eos, cond, z)
         K = initial_guess_K(eos, numeric, MultiComponentFlash.StaticConfig())
         bubble = sum(numeric.z .* K)
         dew = sum(numeric.z ./ K)
-        is_vapor = dew < 1 ? true : bubble < 1 ? false : result.V > 0.5
+        if dew < 1
+            is_vapor = true
+        elseif bubble < 1
+            is_vapor = false
+        else
+            is_vapor = result.V > 0.5
+        end
         if is_vapor != (result.V > 0.5)
             state, V, x, y, Z_l, Z_v = single_phase_flash_result(
                 eos, (p=cond.p,T=cond.T,z=z), numeric, K, nothing, is_vapor)
