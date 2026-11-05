@@ -7,15 +7,31 @@ function flash_wellstream_at_surface(var, well_model, system::S, state, rhoS, co
     return compositional_surface_densities(state, system, S_l, S_v, rho_l, rho_v)
 end
 
-function separator_flash(flash, system, surface_moles, eos, cond, z)
+function separator_flash(flash, system, surface_moles, eos, cond, z; ideal_gas = false)
     result = separator_flash!(flash, eos, cond, z)
+    return separator_flash_properties(eos, cond, result; ideal_gas = ideal_gas)
+end
+
+function separator_flash_properties(eos, cond, result; ideal_gas = false)
     rho_l, rho_v = mass_densities(eos, cond.p, cond.T, result)
     S_l, S_v = phase_saturations(eos, cond.p, cond.T, result)
+    if ideal_gas
+        # Some simulators reports standard gas volumes using the ideal gas law.
+        # The equilibrium split and stock-tank liquid density still use the EOS.
+        V_v = 8.314462618*cond.T/cond.p
+        mw_v = sum(result.vapor.mole_fractions .* MultiComponentFlash.molar_masses(eos))
+        rho_v = mw_v/V_v
+        V_l = molar_volume(eos, cond.p, cond.T, result.liquid)
+        volume_l = (1.0-result.V)*V_l
+        volume_v = result.V*V_v
+        S_l = volume_l/(volume_l + volume_v)
+        S_v = 1.0-S_l
+    end
     @assert S_l + S_v ≈ 1.0
     return (S_l, S_v, rho_l, rho_v)
 end
 
-function separator_flash(flash, system, surface_moles, eos::KValuesEOS, cond, z)
+function separator_flash(flash, system, surface_moles, eos::KValuesEOS, cond, z; ideal_gas = false)
     if has_other_phase(system)
         _, rho_l, rho_v = reference_densities(system)
     else
@@ -129,7 +145,7 @@ function separator_hydrocarbon_surface_flash!(var, system::MultiPhaseComposition
         end
     end
     # Final stage: Flash the tank conditions for each component.
-    cond = default_surface_cond()
+    cond = var.surface_conditions[well]
     T = eltype(z0)
     nph = length(surface_moles)
     rhoS = @MVector zeros(T, nph)
@@ -146,10 +162,12 @@ function separator_hydrocarbon_surface_flash!(var, system::MultiPhaseComposition
             result = separator_flash!(F, eos, cond, z)
             V = result.V
             L = one(V) - V
-            rho_l, rho_v = mass_densities(eos, cond.p, cond.T, result)
-            S_l, S_v = phase_saturations(eos, cond.p, cond.T, result)
+            S_l, S_v, rho_l, rho_v = separator_flash_properties(eos, cond, result; ideal_gas = var.ideal_gas)
             V_l = molar_volume(eos, cond.p, cond.T, result.liquid)
             V_v = molar_volume(eos, cond.p, cond.T, result.vapor)
+            if var.ideal_gas
+                V_v = 8.314462618*cond.T/cond.p
+            end
             # This could in fact still be two-phase so we just sum up the
             # densities and volumes according to their fractions to get a volume
             # average and pretend it is single-phase. This way we preserve mass
@@ -171,8 +189,25 @@ end
 function separator_flash!(flash, eos, cond, z)
     settings = FlashResults{SSIFlash, false, false}(
         SSIFlash(), false, 1e-8, 10.0, false, false)
-    return immutable_flash_result(
+    result = immutable_flash_result(
         flash, settings, eos, cond.p, cond.T, z, 0.0)
+    if result.state != MultiComponentFlash.two_phase_lv && eos isa GenericCubicEOS
+        # Li's temperature-only label can call low-pressure CO2 a liquid.
+        # Use the single-phase Wilson bounds at separators after the exact
+        # stability test has established that the stream is single phase.
+        numeric = (p = compositional_primal(cond.p), T = compositional_primal(cond.T),
+            z = numeric_composition(z))
+        K = initial_guess_K(eos, numeric, MultiComponentFlash.StaticConfig())
+        bubble = sum(numeric.z .* K)
+        dew = sum(numeric.z ./ K)
+        is_vapor = dew < 1 ? true : bubble < 1 ? false : result.V > 0.5
+        if is_vapor != (result.V > 0.5)
+            state, V, x, y, Z_l, Z_v = single_phase_flash_result(
+                eos, (p=cond.p,T=cond.T,z=z), numeric, K, nothing, is_vapor)
+            result = FlashedMixture2Phase(state, result.K, V, x, y, Z_l, Z_v)
+        end
+    end
+    return result
 end
 
 function flash_stream!(moles::SVector{N, T}, flash, eos, cond) where {N, T}
@@ -238,7 +273,7 @@ function surface_density_and_volume_fractions(var, model, system::MultiPhaseComp
     if isempty(var.separator_conditions[well])
         flash, _, surface_moles = get_separator_intermediate_storage(var, system, z, 2, well)
         S_l, S_v, rho_l, rho_v = separator_flash(
-            flash, system, surface_moles, eos, default_surface_cond(), z)
+            flash, system, surface_moles, eos, var.surface_conditions[well], z; ideal_gas = var.ideal_gas)
     else
         rho, volume = separator_hydrocarbon_surface_flash!(var, system, z, well)
         rho_l, rho_v = rho

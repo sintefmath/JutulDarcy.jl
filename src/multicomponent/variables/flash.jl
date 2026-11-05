@@ -1,5 +1,12 @@
 @enum PERFORMED_FLASH_TYPE FLASH_SINGLE_PHASE_TESTED FLASH_SINGLE_PHASE_BYPASSED FLASH_FULL FLASH_RESTARTED FLASH_PURE_WATER
 
+"Multiplier of the Li critical temperature used to label a single phase."
+struct PhaseLabelFactor <: ScalarVariable end
+Jutul.default_value(model, ::PhaseLabelFactor) = 1.0
+function Jutul.default_parameter_values(domain, model, ::PhaseLabelFactor, symb)
+    return haskey(domain, :phase_label_factor) ? copy(domain[:phase_label_factor]) : ones(number_of_cells(domain))
+end
+
 struct FlashResults{M, StabilityBypass, ReuseGuess} <: ScalarVariable
     method::M
     use_threads::Bool

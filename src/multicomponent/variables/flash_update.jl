@@ -1,30 +1,30 @@
 @jutul_secondary function update_flash!(flash_results, fr::FlashResults,
-        model, Pressure, Temperature, OverallMoleFractions, ix)
+        model, Pressure, Temperature, OverallMoleFractions, PhaseLabelFactor, ix)
     eos = model.system.equation_of_state
     p = Pressure
     T = Temperature
     z = OverallMoleFractions
-    return flash_entity_loop!(flash_results, fr, eos, p, T, z, nothing, ix)
+    return flash_entity_loop!(flash_results, fr, eos, p, T, z, nothing, PhaseLabelFactor, ix)
 end
 
 @jutul_secondary function update_flash!(flash_results, fr::FlashResults,
         model::LVCompositionalModel3Phase, Pressure, Temperature,
-        OverallMoleFractions, ImmiscibleSaturation, ix)
+        OverallMoleFractions, ImmiscibleSaturation, PhaseLabelFactor, ix)
     eos = model.system.equation_of_state
     flash_entity_loop!(flash_results, fr, eos, Pressure, Temperature,
-        OverallMoleFractions, ImmiscibleSaturation, ix)
+        OverallMoleFractions, ImmiscibleSaturation, PhaseLabelFactor, ix)
 end
 
 @inline immiscible_saturation(::Nothing, i) = 0.0
 @inline immiscible_saturation(saturation, i) = @inbounds saturation[i]
 
 @inline function flash_entity_loop!(flash_results, fr, eos, Pressure,
-        Temperature, OverallMoleFractions, sw, ix)
+        Temperature, OverallMoleFractions, sw, label_factors, ix)
     @inbounds for i in ix
         old = flash_results[i]
         flash_results[i] = immutable_flash_result(old, fr, eos,
             Pressure[i], Temperature[i], OverallMoleFractions,
-            immiscible_saturation(sw, i), i)
+            immiscible_saturation(sw, i), i, label_factors[i])
     end
     return flash_results
 end
@@ -94,7 +94,7 @@ end
 @inline function immutable_flash_result(f,
         fr::FlashResults{M, use_stability_bypass},
         eos::GenericCubicEOS{E, R, N}, P, temperature,
-        OverallMoleFractions, Sw, cell = 1) where {M, use_stability_bypass, E, R, N}
+        OverallMoleFractions, Sw, cell = 1, label_factor = 1.0) where {M, use_stability_bypass, E, R, N}
     z = cell_composition(Val(N), OverallMoleFractions, cell)
     z_numeric = numeric_composition(z)
     cond_numeric = (
@@ -113,7 +113,7 @@ end
         # SSI can converge at a physical Rachford–Rice endpoint after the
         # stability test. Implicit two-phase derivatives require 0 < V < 1.
         if isnan(V_numeric)
-            is_vapor = single_phase_label(eos, cond_numeric) > 0.5
+            is_vapor = cond_numeric.T > label_factor*li_critical_temperature(eos, cond_numeric.z)
         else
             is_vapor = V_numeric >= 1
         end
@@ -140,7 +140,7 @@ end
 
 @inline function immutable_flash_result(f, fr,
         eos::KValuesEOS{E, R, N}, P, temperature,
-        OverallMoleFractions, Sw, cell = 1) where {E, R, N}
+        OverallMoleFractions, Sw, cell = 1, label_factor = 1.0) where {E, R, N}
     z = cell_composition(Val(N), OverallMoleFractions, cell)
     Num = promote_type(typeof(P), typeof(temperature), eltype(z))
     z = SVector{N, Num}(z)

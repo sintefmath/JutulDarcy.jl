@@ -2150,7 +2150,8 @@ function full_well_outputs(model, states, forces; targets = missing)
             outw[:wcut] = outw[:wrat]./outw[:lrat]
         end
         if haskey(outw, :orat) && haskey(outw, :grat)
-            outw[:gor] = abs.(outw[:grat])./max.(abs.(outw[:orat]), 1e-12)
+            outw[:gor] = ifelse.(abs.(outw[:orat]) .> 1e-12,
+                abs.(outw[:grat])./max.(abs.(outw[:orat]), 1e-12), 0.0)
         end
         out[w] = outw
     end
@@ -2700,7 +2701,7 @@ function reservoir_transmissibility(d::DataDomain; version = missing)
             aquifers,
             reinterpret(point_t, cell_centroids),
             reinterpret(point_t, bnd_centroids),
-            g.boundary_faces.neighbors,
+            d[:boundary_neighbors],
             bnd_areas
         )
     else
@@ -3376,7 +3377,7 @@ function reservoir_measurables(model, wellresult, states = missing;
     fwct = add_entry(:wct)
     @. fwct = abs(fwpr)/max.(abs(flpr), 1e-12)
     fgor = add_entry(:gor)
-    @. fgor = abs(fgpr)/max.(abs(fopr), 1e-12)
+    @. fgor = ifelse(abs(fopr) > 1e-12, abs(fgpr)/max(abs(fopr), 1e-12), 0.0)
     fwgr = add_entry(:wgr)
     @. fwgr = abs(fwpr)/max.(abs(fgpr), 1e-12)
     fglr = add_entry(:glr)

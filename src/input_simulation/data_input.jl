@@ -229,15 +229,25 @@ function setup_case_from_parsed_data(datafile;
                     PhaseViscosities = mu,
                     PhaseMassDensities = rho
                 )
-            elseif haskey(props, "LBCCOEF")
-                coefficients = Tuple(props["LBCCOEF"])
-                viscosity = submodel.secondary_variables[:PhaseViscosities]
-                if viscosity isa ThreePhaseLBCViscositiesLV
-                    viscosity = ThreePhaseLBCViscositiesLV(viscosity.immiscible_pvt; coefficients = coefficients)
-                else
-                    viscosity = LBCViscosities(; coefficients = coefficients)
+            else
+                if water && sys isa CompositionalSystem
+                    pvt_i = model_or_domain_is_well(submodel) ? wells_pvt[submodel.domain.representation.name] : pvt
+                    regions_i = reservoir_regions(submodel.data_domain, :pvtnum)
+                    water_pvt = DeckCompositionalWaterPVT(first(pvt_i).tab, regions_i)
+                    set_secondary_variables!(submodel,
+                        PhaseMassDensities = ThreePhaseCompositionalDensitiesLV(water_pvt),
+                        PhaseViscosities = ThreePhaseLBCViscositiesLV(water_pvt))
                 end
-                set_secondary_variables!(submodel, PhaseViscosities = viscosity)
+                if haskey(props, "LBCCOEF")
+                    coefficients = Tuple(props["LBCCOEF"])
+                    viscosity = submodel.secondary_variables[:PhaseViscosities]
+                    if viscosity isa ThreePhaseLBCViscositiesLV
+                        viscosity = ThreePhaseLBCViscositiesLV(viscosity.immiscible_pvt; coefficients = coefficients)
+                    else
+                        viscosity = LBCViscosities(; coefficients = coefficients)
+                    end
+                    set_secondary_variables!(submodel, PhaseViscosities = viscosity)
+                end
             end
             if is_thermal
                 set_thermal_deck_specialization!(submodel, props, reservoir_regions(submodel.data_domain, :pvtnum), oil, water, gas)
@@ -248,6 +258,17 @@ function setup_case_from_parsed_data(datafile;
         end
     end
     msg("Complete in $(round(t_model_base + t_model2, sigdigits = 3)) seconds.")
+    if sys isa CompositionalSystem
+        cond = deck_surface_conditions(props)
+        for facility in wellgroup_symbols(model)
+            fm = model[facility]
+            previous = fm.secondary_variables[:SurfaceWellConditions]
+            surface = SurfaceWellConditions(previous.storage, previous.separator_conditions,
+                previous.separator_targets; surface_conditions = fill(cond, length(previous.storage)),
+                ideal_gas = true)
+            set_secondary_variables!(fm; SurfaceWellConditions = surface)
+        end
+    end
     if "POLYMER" in tracers
         Tracers.set_polymer_model!(model, datafile)
     end
@@ -897,6 +918,30 @@ function parse_state0_direct_assignment(model, datafile)
             end
         end
         init[:Saturations] = sat
+    end
+    if is_compositional && nph == 3 && haskey(sol, "ZMF")
+        # ZMF describes the initially specified hydrocarbon phase. Flashing it
+        # changes its volume, so renormalize water together with that volume.
+        # Holding SWAT fixed would change the specified water/hydrocarbon
+        # mole ratio (notably in the dummy-water pressure-gradient case).
+        eos = sys.equation_of_state
+        temperatures = get(init, :Temperature, Jutul.default_parameter_values(model.data_domain, model, Temperature(), :Temperature))
+        cache = Dict{Any, Float64}()
+        for cell in 1:nc
+            0 < sw[cell] < 1 || continue
+            p, T = pressure[cell], temperatures[cell]
+            z_i = Vector{Float64}(init[:OverallMoleFractions][:, cell])
+            key = (p, T, Tuple(z_i), sw[cell], sg[cell])
+            init[:ImmiscibleSaturation][cell] = get!(cache, key) do
+                cond = (p=p, T=T, z=z_i)
+                vl = molar_volume(eos, p, T, MultiComponentFlash.FlashedPhase(z_i, phase_compressibility(eos, cond, Val(:liquid))))
+                vv = molar_volume(eos, p, T, MultiComponentFlash.FlashedPhase(z_i, phase_compressibility(eos, cond, Val(:vapor))))
+                f = MultiComponentFlash.flashed_mixture_2ph(eos, cond)
+                volume = (1-f.V)*molar_volume(eos,p,T,f.liquid) + f.V*molar_volume(eos,p,T,f.vapor)
+                initial_moles = max(1-sw[cell]-sg[cell],0.0)/vl + sg[cell]/vv
+                sw[cell]/(sw[cell] + initial_moles*volume)
+            end
+        end
     end
     return init
 end
@@ -1585,14 +1630,18 @@ function parse_physics_types(datafile; pvt_region = missing, for_facility = fals
         rhoGS = deck_density[3]
     else
         @assert is_compositional "DENSITY can only be omitted for compositional models."
-        rhoOS = rhoWS = rhoGS = 1.0
+        rhoOS, rhoWS, rhoGS = 600.0, 999.014, 1.0
         has_oil = true
         has_gas = true
         scaling = missing
     end
 
     if has_wat && !is_gaswat
-        water_pvt = deck_pvt_water(props, scaling = scaling)
+        if is_compositional && !haskey(props, "PVTW") && !haskey(props, "PVTW_EXTENDED")
+            water_pvt = PVTW(ConstMuBTable(101325.0, 1.0, 4e-5/101325.0, 3e-4, 0.0))
+        else
+            water_pvt = deck_pvt_water(props, scaling = scaling)
+        end
         push!(pvt, water_pvt)
         push!(phases, AqueousPhase())
         push!(rhoS, rhoWS)
@@ -1618,17 +1667,16 @@ function parse_physics_types(datafile; pvt_region = missing, for_facility = fals
         mw = first(props["MW"])
         p_c = first(props["PCRIT"])
         T_c = first(props["TCRIT"])
-        if haskey(props, "VCRIT")
-            V_c = first(props["VCRIT"])
-            if haskey(props, "ZCRIT")
-                jutul_message("ZCRIT/VCRIT", "Both VCRIT and ZCRIT found. Using VCRIT for critical volume.", color = :yellow)
-            end
-        else
+        if haskey(props, "ZCRIT")
             Z_c = first(props["ZCRIT"])
             # J / (mol K)
-            # TODO: Double check units
             R = 8.314462618
             V_c = @. Z_c.*R*T_c/p_c
+            if haskey(props, "VCRIT")
+                jutul_message("ZCRIT/VCRIT", "Both VCRIT and ZCRIT found. Using ZCRIT for critical volume.", color = :yellow)
+            end
+        else
+            V_c = first(props["VCRIT"])
         end
 
         if haskey(props, "BIC")
@@ -2020,17 +2068,19 @@ function setup_well_streams(wells = Dict())
         well_groups = well_groups, parents = Dict{String, String}())
 end
 
+function deck_surface_conditions(props)
+    if haskey(props, "STCOND")
+        std = props["STCOND"]
+        return (p = std[2], T = convert_to_si(std[1], :Celsius))
+    else
+        return (p = convert_to_si(1.0, :atm), T = convert_to_si(15.56, :Celsius))
+    end
+end
+
 function parse_well_streams_for_step!(state, step, props)
     well_streams = state.wells
     streams = state.streams
-    if haskey(props, "STCOND")
-        std = props["STCOND"]
-        T = convert_to_si(std[1], :Celsius)
-        p = std[2]
-    else
-        T = convert_to_si(15.56, :Celsius)
-        p = convert_to_si(1.0, :atm)
-    end
+    (; p, T) = deck_surface_conditions(props)
 
     if haskey(step, "WELLSTRE")
         for stream in step["WELLSTRE"]
@@ -2402,18 +2452,21 @@ function select_injector_mixture_spec(sys::CompositionalSystem, name, streams, t
         end
         @assert sum(mix) ≈ 1.0 "Sum of mixture was $(sum(mix)) != 1 for mole mixture $(z) as mass $z_mass"
 
-        flash_cond = (p = cond.p, T = cond.T, z = z)
-        flash = MultiComponentFlash.flashed_mixture_2ph(eos, flash_cond, check = false)
-        rho_l, rho_v = MultiComponentFlash.mass_densities(eos, cond.p, cond.T, flash)
-        S_l, S_v = MultiComponentFlash.phase_saturations(eos, cond.p, cond.T, flash)
-        rho = S_l*rho_l + S_v*rho_v
         if uppercase(type) == "GAS"
+            # A deck gas rate is a standard ideal-gas volume, even for a
+            # stream which would condense at the specified surface conditions.
+            rho = sum(z .* MultiComponentFlash.molar_masses(eos))*cond.p/(8.314462618*cond.T)
             sg = 1.0
         else
+            flash_cond = (p = cond.p, T = cond.T, z = z)
+            flash = MultiComponentFlash.flashed_mixture_2ph(eos, flash_cond, check = false)
+            rho_l, rho_v = MultiComponentFlash.mass_densities(eos, cond.p, cond.T, flash)
+            S_l, S_v = MultiComponentFlash.phase_saturations(eos, cond.p, cond.T, flash)
+            rho = S_l*rho_l + S_v*rho_v
             sg = 0.0
         end
         if has_water
-            phases_mix = ((1, 1.0), (2, 1.0-sg), (3, sg))
+            phases_mix = ((1, 0.0), (2, 1.0-sg), (3, sg))
         else
             phases_mix = ((1, 1.0-sg), (2, sg))
         end

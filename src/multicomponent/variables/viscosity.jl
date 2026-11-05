@@ -39,9 +39,9 @@ end
 @jutul_secondary function update_viscosity!(mu, m::ThreePhaseLBCViscositiesLV, model::SimulationModel{D, S}, Pressure, Temperature, FlashResults, ix) where {D, S<:CompositionalSystem}
     sys = model.system
     eos = sys.equation_of_state
-    pvt = m.immiscible_pvt
     a, l, v = phase_indices(sys)
     @inbounds for i in ix
+        pvt = compositional_water_table(m.immiscible_pvt, i)
         p = Pressure[i]
         T = Temperature[i]
         mu[l, i], mu[v, i] = compositional_lbc_viscosities(eos, p, T, FlashResults[i], m.coefficients)
