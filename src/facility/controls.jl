@@ -569,12 +569,13 @@ function get_control_target_value(ctrl, target::GroupRateTarget, cond, well, mod
         other_is_injector == is_injector || error("Inconsistent control for group target: $well and $w are both in group $group, but have different control types")
         # A member constrained by a different group phase target contributes
         # its actual rate, just like a member at an individual well limit.
-        other_is_group = typeof(other_control.target) == typeof(target)
+        other_is_group = other_control.target isa GroupRateTarget &&
+            translate_target_to_symbol(other_control.target) == translate_target_to_symbol(target)
         other_rate = well_target_value(other_control, rate_target, other_cond, w, model, state)
         if other_is_group
             # Potential gets added
             if use_potentials
-                bhp_limit = get(limits[w], :bhp, missing)
+                bhp_limit = get(something(limits[w], (;)), :bhp, missing)
                 well_potential = well_potential_factor(other_rate, other_cond, other_control, bhp_limit)
             else
                 well_potential = 1.0
@@ -596,12 +597,14 @@ function get_control_target_value(ctrl, target::GroupRateTarget, cond, well, mod
     end
     if use_potentials
         self_rate = well_target_value(ctrl, rate_target, cond, well, model, state)
-        bhp_limit = get(limits[well], :bhp, missing)
+        bhp_limit = get(something(limits[well], (;)), :bhp, missing)
         self_potential = well_potential_factor(self_rate, cond, ctrl, bhp_limit)
     else
         self_potential = 1.0
     end
-    fraction = self_potential / max(self_potential + group_potential, 1e-16)
+    # Each potential is strictly positive, including at zero rate or a BHP
+    # bound. A denominator floor would lose part of the group target there.
+    fraction = self_potential / (self_potential + group_potential)
     return fraction * val
 end
 
@@ -651,27 +654,27 @@ function well_target_value(ctrl, target::TotalMassRateTarget, cond, well, model,
     return cond.total_mass_rate
 end
 
-function well_potential_factor(rate, cond, ctrl, limit)
+function well_potential_factor(rate, cond, ctrl, limit = missing)
     is_injector = ctrl isa InjectorControl
-    p_max = 1e8 # 100 gigapascals
-    p_min = 1.01325 # 1 atm
+    p_max = 1e8 # 100 MPa
+    p_min = si_unit(:atm)
     current_bhp = cond.bottom_hole_pressure
     epsval = 1e-3
     if is_injector
-        if ismissing(limit)
+        if ismissing(limit) || !isfinite(limit)
             limit = p_max
         end
         factor = max(limit - current_bhp, epsval)/max(limit - p_min, epsval)
     else
-        if ismissing(limit)
+        if ismissing(limit) || !isfinite(limit)
             limit = p_min
         end
         factor = max(current_bhp - limit, epsval)/max(p_max - limit, epsval)
     end
     rate = max(abs(rate), 1e-16)
-    # Scale rate linearly as if the production/injection rate is proportional to
-    # the bottom hole pressure only. Also scale by a big pressure value to avoid
-    # small values.
+    # Weight the current rate by the remaining BHP headroom. This is a pressure
+    # allocation heuristic, not an unrestricted well potential. Use a common
+    # pressure scale to keep the weights away from roundoff.
     p_scale = p_max
     return p_scale * rate * factor
 end

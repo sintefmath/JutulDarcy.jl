@@ -37,7 +37,10 @@ Surface-rate `GCONPROD` and `GCONINJE` controls are mapped to well groups,
 including individual well limits and `GRUPTREE` ancestor lookup. Production
 groups are named `<group>_PRODUCTION`, and injection groups `<group>_<phase>`.
 Nested group constraints, dynamic allocation-group membership, guide-rate
-overrides and reservoir-volume group controls are not supported.
+overrides and reservoir-volume group controls are not supported. Additional
+water, gas or liquid RATE constraints require explicit exceed procedures;
+defaulted and explicit NONE procedures are currently indistinguishable in the
+parser. Constraints under NONE control are not supported.
 """
 function setup_case_from_data_file(
         fn;
@@ -1779,6 +1782,7 @@ function parse_control_steps(runspec, props, schedule, sys)
     controls = sdict()
     # "Hidden" well control mirror used with WELOPEN logic
     active_controls = sdict()
+    shut_requests = sdict()
     limits = sdict()
     streams = sdict()
     polymer = sdict()
@@ -1837,10 +1841,27 @@ function parse_control_steps(runspec, props, schedule, sys)
         push!(cstep, ctrl_ix)
     end
 
-    skip = ("WELLSTRE", "WINJGAS", "GINJGAS", "GRUPINJE", "WELLINJE", "WEFAC", "WTEMP", "WTRACER", "WPOLYMER", "FBHPDEF", "WELSPECS", "FBHPDEF")
+    skip = ("WELLSTRE", "WINJGAS", "GINJGAS", "GRUPINJE", "WELLINJE", "WEFAC", "WTEMP", "WTRACER", "WPOLYMER", "FBHPDEF", "WELSPECS")
     bad_kw = Dict{String, Bool}()
     streams = setup_well_streams(wells)
     default_bhp = nothing
+    function parse_control_record(wk, key, group_specs)
+        name = wk[1]
+        spec = get(group_specs, name, nothing)
+        group_target = nothing
+        if !isnothing(spec)
+            group_target = spec.target
+        end
+        return keyword_to_control(sys, streams, wk, key;
+            group_target = group_target,
+            default_bhp = default_bhp,
+            factor = well_factor[name],
+            temperature = well_temp[name],
+            polymer = polymer[name],
+            tracer_concentrations = tracer_concentrations[name],
+            tracers = active_tracers
+        )
+    end
     for (ctrl_ix, step) in enumerate(steps)
         group_specs = group_plan.steps[ctrl_ix]
         found_time = false
@@ -1956,38 +1977,43 @@ function parse_control_steps(runspec, props, schedule, sys)
             elseif key in ("WCONINJE", "WCONPROD", "WCONHIST", "WCONINJ", "WCONINJH")
                 for wk in kword
                     name = wk[1]
-                    spec = get(group_specs, name, nothing)
-                    group_target = isnothing(spec) ? nothing : spec.target
-                    if (key == "WCONPROD" && wk[3] == "GRUP") || (key == "WCONINJE" && wk[4] == "GRUP")
+                    flag_ix = ifelse(key in ("WCONPROD", "WCONHIST"), 2, 3)
+                    flag = wk[flag_ix]
+                    mode = wk[flag_ix + 1]
+                    if key in ("WCONPROD", "WCONINJE") && mode == "GRUP"
                         push!(group_requested, name)
-                    else
+                    elseif mode != "Default"
                         delete!(group_requested, name)
                     end
-                    # Keep the OPEN request even for a SHUT/STOP declaration so
-                    # a subsequent WELOPEN can restore its control and limits.
-                    open_wk = copy(wk)
-                    flag_ix = key in ("WCONPROD", "WCONHIST") ? 2 : 3
-                    flag = wk[flag_ix]
-                    open_wk[flag_ix] = "OPEN"
-                    requested, limits[name], status[name] = keyword_to_control(sys, streams, open_wk, key,
-                        group_target = group_target,
-                        default_bhp = default_bhp,
-                        factor = well_factor[name],
-                        temperature = well_temp[name],
-                        polymer = polymer[name],
-                        tracer_concentrations = tracer_concentrations[name],
-                        tracers = active_tracers
-                    )
-                    active_controls[name] = requested
-                    status[name] = flag
-                    controls[name] = flag in ("SHUT", "STOP") ? DisabledControl() : requested
+                    # SHUT/STOP records need not define an operable control or
+                    # injection stream. Parse their OPEN request only if a
+                    # later WELOPEN actually reopens the well.
+                    if flag in ("SHUT", "STOP")
+                        if mode != "Default"
+                            shut_requests[name] = (key, copy(wk))
+                        end
+                    else
+                        delete!(shut_requests, name)
+                    end
+                    controls[name], well_limits, status[name] = parse_control_record(wk, key, group_specs)
+                    if !(flag in ("SHUT", "STOP"))
+                        limits[name] = well_limits
+                    end
                 end
                 set_active_controls!(active_controls, controls)
             elseif key == "WELOPEN"
                 for wk in kword
+                    name, flag = wk[1:2]
+                    whole_well = all(isequal(-1), wk[3:7])
+                    if whole_well && flag == "OPEN" && haskey(shut_requests, name)
+                        control_key, request = pop!(shut_requests, name)
+                        flag_ix = ifelse(control_key in ("WCONPROD", "WCONHIST"), 2, 3)
+                        request[flag_ix] = "OPEN"
+                        active_controls[name], limits[name], _ = parse_control_record(request, control_key, group_specs)
+                    end
                     apply_welopen!(controls, compdat, wk, active_controls)
-                    if all(isequal(-1), wk[3:7])
-                        status[wk[1]] = wk[2]
+                    if whole_well
+                        status[name] = flag
                     end
                 end
             elseif key == "WELTARG"
@@ -2019,7 +2045,7 @@ function parse_control_steps(runspec, props, schedule, sys)
             ctrl isa DisabledControl && continue
             if isnothing(spec)
                 lim = limits[name]
-                bhp = isnothing(lim) ? DEFAULT_MINIMUM_PRESSURE : get(lim, :bhp, DEFAULT_MINIMUM_PRESSURE)
+                bhp = get(something(lim, (;)), :bhp, DEFAULT_MINIMUM_PRESSURE)
                 target = BottomHolePressureTarget(bhp)
             else
                 target = spec.target
@@ -2270,7 +2296,12 @@ function producer_control(sys, flag, ctrl, orat, wrat, grat, lrat, bhp; is_hist 
             self_val = -grat
             t = SurfaceGasRateTarget(self_val)
         elseif ctrl == "GRUP"
-            t = isnothing(group_target) ? BottomHolePressureTarget(isfinite(bhp) ? bhp : DEFAULT_MINIMUM_PRESSURE) : group_target
+            if isnothing(group_target)
+                fallback_bhp = ifelse(isfinite(bhp), bhp, DEFAULT_MINIMUM_PRESSURE)
+                t = BottomHolePressureTarget(fallback_bhp)
+            else
+                t = group_target
+            end
             self_val = t.value
             is_rate = false
         elseif ctrl == "BHP"
@@ -2359,7 +2390,11 @@ function injector_control(sys, streams, name, flag, type, ctype, surf_rate, res_
             end
         elseif ctype == "GRUP"
             is_rate = false
-            t = isnothing(group_target) ? BottomHolePressureTarget(bhp) : group_target
+            if isnothing(group_target)
+                t = BottomHolePressureTarget(bhp)
+            else
+                t = group_target
+            end
             isfinite(t.value) || throw(ArgumentError("GRUP injector $name has no group target or finite BHP limit."))
         elseif ctype == "BHP"
             is_rate = false

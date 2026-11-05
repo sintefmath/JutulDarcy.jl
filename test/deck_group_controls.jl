@@ -128,7 +128,7 @@ TSTEP
         names = case.model[:Facility].domain.well_symbols
         p = [findfirst(isequal(w), names) for w in (:P1, :P2)]
         i = [findfirst(isequal(w), names) for w in (:I1, :I2)]
-        rate = step == 1 ? 1e-3 : 0.5e-3
+        rate = ifelse(step == 1, 1e-3, 0.5e-3)
         @test sum(f[:SurfacePhaseRates][2, p]) ≈ -rate rtol = 1e-3
         @test sum(f[:SurfacePhaseRates][1, i]) ≈ rate rtol = 1e-3
         if step == 3
@@ -152,30 +152,154 @@ TSTEP
         names = other_case.model[:Facility].domain.well_symbols
         p = [findfirst(isequal(w), names) for w in (:P1, :P2)]
         for (step, state) in enumerate(other.result.states)
-            @test sum(state[:Facility][:SurfacePhaseRates][2, p]) ≈ -(step == 1 ? 1e-3 : 0.5e-3) rtol = 1e-3
+            @test sum(state[:Facility][:SurfacePhaseRates][2, p]) ≈ -ifelse(step == 1, 1e-3, 0.5e-3) rtol = 1e-3
+        end
+
+        @testset "Removing a group cap restores individual requests" begin
+            removed = first(split(ordinary, "WELOPEN\nP1 SHUT"))*"""
+GCONPROD
+PROD NONE /
+/
+TSTEP
+0.1 /
+"""
+            removed_case = setup_case_from_data_file(deck_group_test_data(removed))
+            @test !haskey(removed_case.forces[3][:Facility].limits[:P1], :group_orat)
+            @test removed_case.forces[3][:Facility].control[:P1] == removed_case.forces[1][:Facility].control[:P1]
+            restored = simulate_reservoir(removed_case; info_level = -1, timesteps = :none, error_on_incomplete = true)
+            @test length(restored.result.states) == 3
+            facility = restored.result.states[3][:Facility]
+            @test facility[:WellGroupConfiguration].operating_controls[:P1].target isa SurfaceOilRateTarget
+            @test facility[:WellGroupConfiguration].operating_controls[:P2].target isa SurfaceOilRateTarget
+            @test sum(facility[:SurfacePhaseRates][2, p]) ≈ -2e-2 rtol = 1e-3
+        end
+    end
+
+    @testset "Secondary phase constraint" begin
+        constrained = replace(schedule,
+            "PROD ORAT 86.4 3* RATE" => "PROD ORAT 86.4 8.64 2* RATE 3* RATE",
+            "PROD ORAT 43.2 3* RATE" => "PROD ORAT 43.2 8.64 2* RATE 3* RATE")
+        constrained_case = setup_case_from_data_file(deck_group_test_data(constrained))
+        @test constrained_case.forces[1][:Facility].limits[:P1].group_wrat ≈ -1e-4
+        constrained_result = simulate_reservoir(constrained_case[1:2]; info_level = -1, timesteps = :none, error_on_incomplete = true)
+        @test length(constrained_result.result.states) == 2
+        names = constrained_case.model[:Facility].domain.well_symbols
+        p = [findfirst(isequal(w), names) for w in (:P1, :P2)]
+        for (step, state) in enumerate(constrained_result.result.states)
+            rates = state[:Facility][:SurfacePhaseRates]
+            @test sum(rates[1, p]) ≈ -1e-4 rtol = 1e-3
+            @test abs(sum(rates[2, p])) < ifelse(step == 1, 1e-3, 0.5e-3)
         end
     end
 
     @testset "WGRUPCON opt-out" begin
-        excluded = replace(schedule, "P2 OPEN GRUP 4* 1* 100" => "P2 OPEN ORAT 17.28 3* 1* 100")
-        excluded = "WGRUPCON\nP2 NO /\n/\n"*excluded
+        excluded = replace(schedule,
+            "P2 OPEN GRUP 4* 1* 100" => "P2 OPEN ORAT 17.28 3* 1* 100",
+            "I2 WATER OPEN GRUP 2* 300" => "I2 WATER OPEN RATE 17.28 1* 300")
+        # Guide-rate fields are irrelevant for an opted-out well.
+        excluded = "WGRUPCON\nP2 NO 2 OIL /\nI2 NO 2 RAT /\n/\n"*excluded
         excluded_case = setup_case_from_data_file(deck_group_test_data(excluded))
-        @test excluded_case.model[:Facility].domain.group_to_wells[:PROD_PRODUCTION] == [:P1]
+        @test Set(excluded_case.model[:Facility].domain.group_to_wells[:PROD_PRODUCTION]) == Set([:P1, :P2])
+        @test Set(excluded_case.model[:Facility].domain.group_to_wells[:INJ_WATER]) == Set([:I1, :I2])
         @test !haskey(excluded_case.forces[1][:Facility].limits[:P2], :group_orat)
+        @test !haskey(excluded_case.forces[1][:Facility].limits[:I2], :group_wrat)
         other = simulate_reservoir(excluded_case[1:2]; info_level = -1, timesteps = :none, error_on_incomplete = true)
         names = excluded_case.model[:Facility].domain.well_symbols
         p1 = findfirst(isequal(:P1), names)
         p2 = findfirst(isequal(:P2), names)
+        i1 = findfirst(isequal(:I1), names)
+        i2 = findfirst(isequal(:I2), names)
         for (step, state) in enumerate(other.result.states)
-            @test state[:Facility][:SurfacePhaseRates][2, p1] ≈ -(step == 1 ? 1e-3 : 0.5e-3) rtol = 1e-3
+            remaining = ifelse(step == 1, 1e-3, 0.5e-3) - 0.2e-3
+            @test state[:Facility][:SurfacePhaseRates][2, p1] ≈ -remaining rtol = 1e-3
             @test state[:Facility][:SurfacePhaseRates][2, p2] ≈ -0.2e-3 rtol = 1e-3
+            @test state[:Facility][:SurfacePhaseRates][1, i1] ≈ remaining rtol = 1e-3
+            @test state[:Facility][:SurfacePhaseRates][1, i2] ≈ 0.2e-3 rtol = 1e-3
         end
+    end
+
+    @testset "Defaulted and inactive shut requests" begin
+        inactive = deck_group_test_data("""
+WCONPROD
+P1 SHUT /
+P2 STOP /
+/
+WCONINJE
+I1 GAS SHUT RATE /
+I2 GAS STOP BHP /
+/
+TSTEP
+0.1 /
+""")
+        inactive_case = setup_case_from_data_file(inactive)
+        @test all(ctrl -> ctrl isa DisabledControl, values(inactive_case.forces[1][:Facility].control))
+
+        # A defaulted SHUT record must preserve a previous explicit request for
+        # reopening, without attempting to parse the defaulted mode as OPEN.
+        reopen = deck_group_test_data("""
+WCONPROD
+P1 OPEN ORAT 86.4 4* 150 /
+/
+TSTEP
+0.1 /
+WCONPROD
+P1 SHUT /
+/
+TSTEP
+0.1 /
+WELOPEN
+P1 OPEN /
+/
+TSTEP
+0.1 /
+""")
+        reopen_case = setup_case_from_data_file(reopen)
+        @test reopen_case.forces[2][:Facility].control[:P1] isa DisabledControl
+        @test reopen_case.forces[3][:Facility].control[:P1] == reopen_case.forces[1][:Facility].control[:P1]
+        @test reopen_case.forces[3][:Facility].limits[:P1].bhp == 150e5
+    end
+
+    @testset "Zero guide rate selects well potential" begin
+        automatic = "WGRUPCON\nP1 YES 0 OIL /\n/\n"*schedule
+        automatic_case = setup_case_from_data_file(deck_group_test_data(automatic))
+        @test automatic_case.model[:Facility].domain.group_to_wells == case.model[:Facility].domain.group_to_wells
+        @test automatic_case.forces[1][:Facility].control[:P1] == case.forces[1][:Facility].control[:P1]
+    end
+
+    @testset "Equivalent water phase names" begin
+        for aliases in (
+                replace(schedule, "INJ WATER RATE" => "INJ WAT RATE"),
+                replace(schedule, "I1 WATER" => "I1 WAT", "I2 WATER" => "I2 WAT"))
+            alias_case = setup_case_from_data_file(deck_group_test_data(aliases))
+            @test Set(alias_case.model[:Facility].domain.group_to_wells[:INJ_WATER]) == Set([:I1, :I2])
+            @test alias_case.forces[1][:Facility].control[:I1].target == GroupSurfaceWaterRateTarget(1e-3)
+            @test alias_case.forces[2][:Facility].limits[:I2].group_wrat == 0.5e-3
+        end
+    end
+
+    @testset "Guide rates without group constraints" begin
+        ordinary = """
+WGRUPCON
+P1 YES 2 OIL /
+/
+WCONPROD
+P1 OPEN BHP 5* 150 /
+/
+TSTEP
+0.1 /
+"""
+        ordinary_case = setup_case_from_data_file(deck_group_test_data(ordinary))
+        @test isempty(ordinary_case.model[:Facility].domain.group_to_wells)
+        @test ordinary_case.forces[1][:Facility].control[:P1].target == BottomHolePressureTarget(150e5)
     end
 
     @testset "Unsupported group features" begin
         for (from, to, message) in (
                 ("INJ WATER RATE 86.4", "INJ WATER VREP 3* 1", "VREP group control"),
                 ("PROD ORAT 86.4 3* RATE", "PROD ORAT 86.4 3* WELL", "exceed procedures"),
+                ("PROD ORAT 86.4 3* RATE", "PROD NONE 86.4 3* RATE", "constraints with NONE control"),
+                ("INJ WATER RATE 86.4", "INJ WATER NONE 86.4", "constraints with NONE control"),
+                ("PROD ORAT 86.4 3* RATE", "PROD ORAT 86.4 8.64 2* RATE", "defaulted and explicit NONE"),
                 ("PROD ORAT 86.4 3* RATE", "'P*' ORAT 86.4", "wildcard group names"),
                 ("PROD ORAT 86.4 3* RATE", "PROD FLD 86.4", "subordinate group constraints"),
                 ("CHILD PROD /", "CHILD PROD /\nPROD CHILD /", "Cycle in GRUPTREE"))
