@@ -47,6 +47,7 @@ end
 
 @testitem "Multi-model (wells + reservoir)" begin
     include("multimodel.jl")
+    include("history_resv_limits.jl")
 end
 
 @testitem "Closed-loop cross terms (deprecated)" begin
