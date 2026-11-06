@@ -47,7 +47,7 @@ function setup_spe11_case(domain_or_dims;
         nstep_injection2 = 50,
         nstep_migration = 100,
         use_reporting_steps = false,
-        divide_c_wells = true,
+        divide_c_wells = false,
         kgrad = :tpfa,
         pc_limit = 20*si_unit(:bar),
         kwarg...

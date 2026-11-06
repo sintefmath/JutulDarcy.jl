@@ -14,7 +14,6 @@ end
 end
 
 @inline function component_mass_fluxes!(q, face, state, model, flux_type, kgrad, upw)
-    T = eltype(q)
     phase_fluxes = darcy_phase_mass_fluxes(face, state, model, flux_type, kgrad, upw)
     for ph in eachindex(phase_fluxes)
         q_ph = phase_fluxes[ph]
@@ -25,6 +24,10 @@ end
 
 @inline function darcy_phase_mass_fluxes(face, state, model, flux_type, kgrad, upw, phases = eachphase(model.system))
     dpot = darcy_permeability_potential_differences(face, state, model, flux_type, kgrad, upw, phases)
+    return darcy_phase_mass_fluxes(face, state, model, flux_type, kgrad, upw, phases, dpot)
+end
+
+@inline function darcy_phase_mass_fluxes(face, state, model, flux_type, kgrad, upw, phases, dpot)
     F(phase) = darcy_phase_mass_flux(face, phase, state, model, flux_type, kgrad, upw, dpot[phase])
     return map(
         F,
@@ -50,6 +53,10 @@ end
 
 @inline function darcy_phase_volume_fluxes(face, state, model, flux_type, kgrad, upw, phases = eachphase(model.system))
     dpot = darcy_permeability_potential_differences(face, state, model, flux_type, kgrad, upw, phases)
+    return darcy_phase_volume_fluxes(face, state, model, flux_type, kgrad, upw, phases, dpot)
+end
+
+@inline function darcy_phase_volume_fluxes(face, state, model, flux_type, kgrad, upw, phases, dpot)
     F(phase) = darcy_phase_volume_flux(face, phase, state, model, flux_type, kgrad, upw, dpot[phase])
     return map(
         F,
@@ -148,7 +155,7 @@ end
     if s_l + s_r > ϵ
         ρ_avg =  (s_l*ρ_l + s_r*ρ_r)/(s_l + s_r)
     else
-        ρ_avg = 0.5*(ρ_r + ρ_l)
+        ρ_avg = (ρ_r + ρ_l)/2
     end
     return ρ_avg
 end

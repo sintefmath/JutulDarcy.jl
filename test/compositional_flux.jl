@@ -21,9 +21,9 @@ using Jutul, JutulDarcy, StaticArrays, Test
         q = zeros(SVector{n, Float64})
         q_traced = zeros(MVector{n, typeof(first(traced_fluxes))})
         numeric = JutulDarcy.compositional_fluxes!(q, liquid, vapor,
-            mass_fluxes, upw, Val(aqueous), phase_indices, Val(3))
+            mass_fluxes, mass_fluxes, upw, Val(aqueous), phase_indices, Val(3))
         traced = JutulDarcy.compositional_fluxes!(q_traced,
-            liquid_traced, vapor_traced, traced_fluxes, upw,
+            liquid_traced, vapor_traced, traced_fluxes, mass_fluxes, upw,
             Val(aqueous), phase_indices, Val(3))
 
         expected = 2.0*liquid[:, 1] - 3.0*vapor[:, 2]

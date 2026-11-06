@@ -1173,14 +1173,15 @@ these settings. Later TUNING changes in the schedule are ignored.
 
 ## Linear solver options
 
-- `linear_solver=:bicgstab`: iterative solver to use (provided model supports
-  it). Typical options are `:bicgstab` or `:gmres` Can alternatively pass a
-  linear solver instance.
-- `precond=:cpr`: preconditioner for iterative solver. For larger problems, CPR
-  variants are recommended. In order of strength and cost:
-   - `:cpr` standard Constrained-Pressure-Residual with ILU(0) second stage
+- `linear_solver=:gmres`: iterative solver to use (provided model supports it).
+  Typical options are `:bicgstab`, `:fgmres` or `:gmres` Can alternatively pass
+  a linear solver instance.
+- `precond=:cprw`: preconditioner for iterative solver. For larger problems, CPR
+  variants are recommended. `:cprw` is the default for most configurations. In
+  order of strength and cost:
+     - `:cprw` CPRW with ILU(0) second stage. Faster for problems with wells
      (strong preconditioner)
-   - `:cprw` CPRW with ILU(0) second stage. Faster for problems with wells
+   - `:cpr` standard Constrained-Pressure-Residual with ILU(0) second stage
      (strong preconditioner)
    - `:ilu0` block-incomplete-LU (intermediate strength preconditioner)
    - `:spai0`: Sparse Approximate Inverse of lowest order (weak preconditioner)
@@ -1315,15 +1316,11 @@ function setup_reservoir_simulator(case::JutulCase;
         mode = :default,
         ka_backend = missing,
         method = :newton,
-        precond = :cpr,
-        linear_solver = :bicgstab,
+        precond = missing,
+        linear_solver = ifelse(mode == :parray, :bicgstab, :gmres),
         linear_solver_backend = :auto,
         max_dt = missing,
-        max_timestep = if ismissing(max_dt)
-            reservoir_simulation_input_defaults(case, :max_timestep)
-        else
-            max_dt
-        end,
+        max_timestep = ifelse(ismissing(max_dt), reservoir_simulation_input_defaults(case, :max_timestep), max_dt),
         min_timestep = reservoir_simulation_input_defaults(case, :min_timestep),
         rtol = missing,
         initial_dt = reservoir_simulation_input_defaults(case, :initial_dt),
@@ -1374,6 +1371,24 @@ function setup_reservoir_simulator(case::JutulCase;
         reduce_memory = true,
         kwarg...
     )
+    if ismissing(precond)
+        rmodel = reservoir_model(case)
+        is_csr = rmodel.context isa ParallelCSRContext
+        is_single_node = mode != :mpi
+        is_newton = method == :newton
+        is_multimodel = case.model isa MultiModel
+        is_tracer = haskey(rmodel.equations, :tracers)
+        if is_multimodel
+            has_groups = case.model.groups isa AbstractVector && maximum(case.model.groups) > 1
+        else
+            has_groups = false
+        end
+        if is_multimodel && is_newton && is_csr && is_single_node && has_groups && !is_tracer
+            precond = :cprw
+        else
+            precond = :cpr
+        end
+    end
     warn_unsupported_tuning(case.input_data)
     ka_mode = mode isa Symbol && (mode == :ka || startswith(String(mode), "ka_"))
     sim_type_overridden = float_type != Float64 || index_type != Int
