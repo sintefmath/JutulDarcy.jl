@@ -546,6 +546,7 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         wells_systems = missing,
         facility_system = nothing,
         wells_as_cells = false,
+        optimization_level = 0,
         discretization_arg = NamedTuple(),
         groups = missing,
         well_groups::Dict{Symbol, Vector{Symbol}} = Dict{Symbol, Vector{Symbol}}(),
@@ -607,6 +608,7 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         general_ad = general_ad,
         kgrad = kgrad,
         upwind = upwind,
+        optimization_level = optimization_level,
         discretization_arg...
     )
     system = rmodel.system
@@ -682,7 +684,10 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
                     w_domain[propk] = reservoir[propk][c]
                 end
             end
-            wmodel = SimulationModel(w_domain, wsys, context = well_context)
+            wmodel = SimulationModel(w_domain, wsys,
+                context = well_context,
+                optimization_level = optimization_level
+            )
             if thermal
                 wmodel = add_thermal_to_model!(wmodel, energy_formulation = energy_formulation)
             end
@@ -702,7 +707,11 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
             models[wname] = wmodel
             if split_wells
                 wg = WellGroup(well_domain_names(w), can_shut_wells = can_shut_wells)
-                F = SimulationModel(wg, facility_system, context = context, data_domain = DataDomain(wg))
+                F = SimulationModel(wg, facility_system,
+                    context = context,
+                    data_domain = DataDomain(wg),
+                    optimization_level = optimization_level
+                )
                 if thermal
                     add_thermal_to_facility!(F)
                 end
@@ -723,7 +732,11 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
                 groups = well_groups,
                 use_potentials = group_use_potentials
             )
-            F = SimulationModel(wg, facility_system, context = context, data_domain = DataDomain(wg))
+            F = SimulationModel(wg, facility_system,
+                context = context,
+                data_domain = DataDomain(wg),
+                optimization_level = optimization_level
+            )
             if thermal
                 add_thermal_to_facility!(F)
             end
