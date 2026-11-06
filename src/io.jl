@@ -39,22 +39,6 @@ function add_missing_endpoints(s, kr)
     return (s, kr)
 end
 
-function ensure_endpoints!(x, f, ϵ)
-    n = length(x)
-    for i in (n-1):-1:2
-        if f[i] != f[i-1]
-            x[i] -= ϵ
-            break
-        end
-    end
-    for i in 1:(n-1)
-        if f[i] != f[i+1]
-            x[i] -= ϵ
-            break
-        end
-    end
-end
-
 """
     summary_result(case::JutulCase, res::ReservoirSimResult) # units from case input data
     summary_result(case::JutulCase, res::ReservoirSimResult, :field) # field units
