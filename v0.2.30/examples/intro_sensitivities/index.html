@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Intro to sensitivities in JutulDarcy · JutulDarcy.jl</title><meta name="title" content="Intro to sensitivities in JutulDarcy · JutulDarcy.jl"/><meta property="og:title" content="Intro to sensitivities in JutulDarcy · JutulDarcy.jl"/><meta property="twitter:title" content="Intro to sensitivities in JutulDarcy · JutulDarcy.jl"/><meta name="description" content="Documentation for JutulDarcy.jl."/><meta property="og:description" content="Documentation for JutulDarcy.jl."/><meta property="twitter:description" content="Documentation for JutulDarcy.jl."/><meta property="og:url" content="https://sintefmath.github.io/JutulDarcy.jl/examples/intro_sensitivities/"/><meta property="twitter:url" content="https://sintefmath.github.io/JutulDarcy.jl/examples/intro_sensitivities/"/><link rel="canonical" href="https://sintefmath.github.io/JutulDarcy.jl/examples/intro_sensitivities/"/><script data-outdated-warner src="../../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../search_index.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script><link href="../../assets/citations.css" rel="stylesheet" type="text/css"/></head><body><div id="documenter"><nav class="docs-sidebar"><a class="docs-logo" href="../../"><img src="../../assets/logo.png" alt="JutulDarcy.jl logo"/></a><div class="docs-package-name"><span class="docs-autofit"><a href="../../">JutulDarcy.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><span class="tocitem">Introduction</span><ul><li><a class="tocitem" href="../../">JutulDarcy.jl</a></li><li><a class="tocitem" href="../../man/intro/">Getting started</a></li></ul></li><li><span class="tocitem">Examples</span><ul><li><a class="tocitem" href="../two_phase_gravity_segregation/">Gravity segregation</a></li><li><a class="tocitem" href="../two_phase_buckley_leverett/">Two-phase Buckley-Leverett</a></li><li><a class="tocitem" href="../two_phase_unstable_gravity/">Gravity circulation with CPR preconditioner</a></li><li><a class="tocitem" href="../wells_intro/">Intro to wells</a></li><li class="is-active"><a class="tocitem" href>Intro to sensitivities in JutulDarcy</a><ul class="internal"><li><a class="tocitem" href="#Plot-the-initial-variable-graph"><span>Plot the initial variable graph</span></a></li><li><a class="tocitem" href="#Change-the-variables"><span>Change the variables</span></a></li><li><a class="tocitem" href="#Set-up-scenario-and-simulate"><span>Set up scenario and simulate</span></a></li><li><a class="tocitem" href="#Define-objective-function"><span>Define objective function</span></a></li><li><a class="tocitem" href="#Launch-interactive-plotter-for-cell-wise-gradients"><span>Launch interactive plotter for cell-wise gradients</span></a></li><li><a class="tocitem" href="#Set-up-plotting-functions"><span>Set up plotting functions</span></a></li><li><a class="tocitem" href="#Plot-the-permeability"><span>Plot the permeability</span></a></li><li><a class="tocitem" href="#Plot-the-evolution-of-the-gas-saturation"><span>Plot the evolution of the gas saturation</span></a></li><li><a class="tocitem" href="#Plot-the-sensitivity-of-the-objective-with-respect-to-x-cell-centroids"><span>Plot the sensitivity of the objective with respect to x cell centroids</span></a></li><li><a class="tocitem" href="#Plot-the-sensitivity-of-the-objective-with-respect-to-y-cell-centroids"><span>Plot the sensitivity of the objective with respect to y cell centroids</span></a></li><li><a class="tocitem" href="#Plot-the-sensitivity-of-the-objective-with-respect-to-z-cell-centroids"><span>Plot the sensitivity of the objective with respect to z cell centroids</span></a></li><li><a class="tocitem" href="#Plot-the-effect-of-the-new-liquid-kr-exponent-on-the-gas-production"><span>Plot the effect of the new liquid kr exponent on the gas production</span></a></li><li><a class="tocitem" href="#Plot-the-effect-of-the-new-vapor-kr-exponent-on-the-gas-production"><span>Plot the effect of the new vapor kr exponent on the gas production</span></a></li><li><a class="tocitem" href="#Plot-the-effect-of-the-liquid-phase-viscosity"><span>Plot the effect of the liquid phase viscosity</span></a></li><li><a class="tocitem" href="#Plot-the-effect-of-the-liquid-phase-viscosity-2"><span>Plot the effect of the liquid phase viscosity</span></a></li><li><a class="tocitem" href="#Example-on-GitHub"><span>Example on GitHub</span></a></li></ul></li><li><a class="tocitem" href="../co2_sloped/">CO2 injection in saline aquifer</a></li><li><a class="tocitem" href="../data_input_file/">Simulating Eclipse/DATA input files</a></li><li><a class="tocitem" href="../five_spot_ensemble/">Quarter-five-spot with variation</a></li><li><a class="tocitem" href="../co2_brine_2d_vertical/">Intro to compositional flow</a></li><li><a class="tocitem" href="../compositional_5components/">Compositional with five components</a></li><li><a class="tocitem" href="../optimize_simple_bl/">Parameter optimization of Buckley-Leverett</a></li><li><a class="tocitem" href="../validation_spe1/">Validation: SPE1</a></li><li><a class="tocitem" href="../validation_spe9/">Validation: SPE9</a></li><li><a class="tocitem" href="../validation_compositional/">Validation: Compositional</a></li><li><a class="tocitem" href="../validation_egg/">Validation: Egg</a></li><li><a class="tocitem" href="../validation_olympus_1/">Validation: OLYMPUS 1</a></li><li><a class="tocitem" href="../validation_norne_nohyst/">Validation: Norne</a></li><li><a class="tocitem" href="../validation_mrst/">Validation: MRST input files</a></li></ul></li><li><span class="tocitem">Manual</span><ul><li><a class="tocitem" href="../../man/highlevel/">High-level API</a></li><li><a class="tocitem" href="../../man/basics/input_files/">Input formats</a></li><li><a class="tocitem" href="../../man/basics/forces/">Driving forces</a></li><li><a class="tocitem" href="../../man/basics/systems/">Supported physical systems</a></li><li><a class="tocitem" href="../../man/basics/wells/">Wells and controls</a></li><li><a class="tocitem" href="../../man/basics/solution/">Solving the equations</a></li><li><a class="tocitem" href="../../man/basics/primary/">Primary variables</a></li><li><a class="tocitem" href="../../man/basics/secondary/">Secondary variables (properties)</a></li><li><a class="tocitem" href="../../man/basics/parameters/">Parameters</a></li><li><a class="tocitem" href="../../man/basics/plotting/">Plotting and visualization</a></li></ul></li><li><span class="tocitem">Advanced usage</span><ul><li><a class="tocitem" href="../../man/advanced/mpi/">Multi-threading and MPI support</a></li><li><a class="tocitem" href="../../man/advanced/compiled/">Standalone reservoir simulator</a></li></ul></li><li><span class="tocitem">Reference</span><ul><li><a class="tocitem" href="../../ref/jutul/">Jutul functions</a></li></ul></li><li><span class="tocitem">Additional information </span><ul><li><a class="tocitem" href="../../extras/refs/">References</a></li><li><a class="tocitem" href="../../extras/faq/">FAQ</a></li></ul></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Examples</a></li><li class="is-active"><a href>Intro to sensitivities in JutulDarcy</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Intro to sensitivities in JutulDarcy</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/sintefmath/JutulDarcy.jl/blob/main/examples/intro_sensitivities.jl#" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="Intro-to-sensitivities-in-JutulDarcy"><a class="docs-heading-anchor" href="#Intro-to-sensitivities-in-JutulDarcy">Intro to sensitivities in JutulDarcy</a><a id="Intro-to-sensitivities-in-JutulDarcy-1"></a><a class="docs-heading-anchor-permalink" href="#Intro-to-sensitivities-in-JutulDarcy" title="Permalink"></a></h1><p>Sensitivites with respect to custom parameters: We demonstrate how to set up a simple conceptual model, add new parameters and variable definitions in the form of a new relative permeability function, and calculate and visualize parameter sensitivities.</p><p>We first set up a quarter-five-spot model where the domain is flooded from left to right. Some cells have lower permeability to impede flow and make the scenario more interesting.</p><p>For more details, see the paper <a href="https://doi.org/10.3997/2214-4609.202437111">JutulDarcy.jl - a Fully Differentiable High-Performance Reservoir Simulator Based on Automatic Differentiation</a>.</p><pre><code class="language-julia hljs">using Jutul, JutulDarcy, GLMakie, HYPRE
+darcy, kg, meter, year, day, bar = si_units(:darcy, :kilogram, :meter, :year, :day, :bar)
+
+L = 1000.0meter
+H = 100.0meter
+big = false # Paper uses big, takes some more time to run
+if big
+    nx = 500
+else
+    nx = 100
+end
+dx = L/nx
+
+g = CartesianMesh((nx, nx, 1), (L, L, H))
+nc = number_of_cells(g)
+perm = fill(0.1darcy, nc)
+
+reservoir = reservoir_domain(g, permeability = 0.1darcy)
+centroids = reservoir[:cell_centroids]
+rock_type = fill(1, nc)
+for (i, x, y) in zip(eachindex(perm), centroids[1, :], centroids[2, :])
+    xseg = (x &gt; 0.2L) &amp; (x &lt; 0.8L) &amp; (y &gt; 0.75L) &amp; (y &lt; 0.8L)
+    yseg = (y &gt; 0.2L) &amp; (y &lt; 0.8L) &amp; (x &gt; 0.75L) &amp; (x &lt; 0.8L)
+    if xseg || yseg
+        rock_type[i] = 2
+    end
+    xseg = (x &gt; 0.2L) &amp; (x &lt; 0.55L) &amp; (y &gt; 0.50L) &amp; (y &lt; 0.55L)
+    yseg = (y &gt; 0.2L) &amp; (y &lt; 0.55L) &amp; (x &gt; 0.50L) &amp; (x &lt; 0.55L)
+    if xseg || yseg
+        rock_type[i] = 3
+    end
+    xseg = (x &gt; 0.2L) &amp; (x &lt; 0.3L) &amp; (y &gt; 0.25L) &amp; (y &lt; 0.3L)
+    yseg = (y &gt; 0.2L) &amp; (y &lt; 0.3L) &amp; (x &gt; 0.25L) &amp; (x &lt; 0.3L)
+    if xseg || yseg
+        rock_type[i] = 4
+    end
+end
+
+perm = reservoir[:permeability]
+@. perm[rock_type == 2] = 0.001darcy
+@. perm[rock_type == 3] = 0.005darcy
+@. perm[rock_type == 4] = 0.01darcy
+
+I = setup_vertical_well(reservoir, 1, 1, name = :Injector)
+P = setup_vertical_well(reservoir, nx, nx, name = :Producer)
+
+phases = (AqueousPhase(), VaporPhase())
+rhoWS, rhoGS = 1000.0kg/meter^3, 700.0kg/meter^3
+system = ImmiscibleSystem(phases, reference_densities = (rhoWS, rhoGS))
+
+model, = setup_reservoir_model(reservoir, system, wells = [I, P])
+rmodel = reservoir_model(model)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">SimulationModel:
+
+  Model with 20000 degrees of freedom, 20000 equations and 79600 parameters
+
+  domain:
+    DiscretizedDomain with MinimalTPFATopology (10000 cells, 19800 faces) and discretizations for mass_flow, heat_flow
+
+  system:
+    ImmiscibleSystem with AqueousPhase, VaporPhase
+
+  context:
+    DefaultContext(BlockMajorLayout(false), 1000, 1)
+
+  formulation:
+    FullyImplicitFormulation()
+
+  data_domain:
+    DataDomain wrapping CartesianMesh (3D) with 100x100x1=10000 cells with 17 data fields added:
+  10000 Cells
+    :permeability =&gt; 10000 Vector{Float64}
+    :porosity =&gt; 10000 Vector{Float64}
+    :rock_thermal_conductivity =&gt; 10000 Vector{Float64}
+    :fluid_thermal_conductivity =&gt; 10000 Vector{Float64}
+    :rock_density =&gt; 10000 Vector{Float64}
+    :cell_centroids =&gt; 3×10000 Matrix{Float64}
+    :volumes =&gt; 10000 Vector{Float64}
+  19800 Faces
+    :neighbors =&gt; 2×19800 Matrix{Int64}
+    :areas =&gt; 19800 Vector{Float64}
+    :normals =&gt; 3×19800 Matrix{Float64}
+    :face_centroids =&gt; 3×19800 Matrix{Float64}
+  39600 HalfFaces
+    :half_face_cells =&gt; 39600 Vector{Int64}
+    :half_face_faces =&gt; 39600 Vector{Int64}
+  20400 BoundaryFaces
+    :boundary_areas =&gt; 20400 Vector{Float64}
+    :boundary_centroids =&gt; 3×20400 Matrix{Float64}
+    :boundary_normals =&gt; 3×20400 Matrix{Float64}
+    :boundary_neighbors =&gt; 20400 Vector{Int64}
+
+  primary_variables:
+   1) Pressure    ∈ 10000 Cells: 1 dof each
+   2) Saturations ∈ 10000 Cells: 1 dof, 2 values each
+
+  secondary_variables:
+   1) PhaseMassDensities     ∈ 10000 Cells: 2 values each
+      -&gt; ConstantCompressibilityDensities as evaluator
+   2) TotalMasses            ∈ 10000 Cells: 2 values each
+      -&gt; TotalMasses as evaluator
+   3) RelativePermeabilities ∈ 10000 Cells: 2 values each
+      -&gt; BrooksCoreyRelativePermeabilities as evaluator
+   4) PhaseMobilities        ∈ 10000 Cells: 2 values each
+      -&gt; JutulDarcy.PhaseMobilities as evaluator
+   5) PhaseMassMobilities    ∈ 10000 Cells: 2 values each
+      -&gt; JutulDarcy.PhaseMassMobilities as evaluator
+
+  parameters:
+   1) Transmissibilities        ∈ 19800 Faces: Scalar
+   2) TwoPointGravityDifference ∈ 19800 Faces: Scalar
+   3) ConnateWater              ∈ 10000 Cells: Scalar
+   4) PhaseViscosities          ∈ 10000 Cells: 2 values each
+   5) FluidVolume               ∈ 10000 Cells: Scalar
+
+  equations:
+   1) mass_conservation ∈ 10000 Cells: 2 values each
+      -&gt; ConservationLaw{:TotalMasses, TwoPointPotentialFlowHardCoded{Vector{Int64}, Vector{@NamedTuple{self::Int64, other::Int64, face::Int64, face_sign::Int64}}}, Jutul.DefaultFlux, 2}
+
+  output_variables:
+    Pressure, Saturations, TotalMasses
+
+  extra:
+    OrderedCollections.OrderedDict{Symbol, Any} with keys: Symbol[]
+</code></pre><h2 id="Plot-the-initial-variable-graph"><a class="docs-heading-anchor" href="#Plot-the-initial-variable-graph">Plot the initial variable graph</a><a id="Plot-the-initial-variable-graph-1"></a><a class="docs-heading-anchor-permalink" href="#Plot-the-initial-variable-graph" title="Permalink"></a></h2><p>We plot the default variable graph that describes how the different variables relate to each other. When we add a new parameter and property in the next section, the graph is automatically modified.</p><pre><code class="language-julia hljs">using NetworkLayout, LayeredLayouts, GraphMakie
+Jutul.plot_variable_graph(rmodel)</code></pre><img src="5db08e41.png" alt="Example block output"/><h2 id="Change-the-variables"><a class="docs-heading-anchor" href="#Change-the-variables">Change the variables</a><a id="Change-the-variables-1"></a><a class="docs-heading-anchor-permalink" href="#Change-the-variables" title="Permalink"></a></h2><p>We replace the density variable with a more compressible version, and we also define a new relative permeability variable that depends on a new parameter <code>KrExponents</code> to define the exponent of the relative permeability in each cell and phase of the model.</p><p>This is done through several steps:</p><ol><li>First, we define the type</li><li>We define functions that act on that type, in particular the update function that is used to evaluate the new relative permeability during the simulation for named inputs <code>Saturations</code> and <code>KrExponents</code>.</li><li>We define the <code>KrExponents</code> as a model parameter with a default value, that can subsequently be used by the relative permeability.</li></ol><p>Finally we plot the variable graph again to verify that the new relationship has been included in our model.</p><pre><code class="language-julia hljs">c = [1e-6/bar, 1e-4/bar]
+density = ConstantCompressibilityDensities(p_ref = 1*bar, density_ref = [rhoWS, rhoGS], compressibility = c)
+replace_variables!(rmodel, PhaseMassDensities = density);
+
+import JutulDarcy: AbstractRelativePermeabilities, PhaseVariables
+struct MyKr &lt;: AbstractRelativePermeabilities end
+@jutul_secondary function update_my_kr!(vals, def::MyKr, model, Saturations, KrExponents, cells_to_update)
+    for c in cells_to_update
+        for ph in axes(vals, 1)
+            S_α = max(Saturations[ph, c], 0.0)
+            n_α = KrExponents[ph, c]
+            vals[ph, c] = S_α^n_α
+        end
+    end
+end
+struct MyKrExp &lt;: PhaseVariables end
+Jutul.default_value(model, ::MyKrExp) = 2.0
+set_parameters!(rmodel, KrExponents = MyKrExp())
+replace_variables!(rmodel, RelativePermeabilities = MyKr());
+Jutul.plot_variable_graph(rmodel)</code></pre><img src="4800a8cc.png" alt="Example block output"/><h2 id="Set-up-scenario-and-simulate"><a class="docs-heading-anchor" href="#Set-up-scenario-and-simulate">Set up scenario and simulate</a><a id="Set-up-scenario-and-simulate-1"></a><a class="docs-heading-anchor-permalink" href="#Set-up-scenario-and-simulate" title="Permalink"></a></h2><pre><code class="language-julia hljs">parameters = setup_parameters(model)
+exponents = parameters[:Reservoir][:KrExponents]
+for (cell, rtype) in enumerate(rock_type)
+    if rtype == 1
+        exp_w = 2
+        exp_g = 3
+    else
+        exp_w = 1
+        exp_g = 2
+    end
+    exponents[1, cell] = exp_w
+    exponents[2, cell] = exp_g
+end
+
+pv = pore_volume(model, parameters)
+state0 = setup_reservoir_state(model, Pressure = 150*bar, Saturations = [1.0, 0.0])
+
+dt = repeat([30.0]*day, 12*5)
+pv = pore_volume(model, parameters)
+total_time = sum(dt)
+inj_rate = sum(pv)/total_time
+
+rate_target = TotalRateTarget(inj_rate)
+I_ctrl = InjectorControl(rate_target, [0.0, 1.0], density = rhoGS)
+bhp_target = BottomHolePressureTarget(50*bar)
+P_ctrl = ProducerControl(bhp_target)
+controls = Dict()
+controls[:Injector] = I_ctrl
+controls[:Producer] = P_ctrl
+
+forces = setup_reservoir_forces(model, control = controls)
+case = JutulCase(model, dt, forces, parameters = parameters, state0 = state0)
+result = simulate_reservoir(case, output_substates = true);
+#
+ws, states = result
+ws(:Producer, :grat)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi"><span class="sgr32">Simulating 4 years, 48.43 weeks as 60 report steps   3%| |  ETA: 0:04:16</span>
+<span class="sgr34">  Progress:  Solving step 2/60 (3.33% of time interval complete)</span>
+<span class="sgr34">  Stats:     56 iterations in 7.87 s (140.53 ms each)</span>
+
+<span class="sgr32">Simulating 4 years, 48.43 weeks as 60 report steps   5%| |  ETA: 0:02:56</span>
+<span class="sgr34">  Progress:  Solving step 3/60 (5.00% of time interval complete)</span>
+<span class="sgr34">  Stats:     73 iterations in 8.17 s (111.86 ms each)</span>
+
+<span class="sgr32">Simulating 4 years, 48.43 weeks as 60 report steps   7%|▏|  ETA: 0:02:14</span>
+<span class="sgr34">  Progress:  Solving step 4/60 (6.67% of time interval complete)</span>
+<span class="sgr34">  Stats:     85 iterations in 8.47 s (99.69 ms each)</span>
+
+<span class="sgr32">Simulating 4 years, 48.43 weeks as 60 report steps   8%|▏|  ETA: 0:01:48</span>
+<span class="sgr34">  Progress:  Solving step 5/60 (8.33% of time interval complete)</span>
+<span class="sgr34">  Stats:     96 iterations in 8.67 s (90.32 ms each)</span>
+
+<span class="sgr32">Simulating 4 years, 48.43 weeks as 60 report steps  10%|▏|  ETA: 0:01:30</span>
+<span class="sgr34">  Progress:  Solving step 6/60 (10.00% of time interval complete)</span>
+<span class="sgr34">  Stats:     106 iterations in 8.84 s (83.42 ms each)</span>
+
+<span class="sgr32">Simulating 4 years, 48.43 weeks as 60 report steps  11%|▏|  ETA: 0:01:17</span>
+<span class="sgr34">  Progress:  Solving step 7/60 (11.67% of time interval complete)</span>
+<span class="sgr34">  Stats:     116 iterations in 9.02 s (77.75 ms each)</span>
+
+<span class="sgr32">Simulating 4 years, 48.43 weeks as 60 report steps  13%|▏|  ETA: 0:01:07</span>
+<span class="sgr34">  Progress:  Solving step 8/60 (13.33% of time interval complete)</span>
+<span class="sgr34">  Stats:     125 iterations in 9.17 s (73.36 ms each)</span>
+
+<span class="sgr32">Simulating 4 years, 48.43 weeks as 60 report steps  15%|▏|  ETA: 0:00:59</span>
+<span class="sgr34">  Progress:  Solving step 9/60 (15.00% of time interval complete)</span>
+<span class="sgr34">  Stats:     135 iterations in 9.34 s (69.15 ms each)</span>
+
+<span class="sgr32">Simulating 4 years, 48.43 weeks as 60 report steps  16%|▏|  ETA: 0:00:53</span>
+<span class="sgr34">  Progress:  Solving step 10/60 (16.67% of time interval complete)</span>
+<span class="sgr34">  Stats:     144 iterations in 9.49 s (65.88 ms each)</span>
+
+<span class="sgr32">Simulating 4 years, 48.43 weeks as 60 report steps  18%|▏|  ETA: 0:00:48</span>
+<span class="sgr34">  Progress:  Solving step 11/60 (18.33% of time interval complete)</span>
+<span class="sgr34">  Stats:     152 iterations in 9.63 s (63.36 ms each)</span>
+
+<span class="sgr32">Simulating 4 years, 48.43 weeks as 60 report steps  20%|▎|  ETA: 0:00:44</span>
+<span class="sgr34">  Progress:  Solving step 12/60 (20.00% of time interval complete)</span>
+<span class="sgr34">  Stats:     161 iterations in 9.79 s (60.82 ms each)</span>
+
+<span class="sgr32">Simulating 4 years, 48.43 weeks as 60 report steps  21%|▎|  ETA: 0:00:40</span>
+<span class="sgr34">  Progress:  Solving step 13/60 (21.67% of time interval complete)</span>
+<span class="sgr34">  Stats:     170 iterations in 9.96 s (58.57 ms each)</span>
+
+<span class="sgr32">Simulating 4 years, 48.43 weeks as 60 report steps  23%|▎|  ETA: 0:00:37</span>
+<span class="sgr34">  Progress:  Solving step 14/60 (23.33% of time interval complete)</span>
+<span class="sgr34">  Stats:     180 iterations in 10.13 s (56.30 ms each)</span>
+
+<span class="sgr32">Simulating 4 years, 48.43 weeks as 60 report steps  25%|▎|  ETA: 0:00:34</span>
+<span class="sgr34">  Progress:  Solving step 15/60 (25.00% of time interval complete)</span>
+<span class="sgr34">  Stats:     189 iterations in 10.28 s (54.38 ms each)</span>
+
+<span class="sgr32">Simulating 4 years, 48.43 weeks as 60 report steps  26%|▎|  ETA: 0:00:32</span>
+<span class="sgr34">  Progress:  Solving step 16/60 (26.67% of time interval complete)</span>
+<span class="sgr34">  Stats:     197 iterations in 10.40 s (52.82 ms each)</span>
+
+<span class="sgr32">Simulating 4 years, 48.43 weeks as 60 report steps  28%|▎|  ETA: 0:00:30</span>
+<span class="sgr34">  Progress:  Solving step 17/60 (28.33% of time interval complete)</span>
+<span class="sgr34">  Stats:     205 iterations in 10.53 s (51.37 ms each)</span>
+
+<span class="sgr32">Simulating 4 years, 48.43 weeks as 60 report steps  30%|▎|  ETA: 0:00:28</span>
+<span class="sgr34">  Progress:  Solving step 18/60 (30.00% of time interval complete)</span>
+<span class="sgr34">  Stats:     213 iterations in 10.67 s (50.11 ms each)</span>
+
+<span class="sgr32">Simulating 4 years, 48.43 weeks as 60 report steps  31%|▎|  ETA: 0:00:26</span>
+<span class="sgr34">  Progress:  Solving step 19/60 (31.67% of time interval complete)</span>
+<span class="sgr34">  Stats:     222 iterations in 10.82 s (48.73 ms each)</span>
+
+<span class="sgr32">Simulating 4 years, 48.43 weeks as 60 report steps  33%|▍|  ETA: 0:00:24</span>
+<span class="sgr34">  Progress:  Solving step 20/60 (33.33% of time interval complete)</span>
+<span class="sgr34">  Stats:     230 iterations in 10.95 s (47.59 ms each)</span>
+
+<span class="sgr32">Simulating 4 years, 48.43 weeks as 60 report steps  34%|▍|  ETA: 0:00:23</span>
+<span class="sgr34">  Progress:  Solving step 21/60 (35.00% of time interval complete)</span>
+<span class="sgr34">  Stats:     239 iterations in 11.09 s (46.42 ms each)</span>
+
+<span class="sgr32">Simulating 4 years, 48.43 weeks as 60 report steps  36%|▍|  ETA: 0:00:22</span>
+<span class="sgr34">  Progress:  Solving step 22/60 (36.67% of time interval complete)</span>
+<span class="sgr34">  Stats:     249 iterations in 11.26 s (45.23 ms each)</span>
+
+<span class="sgr32">Simulating 4 years, 48.43 weeks as 60 report steps  38%|▍|  ETA: 0:00:20</span>
+<span class="sgr34">  Progress:  Solving step 23/60 (38.33% of time interval complete)</span>
+<span class="sgr34">  Stats:     258 iterations in 11.42 s (44.27 ms each)</span>
+
+<span class="sgr32">Simulating 4 years, 48.43 weeks as 60 report steps  39%|▍|  ETA: 0:00:19</span>
+<span class="sgr34">  Progress:  Solving step 24/60 (40.00% of time interval complete)</span>
+<span class="sgr34">  Stats:     266 iterations in 11.55 s (43.44 ms each)</span>
+
+<span class="sgr32">Simulating 4 years, 48.43 weeks as 60 report steps  41%|▍|  ETA: 0:00:18</span>
+<span class="sgr34">  Progress:  Solving step 25/60 (41.67% of time interval complete)</span>
+<span class="sgr34">  Stats:     274 iterations in 11.70 s (42.72 ms each)</span>
+
+<span class="sgr32">Simulating 4 years, 48.43 weeks as 60 report steps  43%|▍|  ETA: 0:00:17</span>
+<span class="sgr34">  Progress:  Solving step 26/60 (43.33% of time interval complete)</span>
+<span class="sgr34">  Stats:     283 iterations in 11.85 s (41.88 ms each)</span>
+
+<span class="sgr32">Simulating 4 years, 48.43 weeks as 60 report steps  44%|▌|  ETA: 0:00:16</span>
+<span class="sgr34">  Progress:  Solving step 27/60 (45.00% of time interval complete)</span>
+<span class="sgr34">  Stats:     291 iterations in 11.99 s (41.19 ms each)</span>
+
+<span class="sgr32">Simulating 4 years, 48.43 weeks as 60 report steps  46%|▌|  ETA: 0:00:15</span>
+<span class="sgr34">  Progress:  Solving step 28/60 (46.67% of time interval complete)</span>
+<span class="sgr34">  Stats:     299 iterations in 12.12 s (40.52 ms each)</span>
+
+<span class="sgr32">Simulating 4 years, 48.43 weeks as 60 report steps  48%|▌|  ETA: 0:00:15</span>
+<span class="sgr34">  Progress:  Solving step 29/60 (48.33% of time interval complete)</span>
+<span class="sgr34">  Stats:     307 iterations in 12.25 s (39.89 ms each)</span>
+
+<span class="sgr32">Simulating 4 years, 48.43 weeks as 60 report steps  49%|▌|  ETA: 0:00:14</span>
+<span class="sgr34">  Progress:  Solving step 30/60 (50.00% of time interval complete)</span>
+<span class="sgr34">  Stats:     315 iterations in 12.37 s (39.28 ms each)</span>
+
+<span class="sgr32">Simulating 4 years, 48.43 weeks as 60 report steps  51%|▌|  ETA: 0:00:13</span>
+<span class="sgr34">  Progress:  Solving step 31/60 (51.67% of time interval complete)</span>
+<span class="sgr34">  Stats:     323 iterations in 12.51 s (38.72 ms each)</span>
+
+<span class="sgr32">Simulating 4 years, 48.43 weeks as 60 report steps  52%|▌|  ETA: 0:00:12</span>
+<span class="sgr34">  Progress:  Solving step 32/60 (53.33% of time interval complete)</span>
+<span class="sgr34">  Stats:     331 iterations in 12.65 s (38.21 ms each)</span>
+
+<span class="sgr32">Simulating 4 years, 48.43 weeks as 60 report steps  54%|▌|  ETA: 0:00:12</span>
+<span class="sgr34">  Progress:  Solving step 33/60 (55.00% of time interval complete)</span>
+<span class="sgr34">  Stats:     339 iterations in 12.81 s (37.77 ms each)</span>
+
+<span class="sgr32">Simulating 4 years, 48.43 weeks as 60 report steps  56%|▌|  ETA: 0:00:11</span>
+<span class="sgr34">  Progress:  Solving step 34/60 (56.67% of time interval complete)</span>
+<span class="sgr34">  Stats:     347 iterations in 12.95 s (37.31 ms each)</span>
+
+<span class="sgr32">Simulating 4 years, 48.43 weeks as 60 report steps  57%|▋|  ETA: 0:00:10</span>
+<span class="sgr34">  Progress:  Solving step 35/60 (58.33% of time interval complete)</span>
+<span class="sgr34">  Stats:     355 iterations in 13.09 s (36.87 ms each)</span>
+
+<span class="sgr32">Simulating 4 years, 48.43 weeks as 60 report steps  59%|▋|  ETA: 0:00:10</span>
+<span class="sgr34">  Progress:  Solving step 36/60 (60.00% of time interval complete)</span>
+<span class="sgr34">  Stats:     364 iterations in 13.25 s (36.39 ms each)</span>
+
+<span class="sgr32">Simulating 4 years, 48.43 weeks as 60 report steps  61%|▋|  ETA: 0:00:09</span>
+<span class="sgr34">  Progress:  Solving step 37/60 (61.67% of time interval complete)</span>
+<span class="sgr34">  Stats:     372 iterations in 13.39 s (35.99 ms each)</span>
+
+<span class="sgr32">Simulating 4 years, 48.43 weeks as 60 report steps  62%|▋|  ETA: 0:00:09</span>
+<span class="sgr34">  Progress:  Solving step 38/60 (63.33% of time interval complete)</span>
+<span class="sgr34">  Stats:     381 iterations in 13.56 s (35.58 ms each)</span>
+
+<span class="sgr32">Simulating 4 years, 48.43 weeks as 60 report steps  64%|▋|  ETA: 0:00:08</span>
+<span class="sgr34">  Progress:  Solving step 39/60 (65.00% of time interval complete)</span>
+<span class="sgr34">  Stats:     390 iterations in 13.72 s (35.17 ms each)</span>
+
+<span class="sgr32">Simulating 4 years, 48.43 weeks as 60 report steps  66%|▋|  ETA: 0:00:08</span>
+<span class="sgr34">  Progress:  Solving step 40/60 (66.67% of time interval complete)</span>
+<span class="sgr34">  Stats:     399 iterations in 13.91 s (34.87 ms each)</span>
+
+<span class="sgr32">Simulating 4 years, 48.43 weeks as 60 report steps  67%|▋|  ETA: 0:00:07</span>
+<span class="sgr34">  Progress:  Solving step 41/60 (68.33% of time interval complete)</span>
+<span class="sgr34">  Stats:     408 iterations in 14.07 s (34.49 ms each)</span>
+
+<span class="sgr32">Simulating 4 years, 48.43 weeks as 60 report steps  69%|▊|  ETA: 0:00:07</span>
+<span class="sgr34">  Progress:  Solving step 42/60 (70.00% of time interval complete)</span>
+<span class="sgr34">  Stats:     418 iterations in 14.24 s (34.07 ms each)</span>
+
+<span class="sgr32">Simulating 4 years, 48.43 weeks as 60 report steps  70%|▊|  ETA: 0:00:06</span>
+<span class="sgr34">  Progress:  Solving step 43/60 (71.67% of time interval complete)</span>
+<span class="sgr34">  Stats:     428 iterations in 14.41 s (33.66 ms each)</span>
+
+<span class="sgr32">Simulating 4 years, 48.43 weeks as 60 report steps  72%|▊|  ETA: 0:00:06</span>
+<span class="sgr34">  Progress:  Solving step 44/60 (73.33% of time interval complete)</span>
+<span class="sgr34">  Stats:     438 iterations in 14.58 s (33.29 ms each)</span>
+
+<span class="sgr32">Simulating 4 years, 48.43 weeks as 60 report steps  74%|▊|  ETA: 0:00:06</span>
+<span class="sgr34">  Progress:  Solving step 45/60 (75.00% of time interval complete)</span>
+<span class="sgr34">  Stats:     449 iterations in 14.77 s (32.89 ms each)</span>
+
+<span class="sgr32">Simulating 4 years, 48.43 weeks as 60 report steps  75%|▊|  ETA: 0:00:05</span>
+<span class="sgr34">  Progress:  Solving step 46/60 (76.67% of time interval complete)</span>
+<span class="sgr34">  Stats:     466 iterations in 15.11 s (32.43 ms each)</span>
+
+<span class="sgr32">Simulating 4 years, 48.43 weeks as 60 report steps  77%|▊|  ETA: 0:00:05</span>
+<span class="sgr34">  Progress:  Solving step 47/60 (78.33% of time interval complete)</span>
+<span class="sgr34">  Stats:     477 iterations in 15.33 s (32.13 ms each)</span>
+
+<span class="sgr32">Simulating 4 years, 48.43 weeks as 60 report steps  79%|▊|  ETA: 0:00:04</span>
+<span class="sgr34">  Progress:  Solving step 48/60 (80.00% of time interval complete)</span>
+<span class="sgr34">  Stats:     483 iterations in 15.43 s (31.96 ms each)</span>
+
+<span class="sgr32">Simulating 4 years, 48.43 weeks as 60 report steps  82%|▉|  ETA: 0:00:04</span>
+<span class="sgr34">  Progress:  Solving step 50/60 (83.33% of time interval complete)</span>
+<span class="sgr34">  Stats:     491 iterations in 15.58 s (31.73 ms each)</span>
+
+<span class="sgr32">Simulating 4 years, 48.43 weeks as 60 report steps  85%|▉|  ETA: 0:00:03</span>
+<span class="sgr34">  Progress:  Solving step 52/60 (86.67% of time interval complete)</span>
+<span class="sgr34">  Stats:     499 iterations in 15.73 s (31.53 ms each)</span>
+
+<span class="sgr32">Simulating 4 years, 48.43 weeks as 60 report steps  89%|▉|  ETA: 0:00:02</span>
+<span class="sgr34">  Progress:  Solving step 54/60 (90.00% of time interval complete)</span>
+<span class="sgr34">  Stats:     507 iterations in 15.89 s (31.34 ms each)</span>
+
+<span class="sgr32">Simulating 4 years, 48.43 weeks as 60 report steps  92%|▉|  ETA: 0:00:02</span>
+<span class="sgr34">  Progress:  Solving step 56/60 (93.33% of time interval complete)</span>
+<span class="sgr34">  Stats:     515 iterations in 16.04 s (31.14 ms each)</span>
+
+<span class="sgr32">Simulating 4 years, 48.43 weeks as 60 report steps  95%|█|  ETA: 0:00:01</span>
+<span class="sgr34">  Progress:  Solving step 58/60 (96.67% of time interval complete)</span>
+<span class="sgr34">  Stats:     523 iterations in 16.18 s (30.93 ms each)</span>
+
+<span class="sgr32">Simulating 4 years, 48.43 weeks as 60 report steps  98%|█|  ETA: 0:00:00</span>
+<span class="sgr34">  Progress:  Solving step 60/60 (100.00% of time interval complete)</span>
+<span class="sgr34">  Stats:     531 iterations in 16.32 s (30.73 ms each)</span>
+
+<span class="sgr32">Simulating 4 years, 48.43 weeks as 60 report steps 100%|█| Time: 0:00:17</span>
+<span class="sgr34">  Progress:  Solved step 60/60</span>
+<span class="sgr34">  Stats:     535 iterations in 16.39 s (30.63 ms each)</span>
+╭────────────────┬──────────┬───────────────┬──────────╮
+│<span class="sgr1"> Iteration type </span>│<span class="sgr1"> Avg/step </span>│<span class="sgr1">  Avg/ministep </span>│<span class="sgr1">    Total </span>│
+│<span class="sgr1">                </span>│<span class="sgr90"> 60 steps </span>│<span class="sgr90"> 117 ministeps </span>│<span class="sgr90"> (wasted) </span>│
+├────────────────┼──────────┼───────────────┼──────────┤
+│<span class="sgr1"> Newton         </span>│  8.91667 │       4.57265 │  535 (0) │
+│<span class="sgr1"> Linearization  </span>│  10.8667 │       5.57265 │  652 (0) │
+│<span class="sgr1"> Linear solver  </span>│    30.85 │       15.8205 │ 1851 (0) │
+│<span class="sgr1"> Precond apply  </span>│     61.7 │        31.641 │ 3702 (0) │
+╰────────────────┴──────────┴───────────────┴──────────╯
+╭───────────────┬─────────┬────────────┬─────────╮
+│<span class="sgr1"> Timing type   </span>│<span class="sgr1">    Each </span>│<span class="sgr1">   Relative </span>│<span class="sgr1">   Total </span>│
+│<span class="sgr1">               </span>│<span class="sgr90">      ms </span>│<span class="sgr90"> Percentage </span>│<span class="sgr90">       s </span>│
+├───────────────┼─────────┼────────────┼─────────┤
+│<span class="sgr1"> Properties    </span>│  0.5984 │     1.95 % │  0.3202 │
+│<span class="sgr1"> Equations     </span>│  5.3030 │    21.10 % │  3.4576 │
+│<span class="sgr1"> Assembly      </span>│  3.1583 │    12.56 % │  2.0592 │
+│<span class="sgr1"> Linear solve  </span>│  1.1559 │     3.77 % │  0.6184 │
+│<span class="sgr1"> Linear setup  </span>│  8.2103 │    26.80 % │  4.3925 │
+│<span class="sgr1"> Precond apply </span>│  0.8552 │    19.32 % │  3.1660 │
+│<span class="sgr1"> Update        </span>│  0.6499 │     2.12 % │  0.3477 │
+│<span class="sgr1"> Convergence   </span>│  1.4760 │     5.87 % │  0.9623 │
+│<span class="sgr1"> Input/Output  </span>│  0.2370 │     0.17 % │  0.0277 │
+│<span class="sgr1"> Other         </span>│  1.9395 │     6.33 % │  1.0377 │
+├───────────────┼─────────┼────────────┼─────────┤
+│<span class="sgr1"> Total         </span>│ 30.6341 │   100.00 % │ 16.3893 │
+╰───────────────┴─────────┴────────────┴─────────╯
+<span class="sgr1">Legend</span>
+┌───────┬──────────────────┬──────┬─────────────────────────┐
+│<span class="sgr1"> Label </span>│<span class="sgr1"> Description      </span>│<span class="sgr1"> Unit </span>│<span class="sgr1"> Type of quantity        </span>│
+├───────┼──────────────────┼──────┼─────────────────────────┤
+│ grat  │ Surface gas rate │ m³/s │ surface_volume_per_time │
+└───────┴──────────────────┴──────┴─────────────────────────┘
+<span class="sgr1">Producer result</span>
+┌─────────┬──────────────┐
+│<span class="sgr1">    time </span>│<span class="sgr1">         grat </span>│
+│<span class="sgr90">    days </span>│<span class="sgr90">         m³/s </span>│
+├─────────┼──────────────┤
+│     1.0 │         -0.0 │
+│ 1.64286 │         -0.0 │
+│ 2.05612 │         -0.0 │
+│     2.8 │         -0.0 │
+│ 4.47372 │         -0.0 │
+│ 7.48643 │         -0.0 │
+│ 12.0055 │         -0.0 │
+│ 18.7841 │         -0.0 │
+│  24.392 │         -0.0 │
+│    30.0 │         -0.0 │
+│ 38.4119 │         -0.0 │
+│  49.206 │         -0.0 │
+│    60.0 │         -0.0 │
+│  73.878 │         -0.0 │
+│    90.0 │         -0.0 │
+│   105.0 │         -0.0 │
+│   120.0 │         -0.0 │
+│   135.0 │         -0.0 │
+│   150.0 │         -0.0 │
+│   165.0 │         -0.0 │
+│   180.0 │         -0.0 │
+│   195.0 │         -0.0 │
+│   210.0 │         -0.0 │
+│   225.0 │         -0.0 │
+│   240.0 │         -0.0 │
+│   255.0 │         -0.0 │
+│   270.0 │         -0.0 │
+│   285.0 │         -0.0 │
+│   300.0 │         -0.0 │
+│   315.0 │         -0.0 │
+│   330.0 │         -0.0 │
+│   345.0 │         -0.0 │
+│   360.0 │         -0.0 │
+│   375.0 │         -0.0 │
+│   390.0 │         -0.0 │
+│   405.0 │         -0.0 │
+│   420.0 │         -0.0 │
+│   435.0 │         -0.0 │
+│   450.0 │         -0.0 │
+│   465.0 │         -0.0 │
+│   480.0 │         -0.0 │
+│   495.0 │         -0.0 │
+│   510.0 │         -0.0 │
+│   525.0 │         -0.0 │
+│   540.0 │         -0.0 │
+│   555.0 │         -0.0 │
+│   570.0 │         -0.0 │
+│   585.0 │         -0.0 │
+│   600.0 │         -0.0 │
+│   615.0 │         -0.0 │
+│   630.0 │         -0.0 │
+│   645.0 │         -0.0 │
+│   660.0 │         -0.0 │
+│   675.0 │         -0.0 │
+│   690.0 │         -0.0 │
+│   705.0 │         -0.0 │
+│   720.0 │         -0.0 │
+│   735.0 │         -0.0 │
+│   750.0 │         -0.0 │
+│   765.0 │         -0.0 │
+│   780.0 │         -0.0 │
+│   795.0 │         -0.0 │
+│   810.0 │         -0.0 │
+│   825.0 │         -0.0 │
+│   840.0 │         -0.0 │
+│   855.0 │         -0.0 │
+│   870.0 │         -0.0 │
+│   885.0 │         -0.0 │
+│   900.0 │         -0.0 │
+│   915.0 │         -0.0 │
+│   930.0 │         -0.0 │
+│   945.0 │         -0.0 │
+│   960.0 │         -0.0 │
+│   975.0 │         -0.0 │
+│   990.0 │         -0.0 │
+│  1005.0 │         -0.0 │
+│  1020.0 │         -0.0 │
+│  1035.0 │         -0.0 │
+│  1050.0 │         -0.0 │
+│  1065.0 │         -0.0 │
+│  1080.0 │         -0.0 │
+│  1095.0 │         -0.0 │
+│  1110.0 │         -0.0 │
+│  1125.0 │         -0.0 │
+│  1140.0 │         -0.0 │
+│  1155.0 │         -0.0 │
+│  1170.0 │         -0.0 │
+│  1185.0 │         -0.0 │
+│  1200.0 │         -0.0 │
+│  1215.0 │         -0.0 │
+│  1230.0 │         -0.0 │
+│  1245.0 │         -0.0 │
+│  1260.0 │         -0.0 │
+│  1275.0 │         -0.0 │
+│  1290.0 │         -0.0 │
+│  1305.0 │         -0.0 │
+│  1320.0 │         -0.0 │
+│  1335.0 │         -0.0 │
+│  1350.0 │ -0.000264065 │
+│  1365.0 │  -0.00945487 │
+│  1372.5 │   -0.0156987 │
+│  1380.0 │    -0.020066 │
+│  1395.0 │   -0.0252017 │
+│  1410.0 │   -0.0286516 │
+│  1440.0 │   -0.0325127 │
+│  1470.0 │   -0.0348996 │
+│  1500.0 │   -0.0365194 │
+│  1530.0 │   -0.0377322 │
+│  1560.0 │   -0.0387128 │
+│  1590.0 │   -0.0395447 │
+│  1620.0 │    -0.040269 │
+│  1650.0 │   -0.0409083 │
+│  1680.0 │   -0.0414781 │
+│  1710.0 │   -0.0419904 │
+│  1740.0 │   -0.0424565 │
+│  1770.0 │   -0.0428874 │
+│  1800.0 │   -0.0432951 │
+└─────────┴──────────────┘</code></pre><h2 id="Define-objective-function"><a class="docs-heading-anchor" href="#Define-objective-function">Define objective function</a><a id="Define-objective-function-1"></a><a class="docs-heading-anchor-permalink" href="#Define-objective-function" title="Permalink"></a></h2><p>We let the objective function be the amount produced of produced gas, normalized by the injected amount.</p><pre><code class="language-julia hljs">using GLMakie
+function objective_function(model, state, Δt, step_i, forces)
+    grat = JutulDarcy.compute_well_qoi(model, state, forces, :Producer, SurfaceGasRateTarget)
+    return Δt*grat/(inj_rate*total_time)
+end
+data_domain_with_gradients = JutulDarcy.reservoir_sensitivities(case, result, objective_function, include_parameters = true)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">DataDomain wrapping CartesianMesh (3D) with 100x100x1=10000 cells with 23 data fields added:
+  10000 Cells
+    :permeability =&gt; 10000 Vector{Float64}
+    :porosity =&gt; 10000 Vector{Float64}
+    :rock_thermal_conductivity =&gt; 10000 Vector{Float64}
+    :fluid_thermal_conductivity =&gt; 10000 Vector{Float64}
+    :rock_density =&gt; 10000 Vector{Float64}
+    :cell_centroids =&gt; 3×10000 Matrix{Float64}
+    :volumes =&gt; 10000 Vector{Float64}
+    :ConnateWater =&gt; 10000 Vector{Float64}
+    :PhaseViscosities =&gt; 2×10000 Matrix{Float64}
+    :FluidVolume =&gt; 10000 Vector{Float64}
+    :KrExponents =&gt; 2×10000 Matrix{Float64}
+  19800 Faces
+    :neighbors =&gt; 2×19800 Matrix{Int64}
+    :areas =&gt; 19800 Vector{Float64}
+    :normals =&gt; 3×19800 Matrix{Float64}
+    :face_centroids =&gt; 3×19800 Matrix{Float64}
+    :Transmissibilities =&gt; 19800 Vector{Float64}
+    :TwoPointGravityDifference =&gt; 19800 Vector{Float64}
+  39600 HalfFaces
+    :half_face_cells =&gt; 39600 Vector{Int64}
+    :half_face_faces =&gt; 39600 Vector{Int64}
+  20400 BoundaryFaces
+    :boundary_areas =&gt; 20400 Vector{Float64}
+    :boundary_centroids =&gt; 3×20400 Matrix{Float64}
+    :boundary_normals =&gt; 3×20400 Matrix{Float64}
+    :boundary_neighbors =&gt; 20400 Vector{Int64}
+</code></pre><h2 id="Launch-interactive-plotter-for-cell-wise-gradients"><a class="docs-heading-anchor" href="#Launch-interactive-plotter-for-cell-wise-gradients">Launch interactive plotter for cell-wise gradients</a><a id="Launch-interactive-plotter-for-cell-wise-gradients-1"></a><a class="docs-heading-anchor-permalink" href="#Launch-interactive-plotter-for-cell-wise-gradients" title="Permalink"></a></h2><pre><code class="language-julia hljs">plot_reservoir(data_domain_with_gradients)</code></pre><img src="42e4e38c.png" alt="Example block output"/><h2 id="Set-up-plotting-functions"><a class="docs-heading-anchor" href="#Set-up-plotting-functions">Set up plotting functions</a><a id="Set-up-plotting-functions-1"></a><a class="docs-heading-anchor-permalink" href="#Set-up-plotting-functions" title="Permalink"></a></h2><pre><code class="language-julia hljs">∂K = data_domain_with_gradients[:permeability]
+∂ϕ = data_domain_with_gradients[:porosity]
+
+function get_cscale(x)
+    minv0, maxv0 = extrema(x)
+    minv = min(minv0, -maxv0)
+    maxv = max(maxv0, -minv0)
+    return (minv, maxv)
+end
+
+function myplot(title, vals; kwarg...)
+    fig = Figure()
+    myplot!(fig, 1, 1, title, vals; kwarg...)
+    return fig
+end
+
+function myplot!(fig, I, J, title, vals; is_grad = false, is_log = false, colorrange = missing, contourplot = false, nticks = 5, ticks = missing, colorbar = true, kwarg...)
+    ax = Axis(fig[I, J], title = title)
+
+    if is_grad
+        if ismissing(colorrange)
+            colorrange = get_cscale(vals)
+        end
+        cmap = :seismic
+    else
+        if ismissing(colorrange)
+            colorrange = extrema(vals)
+        end
+        cmap = :seaborn_icefire_gradient
+    end
+    hidedecorations!(ax)
+    hidespines!(ax)
+    arg = (; colormap = cmap, colorrange = colorrange, kwarg...)
+    plt = plot_cell_data!(ax, g, vals; shading = NoShading, arg...)
+    if colorbar
+        if ismissing(ticks)
+            ticks = range(colorrange..., nticks)
+        end
+        Colorbar(fig[I, J+1], plt, ticks = ticks, ticklabelsize = 25, size = 25)
+    end
+    return fig
+end</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">myplot! (generic function with 1 method)</code></pre><h2 id="Plot-the-permeability"><a class="docs-heading-anchor" href="#Plot-the-permeability">Plot the permeability</a><a id="Plot-the-permeability-1"></a><a class="docs-heading-anchor-permalink" href="#Plot-the-permeability" title="Permalink"></a></h2><pre><code class="language-julia hljs">myplot(&quot;Permeability&quot;, perm./darcy, colorscale = log10, ticks = [0.001, 0.01, 0.1])</code></pre><img src="4d441eaf.png" alt="Example block output"/><h2 id="Plot-the-evolution-of-the-gas-saturation"><a class="docs-heading-anchor" href="#Plot-the-evolution-of-the-gas-saturation">Plot the evolution of the gas saturation</a><a id="Plot-the-evolution-of-the-gas-saturation-1"></a><a class="docs-heading-anchor-permalink" href="#Plot-the-evolution-of-the-gas-saturation" title="Permalink"></a></h2><pre><code class="language-julia hljs">fig = Figure(size = (1200, 400))
+sg = states[25][:Saturations][2, :]
+myplot!(fig, 1, 1, &quot;Gas saturation&quot;, sg, colorrange = (0, 1), colorbar = false)
+sg = states[70][:Saturations][2, :]
+myplot!(fig, 1, 2, &quot;Gas saturation&quot;, sg, colorrange = (0, 1), colorbar = false)
+sg = states[end][:Saturations][2, :]
+myplot!(fig, 1, 3, &quot;Gas saturation&quot;, sg, colorrange = (0, 1))
+fig
+# ## Plot the sensitivity of the objective with respect to permeability
+if big
+    cr = (-0.001, 0.001)
+    cticks = [-0.001, -0.0005, 0.0005, 0.001]
+else
+    cr = (-0.05, 0.05)
+    cticks = [-0.05, -0.025, 0, 0.025, 0.05]
+end
+
+myplot(&quot;perm_sens&quot;, ∂K.*darcy, is_grad = true, ticks = cticks, colorrange = cr)
+# ## Plot the sensitivity of the objective with respect to porosity
+if big
+    cr = (-0.00001, 0.00001)
+else
+    cr = (-0.00025, 0.00025)
+end
+myplot(&quot;porosity_sens&quot;, ∂ϕ, is_grad = true, colorrange = cr)
+#
+∂xyz = data_domain_with_gradients[:cell_centroids]
+∂x = ∂xyz[1, :]
+∂y = ∂xyz[2, :]
+∂z = ∂xyz[3, :]
+#
+if big
+    cr = [-1e-8, 1e-8]
+else
+    cr = [-1e-7, 1e-7]
+end</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">2-element Vector{Float64}:
+ -1.0e-7
+  1.0e-7</code></pre><h2 id="Plot-the-sensitivity-of-the-objective-with-respect-to-x-cell-centroids"><a class="docs-heading-anchor" href="#Plot-the-sensitivity-of-the-objective-with-respect-to-x-cell-centroids">Plot the sensitivity of the objective with respect to x cell centroids</a><a id="Plot-the-sensitivity-of-the-objective-with-respect-to-x-cell-centroids-1"></a><a class="docs-heading-anchor-permalink" href="#Plot-the-sensitivity-of-the-objective-with-respect-to-x-cell-centroids" title="Permalink"></a></h2><pre><code class="language-julia hljs">myplot(&quot;dx_sens&quot;, ∂x, is_grad = true, colorrange = cr)</code></pre><img src="c029f818.png" alt="Example block output"/><h2 id="Plot-the-sensitivity-of-the-objective-with-respect-to-y-cell-centroids"><a class="docs-heading-anchor" href="#Plot-the-sensitivity-of-the-objective-with-respect-to-y-cell-centroids">Plot the sensitivity of the objective with respect to y cell centroids</a><a id="Plot-the-sensitivity-of-the-objective-with-respect-to-y-cell-centroids-1"></a><a class="docs-heading-anchor-permalink" href="#Plot-the-sensitivity-of-the-objective-with-respect-to-y-cell-centroids" title="Permalink"></a></h2><pre><code class="language-julia hljs">myplot(&quot;dy_sens&quot;, ∂y, is_grad = true, colorrange = cr)</code></pre><img src="5f288345.png" alt="Example block output"/><h2 id="Plot-the-sensitivity-of-the-objective-with-respect-to-z-cell-centroids"><a class="docs-heading-anchor" href="#Plot-the-sensitivity-of-the-objective-with-respect-to-z-cell-centroids">Plot the sensitivity of the objective with respect to z cell centroids</a><a id="Plot-the-sensitivity-of-the-objective-with-respect-to-z-cell-centroids-1"></a><a class="docs-heading-anchor-permalink" href="#Plot-the-sensitivity-of-the-objective-with-respect-to-z-cell-centroids" title="Permalink"></a></h2><p>Note: The effect here is primarily coming from gravity.</p><pre><code class="language-julia hljs">myplot(&quot;dz_sens&quot;, ∂z, is_grad = true, colorrange = cr)</code></pre><img src="2a440816.png" alt="Example block output"/><h2 id="Plot-the-effect-of-the-new-liquid-kr-exponent-on-the-gas-production"><a class="docs-heading-anchor" href="#Plot-the-effect-of-the-new-liquid-kr-exponent-on-the-gas-production">Plot the effect of the new liquid kr exponent on the gas production</a><a id="Plot-the-effect-of-the-new-liquid-kr-exponent-on-the-gas-production-1"></a><a class="docs-heading-anchor-permalink" href="#Plot-the-effect-of-the-new-liquid-kr-exponent-on-the-gas-production" title="Permalink"></a></h2><pre><code class="language-julia hljs">if big
+    cr = [-1e-7, 1e-7]
+else
+    cr = [-8e-6, 8e-6]
+end
+
+kre = data_domain_with_gradients[:KrExponents]
+exp_l = kre[1, :]
+myplot(&quot;exp_liquid&quot;, exp_l, is_grad = true, colorrange = cr)</code></pre><img src="fe1d830e.png" alt="Example block output"/><h2 id="Plot-the-effect-of-the-new-vapor-kr-exponent-on-the-gas-production"><a class="docs-heading-anchor" href="#Plot-the-effect-of-the-new-vapor-kr-exponent-on-the-gas-production">Plot the effect of the new vapor kr exponent on the gas production</a><a id="Plot-the-effect-of-the-new-vapor-kr-exponent-on-the-gas-production-1"></a><a class="docs-heading-anchor-permalink" href="#Plot-the-effect-of-the-new-vapor-kr-exponent-on-the-gas-production" title="Permalink"></a></h2><pre><code class="language-julia hljs">exp_v = kre[2, :]
+myplot(&quot;exp_vapor&quot;, exp_v, is_grad = true, colorrange = cr)</code></pre><img src="737ce304.png" alt="Example block output"/><h2 id="Plot-the-effect-of-the-liquid-phase-viscosity"><a class="docs-heading-anchor" href="#Plot-the-effect-of-the-liquid-phase-viscosity">Plot the effect of the liquid phase viscosity</a><a id="Plot-the-effect-of-the-liquid-phase-viscosity-1"></a><a class="docs-heading-anchor-permalink" href="#Plot-the-effect-of-the-liquid-phase-viscosity" title="Permalink"></a></h2><p>Note: The viscosity can in many models be a variable and not a parameter. For this simple model, however, it is treated as a parameter and we obtain sensitivities.</p><pre><code class="language-julia hljs">mu = data_domain_with_gradients[:PhaseViscosities]
+if big
+    cr = [-0.001, 0.001]
+else
+    cr = [-0.01, 0.01]
+end
+mu_l = mu[1, :]
+myplot(&quot;mu_liquid&quot;, mu_l, is_grad = true, colorrange = cr)</code></pre><img src="b7eda7aa.png" alt="Example block output"/><h2 id="Plot-the-effect-of-the-liquid-phase-viscosity-2"><a class="docs-heading-anchor" href="#Plot-the-effect-of-the-liquid-phase-viscosity-2">Plot the effect of the liquid phase viscosity</a><a class="docs-heading-anchor-permalink" href="#Plot-the-effect-of-the-liquid-phase-viscosity-2" title="Permalink"></a></h2><pre><code class="language-julia hljs">mu_v = mu[2, :]
+myplot(&quot;mu_vapor&quot;, mu_v, is_grad = true, colorrange = cr)</code></pre><img src="868b6401.png" alt="Example block output"/><h2 id="Example-on-GitHub"><a class="docs-heading-anchor" href="#Example-on-GitHub">Example on GitHub</a><a id="Example-on-GitHub-1"></a><a class="docs-heading-anchor-permalink" href="#Example-on-GitHub" title="Permalink"></a></h2><p>If you would like to run this example yourself, it can be downloaded from the JutulDarcy.jl GitHub repository <a href="https://github.com/sintefmath/JutulDarcy.jl/blob/main/examples/intro_sensitivities.jl">as a script</a>, or as a <a href="https://github.com/sintefmath/JutulDarcy.jl/blob/gh-pages/dev/examples/intro_sensitivities.ipynb">Notebook</a></p><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../wells_intro/">« Intro to wells</a><a class="docs-footer-nextpage" href="../co2_sloped/">CO2 injection in saline aquifer »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.7.0 on <span class="colophon-date" title="Sunday 8 September 2024 18:32">Sunday 8 September 2024</span>. Using Julia version 1.10.5.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>

@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>CO2 injection in saline aquifer · JutulDarcy.jl</title><meta name="title" content="CO2 injection in saline aquifer · JutulDarcy.jl"/><meta property="og:title" content="CO2 injection in saline aquifer · JutulDarcy.jl"/><meta property="twitter:title" content="CO2 injection in saline aquifer · JutulDarcy.jl"/><meta name="description" content="Documentation for JutulDarcy.jl."/><meta property="og:description" content="Documentation for JutulDarcy.jl."/><meta property="twitter:description" content="Documentation for JutulDarcy.jl."/><meta property="og:url" content="https://sintefmath.github.io/JutulDarcy.jl/examples/co2_sloped/"/><meta property="twitter:url" content="https://sintefmath.github.io/JutulDarcy.jl/examples/co2_sloped/"/><link rel="canonical" href="https://sintefmath.github.io/JutulDarcy.jl/examples/co2_sloped/"/><script data-outdated-warner src="../../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../search_index.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script><link href="../../assets/citations.css" rel="stylesheet" type="text/css"/></head><body><div id="documenter"><nav class="docs-sidebar"><a class="docs-logo" href="../../"><img src="../../assets/logo.png" alt="JutulDarcy.jl logo"/></a><div class="docs-package-name"><span class="docs-autofit"><a href="../../">JutulDarcy.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><span class="tocitem">Introduction</span><ul><li><a class="tocitem" href="../../">JutulDarcy.jl</a></li><li><a class="tocitem" href="../../man/intro/">Getting started</a></li></ul></li><li><span class="tocitem">Examples</span><ul><li><a class="tocitem" href="../two_phase_gravity_segregation/">Gravity segregation</a></li><li><a class="tocitem" href="../two_phase_buckley_leverett/">Two-phase Buckley-Leverett</a></li><li><a class="tocitem" href="../two_phase_unstable_gravity/">Gravity circulation with CPR preconditioner</a></li><li><a class="tocitem" href="../wells_intro/">Intro to wells</a></li><li><a class="tocitem" href="../intro_sensitivities/">Intro to sensitivities in JutulDarcy</a></li><li class="is-active"><a class="tocitem" href>CO2 injection in saline aquifer</a><ul class="internal"><li><a class="tocitem" href="#Set-up-a-2D-aquifer-model"><span>Set up a 2D aquifer model</span></a></li><li><a class="tocitem" href="#Find-and-plot-cells-intersected-by-a-deviated-injector-well"><span>Find and plot cells intersected by a deviated injector well</span></a></li><li><a class="tocitem" href="#Define-permeability-and-porosity"><span>Define permeability and porosity</span></a></li><li><a class="tocitem" href="#Set-up-simulation-model"><span>Set up simulation model</span></a></li><li><a class="tocitem" href="#Customize-model-by-adding-relative-permeability-with-hysteresis"><span>Customize model by adding relative permeability with hysteresis</span></a></li><li><a class="tocitem" href="#Define-approximate-hydrostatic-pressure-and-set-up-initial-state"><span>Define approximate hydrostatic pressure and set up initial state</span></a></li><li><a class="tocitem" href="#Find-the-boundary-and-apply-a-constant-pressureboundary-condition"><span>Find the boundary and apply a constant pressureboundary condition</span></a></li><li><a class="tocitem" href="#Plot-the-model"><span>Plot the model</span></a></li><li><a class="tocitem" href="#Set-up-schedule"><span>Set up schedule</span></a></li><li><a class="tocitem" href="#Add-some-more-outputs-for-plotting"><span>Add some more outputs for plotting</span></a></li><li><a class="tocitem" href="#Simulate-the-schedule"><span>Simulate the schedule</span></a></li><li><a class="tocitem" href="#Plot-the-CO2-mole-fraction"><span>Plot the CO2 mole fraction</span></a></li><li><a class="tocitem" href="#Plot-all-relative-permeabilities-for-all-time-steps"><span>Plot all relative permeabilities for all time-steps</span></a></li><li><a class="tocitem" href="#Plot-result-in-interactive-viewer"><span>Plot result in interactive viewer</span></a></li><li><a class="tocitem" href="#Pick-a-region-to-investigate-the-CO2"><span>Pick a region to investigate the CO2</span></a></li><li><a class="tocitem" href="#Define-a-region-of-interest-using-geometry"><span>Define a region of interest using geometry</span></a></li><li><a class="tocitem" href="#Plot-inventory-in-ellipsoid"><span>Plot inventory in ellipsoid</span></a></li><li><a class="tocitem" href="#Plot-the-average-pressure-in-the-ellipsoid-region"><span>Plot the average pressure in the ellipsoid region</span></a></li><li><a class="tocitem" href="#Make-a-composite-plot-to-correlate-CO2-mass-in-region-with-spatial-distribution"><span>Make a composite plot to correlate CO2 mass in region with spatial distribution</span></a></li><li><a class="tocitem" href="#Example-on-GitHub"><span>Example on GitHub</span></a></li></ul></li><li><a class="tocitem" href="../data_input_file/">Simulating Eclipse/DATA input files</a></li><li><a class="tocitem" href="../five_spot_ensemble/">Quarter-five-spot with variation</a></li><li><a class="tocitem" href="../co2_brine_2d_vertical/">Intro to compositional flow</a></li><li><a class="tocitem" href="../compositional_5components/">Compositional with five components</a></li><li><a class="tocitem" href="../optimize_simple_bl/">Parameter optimization of Buckley-Leverett</a></li><li><a class="tocitem" href="../validation_spe1/">Validation: SPE1</a></li><li><a class="tocitem" href="../validation_spe9/">Validation: SPE9</a></li><li><a class="tocitem" href="../validation_compositional/">Validation: Compositional</a></li><li><a class="tocitem" href="../validation_egg/">Validation: Egg</a></li><li><a class="tocitem" href="../validation_olympus_1/">Validation: OLYMPUS 1</a></li><li><a class="tocitem" href="../validation_norne_nohyst/">Validation: Norne</a></li><li><a class="tocitem" href="../validation_mrst/">Validation: MRST input files</a></li></ul></li><li><span class="tocitem">Manual</span><ul><li><a class="tocitem" href="../../man/highlevel/">High-level API</a></li><li><a class="tocitem" href="../../man/basics/input_files/">Input formats</a></li><li><a class="tocitem" href="../../man/basics/forces/">Driving forces</a></li><li><a class="tocitem" href="../../man/basics/systems/">Supported physical systems</a></li><li><a class="tocitem" href="../../man/basics/wells/">Wells and controls</a></li><li><a class="tocitem" href="../../man/basics/solution/">Solving the equations</a></li><li><a class="tocitem" href="../../man/basics/primary/">Primary variables</a></li><li><a class="tocitem" href="../../man/basics/secondary/">Secondary variables (properties)</a></li><li><a class="tocitem" href="../../man/basics/parameters/">Parameters</a></li><li><a class="tocitem" href="../../man/basics/plotting/">Plotting and visualization</a></li></ul></li><li><span class="tocitem">Advanced usage</span><ul><li><a class="tocitem" href="../../man/advanced/mpi/">Multi-threading and MPI support</a></li><li><a class="tocitem" href="../../man/advanced/compiled/">Standalone reservoir simulator</a></li></ul></li><li><span class="tocitem">Reference</span><ul><li><a class="tocitem" href="../../ref/jutul/">Jutul functions</a></li></ul></li><li><span class="tocitem">Additional information </span><ul><li><a class="tocitem" href="../../extras/refs/">References</a></li><li><a class="tocitem" href="../../extras/faq/">FAQ</a></li></ul></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Examples</a></li><li class="is-active"><a href>CO2 injection in saline aquifer</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>CO2 injection in saline aquifer</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/sintefmath/JutulDarcy.jl/blob/main/examples/co2_sloped.jl#" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="Carbon-dioxoide-injection-in-aquifer"><a class="docs-heading-anchor" href="#Carbon-dioxoide-injection-in-aquifer">Carbon dioxoide injection in aquifer</a><a id="Carbon-dioxoide-injection-in-aquifer-1"></a><a class="docs-heading-anchor-permalink" href="#Carbon-dioxoide-injection-in-aquifer" title="Permalink"></a></h1><p>This example demonstrates a custom K-value compositional model for the injection of CO2 into a saline aquifer. The physical model for flow of CO2 is a realization of the description in <a href="https://spe.org/en/csp/">11th SPE Comparative Solutions Project</a>. Simulation of CO2 can be challenging, and we load the HYPRE package to improve performance.</p><p>The model also has an option to run immiscible simulations with otherwise identical PVT behavior. This is often faster to run, but lacks the dissolution model present in the compositional version (i.e. no solubility of CO2 in brine, and no vaporization of water in the vapor phase).</p><pre><code class="language-julia hljs">use_immiscible = false
+using Jutul, JutulDarcy
+using HYPRE
+using GLMakie
+nx = 100
+nz = 50
+Darcy, bar, kg, meter, day, yr = si_units(:darcy, :bar, :kilogram, :meter, :day, :year)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">(9.86923266716013e-13, 100000.0, 1.0, 1.0, 86400.0, 3.1556952e7)</code></pre><h2 id="Set-up-a-2D-aquifer-model"><a class="docs-heading-anchor" href="#Set-up-a-2D-aquifer-model">Set up a 2D aquifer model</a><a id="Set-up-a-2D-aquifer-model-1"></a><a class="docs-heading-anchor-permalink" href="#Set-up-a-2D-aquifer-model" title="Permalink"></a></h2><p>We set up a Cartesian mesh that is then transformed into an unstructured mesh. We can then modify the coordinates to create a domain with a undulating top surface. CO2 will flow along the top surface and the topography of the top surface has a large impact on where the CO2 migrates.</p><pre><code class="language-julia hljs">cart_dims = (nx, 1, nz)
+physical_dims = (1000.0, 1.0, 50.0)
+mesh = UnstructuredMesh(CartesianMesh(cart_dims, physical_dims))
+
+points = mesh.node_points
+for (i, pt) in enumerate(points)
+    x, y, z = pt
+    x_u = 2*π*x/1000.0
+    w = 0.2
+    dz = 0.05*x + 0.05*abs(x - 500.0)+ w*(30*sin(2.0*x_u) + 20*sin(5.0*x_u))
+    points[i] = pt + [0, 0, dz]
+end;</code></pre><h2 id="Find-and-plot-cells-intersected-by-a-deviated-injector-well"><a class="docs-heading-anchor" href="#Find-and-plot-cells-intersected-by-a-deviated-injector-well">Find and plot cells intersected by a deviated injector well</a><a id="Find-and-plot-cells-intersected-by-a-deviated-injector-well-1"></a><a class="docs-heading-anchor-permalink" href="#Find-and-plot-cells-intersected-by-a-deviated-injector-well" title="Permalink"></a></h2><p>We place a single injector well. This well was unfortunately not drilled completely straight, so we cannot directly use <code>add_vertical_well</code> based on logical indices. We instead define a matrix with three columns x, y, z that lie on the well trajectory and use utilities from <code>Jutul</code> to find the cells intersected by the trajectory.</p><pre><code class="language-julia hljs">import Jutul: find_enclosing_cells, plot_mesh_edges
+trajectory = [
+    745.0 0.5 45;    # First point
+    760.0 0.5 70;    # Second point
+    810.0 0.5 100.0  # Third point
+]
+
+wc = find_enclosing_cells(mesh, trajectory)
+
+fig, ax, plt = plot_mesh_edges(mesh, z_is_depth = true)
+plot_mesh!(ax, mesh, cells = wc, transparency = true, alpha = 0.4)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">MakieCore.Mesh{Tuple{GeometryBasics.Mesh{3, Float64, GeometryBasics.TriangleP{3, Float64, GeometryBasics.PointMeta{3, Float64, GeometryBasics.Point{3, Float64}, (:normals,), Tuple{GeometryBasics.Vec{3, Float32}}}}, GeometryBasics.FaceView{GeometryBasics.TriangleP{3, Float64, GeometryBasics.PointMeta{3, Float64, GeometryBasics.Point{3, Float64}, (:normals,), Tuple{GeometryBasics.Vec{3, Float32}}}}, GeometryBasics.PointMeta{3, Float64, GeometryBasics.Point{3, Float64}, (:normals,), Tuple{GeometryBasics.Vec{3, Float32}}}, GeometryBasics.NgonFace{3, GeometryBasics.OffsetInteger{-1, UInt32}}, StructArrays.StructVector{GeometryBasics.PointMeta{3, Float64, GeometryBasics.Point{3, Float64}, (:normals,), Tuple{GeometryBasics.Vec{3, Float32}}}, @NamedTuple{position::Vector{GeometryBasics.Point{3, Float64}}, normals::Vector{GeometryBasics.Vec{3, Float32}}}, Int64}, Vector{GeometryBasics.NgonFace{3, GeometryBasics.OffsetInteger{-1, UInt32}}}}}}}</code></pre><p>View from the side</p><pre><code class="language-julia hljs">ax.azimuth[] = 1.5*π
+ax.elevation[] = 0.0
+lines!(ax, trajectory&#39;, color = :red)
+fig</code></pre><img src="0014f1f5.png" alt="Example block output"/><h2 id="Define-permeability-and-porosity"><a class="docs-heading-anchor" href="#Define-permeability-and-porosity">Define permeability and porosity</a><a id="Define-permeability-and-porosity-1"></a><a class="docs-heading-anchor-permalink" href="#Define-permeability-and-porosity" title="Permalink"></a></h2><p>We loop over all cells and define three layered regions by the K index of each cell. We can then set a corresponding diagonal permeability tensor (3 values) and porosity (scalar) to introduce variation between the layers.</p><pre><code class="language-julia hljs">nc = number_of_cells(mesh)
+perm = zeros(3, nc)
+poro = fill(0.3, nc)
+region = zeros(Int, nc)
+for cell in 1:nc
+    I, J, K = cell_ijk(mesh, cell)
+    if K &lt; 0.3*nz
+        reg = 1
+        permxy = 0.3*Darcy
+        phi = 0.2
+    elseif K &lt; 0.7*nz
+        reg = 2
+        permxy = 1.2*Darcy
+        phi = 0.35
+    else
+        reg = 3
+        permxy = 0.1*Darcy
+        phi = 0.1
+    end
+    permz = 0.5*permxy
+    perm[1, cell] = perm[2, cell] = permxy
+    perm[3, cell] = permz
+    poro[cell] = phi
+    region[cell] = reg
+end
+
+plot_cell_data(mesh, poro)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">(Scene (1600px, 900px):
+  0 Plots
+  2 Child Scenes:
+    ├ Scene (1600px, 900px)
+    └ Scene (1600px, 900px), Makie.Axis3(), MakieCore.Mesh{Tuple{GeometryBasics.Mesh{3, Float64, GeometryBasics.TriangleP{3, Float64, GeometryBasics.PointMeta{3, Float64, GeometryBasics.Point{3, Float64}, (:normals,), Tuple{GeometryBasics.Vec{3, Float32}}}}, GeometryBasics.FaceView{GeometryBasics.TriangleP{3, Float64, GeometryBasics.PointMeta{3, Float64, GeometryBasics.Point{3, Float64}, (:normals,), Tuple{GeometryBasics.Vec{3, Float32}}}}, GeometryBasics.PointMeta{3, Float64, GeometryBasics.Point{3, Float64}, (:normals,), Tuple{GeometryBasics.Vec{3, Float32}}}, GeometryBasics.NgonFace{3, GeometryBasics.OffsetInteger{-1, UInt32}}, StructArrays.StructVector{GeometryBasics.PointMeta{3, Float64, GeometryBasics.Point{3, Float64}, (:normals,), Tuple{GeometryBasics.Vec{3, Float32}}}, @NamedTuple{position::Vector{GeometryBasics.Point{3, Float64}}, normals::Vector{GeometryBasics.Vec{3, Float32}}}, Int64}, Vector{GeometryBasics.NgonFace{3, GeometryBasics.OffsetInteger{-1, UInt32}}}}}}})</code></pre><h2 id="Set-up-simulation-model"><a class="docs-heading-anchor" href="#Set-up-simulation-model">Set up simulation model</a><a id="Set-up-simulation-model-1"></a><a class="docs-heading-anchor-permalink" href="#Set-up-simulation-model" title="Permalink"></a></h2><p>We set up a domain and a single injector. We pass the special :co2brine argument in place of the system to the reservoir model setup routine. This will automatically set up a compositional two-component CO2-H2O model with the appropriate functions for density, viscosity and miscibility.</p><p>Note that this model by default is isothermal, but we still need to specify a temperature when setting up the model. This is because the properties of CO2 strongly depend on temperature, even when thermal transport is not solved.</p><pre><code class="language-julia hljs">domain = reservoir_domain(mesh, permeability = perm, porosity = poro, temperature = convert_to_si(30.0, :Celsius))
+Injector = setup_well(domain, wc, name = :Injector, simple_well = true)
+
+if use_immiscible
+    physics = :immiscible
+else
+    physics = :kvalue
+end
+model = setup_reservoir_model(domain, :co2brine, wells = Injector, extra_out = false, co2_physics = physics);</code></pre><h2 id="Customize-model-by-adding-relative-permeability-with-hysteresis"><a class="docs-heading-anchor" href="#Customize-model-by-adding-relative-permeability-with-hysteresis">Customize model by adding relative permeability with hysteresis</a><a id="Customize-model-by-adding-relative-permeability-with-hysteresis-1"></a><a class="docs-heading-anchor-permalink" href="#Customize-model-by-adding-relative-permeability-with-hysteresis" title="Permalink"></a></h2><p>We define three relative permeability functions: kro(so) for the brine/liquid phase and krg(g) for both drainage and imbibition. Here we limit the hysteresis to only the non-wetting gas phase, but either combination of wetting or non-wetting hysteresis is supported.</p><p>Note that we import a few utilities from JutulDarcy that are not exported by default since hysteresis falls under advanced functionality.</p><pre><code class="language-julia hljs">import JutulDarcy: table_to_relperm, add_relperm_parameters!, brooks_corey_relperm
+so = range(0, 1, 10)
+krog_t = so.^2
+krog = PhaseRelativePermeability(so, krog_t, label = :og)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">PhaseRelativePermeability for og:
+  .k: Internal representation: Jutul.LinearInterpolant{Vector{Float64}, Vector{Float64}, Missing}([-1.0e-16, 0.1111111111111111, 0.2222222222222222, 0.3333333333333333, 0.4444444444444444, 0.5555555555555556, 0.6666666666666666, 0.7777777777777778, 0.8888888888888887, 1.0], [0.0, 0.012345679012345678, 0.04938271604938271, 0.1111111111111111, 0.19753086419753085, 0.308641975308642, 0.4444444444444444, 0.6049382716049383, 0.7901234567901234, 1.0], missing)
+  Connate saturation = 0.0
+  Critical saturation = 0.0
+  Maximum rel. perm = 1.0 at 1.0
+</code></pre><p>Higher resolution for second table</p><pre><code class="language-julia hljs">sg = range(0, 1, 50)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">0.0:0.02040816326530612:1.0</code></pre><p>Evaluate Brooks-Corey to generate tables</p><pre><code class="language-julia hljs">tab_krg_drain = brooks_corey_relperm.(sg, n = 2, residual = 0.1)
+tab_krg_imb = brooks_corey_relperm.(sg, n = 3, residual = 0.25)
+
+krg_drain  = PhaseRelativePermeability(sg, tab_krg_drain, label = :g)
+krg_imb  = PhaseRelativePermeability(sg, tab_krg_imb, label = :g)
+
+fig, ax, plt = lines(sg, tab_krg_drain, label = &quot;krg drainage&quot;)
+lines!(ax, sg, tab_krg_imb, label = &quot;krg imbibition&quot;)
+lines!(ax, 1 .- so, krog_t, label = &quot;kro&quot;)
+axislegend()
+fig
+# Define a relative permeability variable</code></pre><img src="93f158a4.png" alt="Example block output"/><p>JutulDarcy uses type instances to define how different variables inside the simulation are evaluated. The <code>ReservoirRelativePermeabilities</code> type has support for up to three phases with w, ow, og and g relative permeabilities specified as a function of their respective phases. It also supports saturation regions.</p><p>Note: If regions are used, all drainage curves come first followed by equal number of imbibition curves. Since we only have a single (implicit) saturation region, the krg input should have two entries: One for drainage, and one for imbibition.</p><p>We also call <code>add_relperm_parameters</code> to the model. This makes sure that when hysteresis is enabled, we track maximum saturation for hysteresis in each reservoir cell.</p><pre><code class="language-julia hljs">import JutulDarcy: KilloughHysteresis, ReservoirRelativePermeabilities
+krg = (krg_drain, krg_imb)
+H_g = KilloughHysteresis() # Other options: CarlsonHysteresis, JargonHysteresis
+relperm = ReservoirRelativePermeabilities(g = krg, og = krog, hysteresis_g = H_g)
+replace_variables!(model, RelativePermeabilities = relperm)
+add_relperm_parameters!(model);</code></pre><h2 id="Define-approximate-hydrostatic-pressure-and-set-up-initial-state"><a class="docs-heading-anchor" href="#Define-approximate-hydrostatic-pressure-and-set-up-initial-state">Define approximate hydrostatic pressure and set up initial state</a><a id="Define-approximate-hydrostatic-pressure-and-set-up-initial-state-1"></a><a class="docs-heading-anchor-permalink" href="#Define-approximate-hydrostatic-pressure-and-set-up-initial-state" title="Permalink"></a></h2><p>The initial pressure of the water-filled domain is assumed to be at hydrostatic equilibrium. If we use an immiscible model, we must provide the initial saturations. If we are using a compositional model, we should instead provide the overall mole fractions. Note that since both are fractions, and the CO2 model has correspondence between phase ordering and component ordering (i.e. solves for liquid and vapor, and H2O and CO2), we can use the same input value.</p><pre><code class="language-julia hljs">nc = number_of_cells(mesh)
+p0 = zeros(nc)
+depth = domain[:cell_centroids][3, :]
+g = Jutul.gravity_constant
+@. p0 = 200bar + depth*g*1000.0</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">5000-element Vector{Float64}:
+ 2.0259817715480573e7
+ 2.027866256801526e7
+ 2.029561212648421e7
+ 2.030959379972497e7
+ 2.031980201350862e7
+ 2.03257681861333e7
+ 2.0327398227492694e7
+ 2.0324974022933237e7
+ 2.0319118878498632e7
+ 2.031073041981455e7
+ ⋮
+ 2.1068522096501365e7
+ 2.1072473602066763e7
+ 2.1079856047507305e7
+ 2.1091292738866698e7
+ 2.1107065561491378e7
+ 2.1127080425275028e7
+ 2.1150868748515785e7
+ 2.1177624956984743e7
+ 2.1206276459519424e7</code></pre><p>Set up initial state and parameters</p><pre><code class="language-julia hljs">if use_immiscible
+    state0 = setup_reservoir_state(model,
+        Pressure = p0,
+        Saturations = [1.0, 0.0],
+    )
+else
+    state0 = setup_reservoir_state(model,
+        Pressure = p0,
+        OverallMoleFractions = [1.0, 0.0],
+    )
+end
+parameters = setup_parameters(model)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">Dict{Symbol, Any} with 3 entries:
+  :Injector  =&gt; Dict{Symbol, Any}(:FluidVolume=&gt;[0.0834249], :PerforationGravit…
+  :Reservoir =&gt; Dict{Symbol, Any}(:Transmissibilities=&gt;[2.85521e-14, 2.87444e-1…
+  :Facility  =&gt; Dict{Symbol, Any}()</code></pre><h2 id="Find-the-boundary-and-apply-a-constant-pressureboundary-condition"><a class="docs-heading-anchor" href="#Find-the-boundary-and-apply-a-constant-pressureboundary-condition">Find the boundary and apply a constant pressureboundary condition</a><a id="Find-the-boundary-and-apply-a-constant-pressureboundary-condition-1"></a><a class="docs-heading-anchor-permalink" href="#Find-the-boundary-and-apply-a-constant-pressureboundary-condition" title="Permalink"></a></h2><p>We find cells on the left and right boundary of the model and set a constant pressure boundary condition to represent a bounding aquifer that retains the initial pressure far away from injection.</p><pre><code class="language-julia hljs">boundary = Int[]
+for cell in 1:nc
+    I, J, K = cell_ijk(mesh, cell)
+    if I == 1 || I == nx
+        push!(boundary, cell)
+    end
+end
+bc = flow_boundary_condition(boundary, domain, p0[boundary], fractional_flow = [1.0, 0.0])
+println(&quot;Boundary condition added to $(length(bc)) cells.&quot;)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">Boundary condition added to 100 cells.</code></pre><h2 id="Plot-the-model"><a class="docs-heading-anchor" href="#Plot-the-model">Plot the model</a><a id="Plot-the-model-1"></a><a class="docs-heading-anchor-permalink" href="#Plot-the-model" title="Permalink"></a></h2><pre><code class="language-julia hljs">plot_reservoir(model)</code></pre><img src="46b58aae.png" alt="Example block output"/><h2 id="Set-up-schedule"><a class="docs-heading-anchor" href="#Set-up-schedule">Set up schedule</a><a id="Set-up-schedule-1"></a><a class="docs-heading-anchor-permalink" href="#Set-up-schedule" title="Permalink"></a></h2><p>We set up 25 years of injection and 1000 years of migration where the well is shut. The density of the injector is set to 900 kg/m^3, which is roughly the density of CO2 at in-situ conditions.</p><pre><code class="language-julia hljs">nstep = 25
+nstep_shut = 475
+dt_inject = fill(365.0day, nstep)
+pv = pore_volume(model, parameters)
+inj_rate = 0.05*sum(pv)/sum(dt_inject)
+
+rate_target = TotalRateTarget(inj_rate)
+I_ctrl = InjectorControl(rate_target, [0.0, 1.0],
+    density = 900.0,
+)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">InjectorControl{TotalRateTarget{Float64}, Float64, Tuple{Tuple{Int64, Float64}}, Vector{Float64}, Missing}(TotalRateTarget with value 7.229832572298326e-7 [m^3/s], [0.0, 1.0], 900.0, ((1, 1.0),), 293.15, missing, 1.0)</code></pre><p>Set up forces for use in injection</p><pre><code class="language-julia hljs">controls = Dict(:Injector =&gt; I_ctrl)
+forces_inject = setup_reservoir_forces(model, control = controls, bc = bc)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">Dict{Symbol, Any} with 3 entries:
+  :Injector  =&gt; (mask = nothing,)
+  :Reservoir =&gt; (bc = FlowBoundaryCondition{Int64, Float64, Tuple{Float64, Floa…
+  :Facility  =&gt; (control = Dict{Symbol, InjectorControl{TotalRateTarget{Float64…</code></pre><p>Forces with shut wells</p><pre><code class="language-julia hljs">forces_shut = setup_reservoir_forces(model, bc = bc)
+dt_shut = fill(365.0day, nstep_shut);</code></pre><p>Combine the report steps and forces into vectors of equal length</p><pre><code class="language-julia hljs">dt = vcat(dt_inject, dt_shut)
+forces = vcat(
+    fill(forces_inject, nstep),
+    fill(forces_shut, nstep_shut)
+)
+println(&quot;$nstep report steps with injection, $nstep_shut report steps with migration.&quot;)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">25 report steps with injection, 475 report steps with migration.</code></pre><h2 id="Add-some-more-outputs-for-plotting"><a class="docs-heading-anchor" href="#Add-some-more-outputs-for-plotting">Add some more outputs for plotting</a><a id="Add-some-more-outputs-for-plotting-1"></a><a class="docs-heading-anchor-permalink" href="#Add-some-more-outputs-for-plotting" title="Permalink"></a></h2><pre><code class="language-julia hljs">rmodel = reservoir_model(model)
+push!(rmodel.output_variables, :RelativePermeabilities)
+push!(rmodel.output_variables, :PhaseViscosities)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">9-element Vector{Symbol}:
+ :Pressure
+ :OverallMoleFractions
+ :TotalMasses
+ :LiquidMassFractions
+ :VaporMassFractions
+ :Saturations
+ :PhaseMassDensities
+ :RelativePermeabilities
+ :PhaseViscosities</code></pre><h2 id="Simulate-the-schedule"><a class="docs-heading-anchor" href="#Simulate-the-schedule">Simulate the schedule</a><a id="Simulate-the-schedule-1"></a><a class="docs-heading-anchor-permalink" href="#Simulate-the-schedule" title="Permalink"></a></h2><p>We set a maximum internal time-step of 30 days to ensure smooth convergence and reduce numerical diffusion.</p><pre><code class="language-julia hljs">wd, states, t = simulate_reservoir(state0, model, dt,
+    parameters = parameters,
+    forces = forces,
+    max_timestep = 90day
+)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">ReservoirSimResult with 500 entries:
+
+  wells (1 present):
+    :Injector
+    Results per well:
+       :H2O_mass_rate =&gt; Vector{Float64} of size (500,)
+       :lrat =&gt; Vector{Float64} of size (500,)
+       :orat =&gt; Vector{Float64} of size (500,)
+       :control =&gt; Vector{Symbol} of size (500,)
+       :bhp =&gt; Vector{Float64} of size (500,)
+       :CO2_mass_rate =&gt; Vector{Float64} of size (500,)
+       :mass_rate =&gt; Vector{Float64} of size (500,)
+       :rate =&gt; Vector{Float64} of size (500,)
+       :grat =&gt; Vector{Float64} of size (500,)
+
+  states (Vector with 500 entries, reservoir variables for each state)
+    :LiquidMassFractions =&gt; Matrix{Float64} of size (2, 5000)
+    :PhaseMassDensities =&gt; Matrix{Float64} of size (2, 5000)
+    :RelativePermeabilities =&gt; Matrix{Float64} of size (2, 5000)
+    :OverallMoleFractions =&gt; Matrix{Float64} of size (2, 5000)
+    :Saturations =&gt; Matrix{Float64} of size (2, 5000)
+    :Pressure =&gt; Vector{Float64} of size (5000,)
+    :VaporMassFractions =&gt; Matrix{Float64} of size (2, 5000)
+    :PhaseViscosities =&gt; Matrix{Float64} of size (2, 5000)
+    :TotalMasses =&gt; Matrix{Float64} of size (2, 5000)
+
+  time (report time for each state)
+     Vector{Float64} of length 500
+
+  result (extended states, reports)
+     SimResult with 500 entries
+
+  extra
+     Dict{Any, Any} with keys :simulator, :config
+
+  Completed at Sep. 08 2024 9:09 after 1 minute, 47 seconds, 979.6 milliseconds.</code></pre><h2 id="Plot-the-CO2-mole-fraction"><a class="docs-heading-anchor" href="#Plot-the-CO2-mole-fraction">Plot the CO2 mole fraction</a><a id="Plot-the-CO2-mole-fraction-1"></a><a class="docs-heading-anchor-permalink" href="#Plot-the-CO2-mole-fraction" title="Permalink"></a></h2><p>We plot log10 of the CO2 mole fraction. We use log10 to account for the fact that the mole fraction in cells made up of only the aqueous phase is much smaller than that of cells with only the gaseous phase, where there is almost just CO2.</p><pre><code class="language-julia hljs">using GLMakie
+function plot_co2!(fig, ix, x, title = &quot;&quot;)
+    ax = Axis3(fig[ix, 1],
+        zreversed = true,
+        azimuth = -0.51π,
+        elevation = 0.05,
+        aspect = (1.0, 1.0, 0.3),
+        title = title)
+    plt = plot_cell_data!(ax, mesh, x, colormap = :seaborn_icefire_gradient)
+    Colorbar(fig[ix, 2], plt)
+end
+fig = Figure(size = (900, 1200))
+for (i, step) in enumerate([1, 5, nstep, nstep+nstep_shut])
+    if use_immiscible
+        plot_co2!(fig, i, states[step][:Saturations][2, :], &quot;CO2 plume saturation at report step $step/$(nstep+nstep_shut)&quot;)
+    else
+        plot_co2!(fig, i, log10.(states[step][:OverallMoleFractions][2, :]), &quot;log10 of CO2 mole fraction at report step $step/$(nstep+nstep_shut)&quot;)
+    end
+end
+fig</code></pre><img src="087583f1.png" alt="Example block output"/><h2 id="Plot-all-relative-permeabilities-for-all-time-steps"><a class="docs-heading-anchor" href="#Plot-all-relative-permeabilities-for-all-time-steps">Plot all relative permeabilities for all time-steps</a><a id="Plot-all-relative-permeabilities-for-all-time-steps-1"></a><a class="docs-heading-anchor-permalink" href="#Plot-all-relative-permeabilities-for-all-time-steps" title="Permalink"></a></h2><p>We can plot all relative permeability evaluations. This both verifies that the hysteresis model is active, but also gives an indication to how many cells are exhibiting imbibition during the simulation.</p><pre><code class="language-julia hljs">kro_val = Float64[]
+krg_val = Float64[]
+sg_val = Float64[]
+for state in states
+    kr_state = state[:RelativePermeabilities]
+    s_state = state[:Saturations]
+    for c in 1:nc
+        push!(kro_val, kr_state[1, c])
+        push!(krg_val, kr_state[2, c])
+        push!(sg_val, s_state[2, c])
+    end
+end
+
+fig = Figure()
+ax = Axis(fig[1, 1], title = &quot;Relative permeability during simulation&quot;)
+fig, ax, plt = scatter(sg_val, kro_val, label = &quot;kro&quot;, alpha = 0.3)
+scatter!(ax, sg_val, krg_val, label = &quot;krg&quot;, alpha = 0.3)
+axislegend()
+fig</code></pre><img src="3ebceeb6.png" alt="Example block output"/><h2 id="Plot-result-in-interactive-viewer"><a class="docs-heading-anchor" href="#Plot-result-in-interactive-viewer">Plot result in interactive viewer</a><a id="Plot-result-in-interactive-viewer-1"></a><a class="docs-heading-anchor-permalink" href="#Plot-result-in-interactive-viewer" title="Permalink"></a></h2><p>If you have interactive plotting available, you can explore the results yourself.</p><pre><code class="language-julia hljs">plot_reservoir(model, states)
+# Calculate and display inventory of CO2</code></pre><img src="9c3f1268.png" alt="Example block output"/><p>We can classify and plot the status of the CO2 in the reservoir. We use a fairly standard classification where CO2 is divided into:</p><ul><li>dissolved CO2 (dissolution trapping)</li><li>residual CO2 (immobile due to zero relative permeability, residual trapping)</li><li>mobile CO2 (mobile but still inside domain)</li><li>outside domain (left the simulation model and migrated outside model)</li></ul><p>We also note that some of the mobile CO2 could be considered to be structurally trapped, but this is not classified in our inventory.</p><pre><code class="language-julia hljs">inventory = co2_inventory(model, wd, states, t)
+JutulDarcy.plot_co2_inventory(t, inventory)</code></pre><img src="ea716613.png" alt="Example block output"/><h2 id="Pick-a-region-to-investigate-the-CO2"><a class="docs-heading-anchor" href="#Pick-a-region-to-investigate-the-CO2">Pick a region to investigate the CO2</a><a id="Pick-a-region-to-investigate-the-CO2-1"></a><a class="docs-heading-anchor-permalink" href="#Pick-a-region-to-investigate-the-CO2" title="Permalink"></a></h2><p>We can also specify a region to the CO2 inventory. This will introduce additional categories to distinguish between outside and inside the region of interest.</p><pre><code class="language-julia hljs">cells = findall(region .== 2)
+inventory = co2_inventory(model, wd, states, t, cells = cells)
+JutulDarcy.plot_co2_inventory(t, inventory)</code></pre><img src="120de324.png" alt="Example block output"/><h2 id="Define-a-region-of-interest-using-geometry"><a class="docs-heading-anchor" href="#Define-a-region-of-interest-using-geometry">Define a region of interest using geometry</a><a id="Define-a-region-of-interest-using-geometry-1"></a><a class="docs-heading-anchor-permalink" href="#Define-a-region-of-interest-using-geometry" title="Permalink"></a></h2><p>Another alternative to determine a region of interest is to use geometry. We pick all cells within an ellipsoid a bit away from the injection point.</p><pre><code class="language-julia hljs">is_inside = fill(false, nc)
+centers = domain[:cell_centroids]
+for cell in 1:nc
+    x, y, z = centers[:, cell]
+    is_inside[cell] = sqrt((x - 720.0)^2 + 20*(z-70.0)^2) &lt; 75
+end
+plot_cell_data(mesh, is_inside)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">(Scene (1600px, 900px):
+  0 Plots
+  2 Child Scenes:
+    ├ Scene (1600px, 900px)
+    └ Scene (1600px, 900px), Makie.Axis3(), MakieCore.Mesh{Tuple{GeometryBasics.Mesh{3, Float64, GeometryBasics.TriangleP{3, Float64, GeometryBasics.PointMeta{3, Float64, GeometryBasics.Point{3, Float64}, (:normals,), Tuple{GeometryBasics.Vec{3, Float32}}}}, GeometryBasics.FaceView{GeometryBasics.TriangleP{3, Float64, GeometryBasics.PointMeta{3, Float64, GeometryBasics.Point{3, Float64}, (:normals,), Tuple{GeometryBasics.Vec{3, Float32}}}}, GeometryBasics.PointMeta{3, Float64, GeometryBasics.Point{3, Float64}, (:normals,), Tuple{GeometryBasics.Vec{3, Float32}}}, GeometryBasics.NgonFace{3, GeometryBasics.OffsetInteger{-1, UInt32}}, StructArrays.StructVector{GeometryBasics.PointMeta{3, Float64, GeometryBasics.Point{3, Float64}, (:normals,), Tuple{GeometryBasics.Vec{3, Float32}}}, @NamedTuple{position::Vector{GeometryBasics.Point{3, Float64}}, normals::Vector{GeometryBasics.Vec{3, Float32}}}, Int64}, Vector{GeometryBasics.NgonFace{3, GeometryBasics.OffsetInteger{-1, UInt32}}}}}}})</code></pre><h2 id="Plot-inventory-in-ellipsoid"><a class="docs-heading-anchor" href="#Plot-inventory-in-ellipsoid">Plot inventory in ellipsoid</a><a id="Plot-inventory-in-ellipsoid-1"></a><a class="docs-heading-anchor-permalink" href="#Plot-inventory-in-ellipsoid" title="Permalink"></a></h2><p>Note that a small mobile dip can be seen when free CO2 passes through this region.</p><pre><code class="language-julia hljs">inventory = co2_inventory(model, wd, states, t, cells = findall(is_inside))
+JutulDarcy.plot_co2_inventory(t, inventory)</code></pre><img src="9a40fc03.png" alt="Example block output"/><h2 id="Plot-the-average-pressure-in-the-ellipsoid-region"><a class="docs-heading-anchor" href="#Plot-the-average-pressure-in-the-ellipsoid-region">Plot the average pressure in the ellipsoid region</a><a id="Plot-the-average-pressure-in-the-ellipsoid-region-1"></a><a class="docs-heading-anchor-permalink" href="#Plot-the-average-pressure-in-the-ellipsoid-region" title="Permalink"></a></h2><p>Now that we know what cells are within the region of interest, we can easily apply a function over all time-steps to figure out what the average pressure value was.</p><pre><code class="language-julia hljs">using Statistics
+p_avg = map(
+    state -&gt; mean(state[:Pressure][is_inside])./bar,
+    states
+)
+lines(t./yr, p_avg,
+    axis = (
+        title = &quot;Average pressure in region&quot;,
+        xlabel = &quot;Years&quot;, ylabel = &quot;Pressure (bar)&quot;
+    )
+)</code></pre><img src="adf49250.png" alt="Example block output"/><h2 id="Make-a-composite-plot-to-correlate-CO2-mass-in-region-with-spatial-distribution"><a class="docs-heading-anchor" href="#Make-a-composite-plot-to-correlate-CO2-mass-in-region-with-spatial-distribution">Make a composite plot to correlate CO2 mass in region with spatial distribution</a><a id="Make-a-composite-plot-to-correlate-CO2-mass-in-region-with-spatial-distribution-1"></a><a class="docs-heading-anchor-permalink" href="#Make-a-composite-plot-to-correlate-CO2-mass-in-region-with-spatial-distribution" title="Permalink"></a></h2><p>We create a pair of plots that combine both 2D and 3D plots to simultaneously show the ellipsoid, the mass of CO2 in that region for a specific step, and the time series of the CO2 in the same region.</p><pre><code class="language-julia hljs">stepno = 100
+co2_mass_in_region = map(
+    state -&gt; sum(state[:TotalMasses][2, is_inside])/1e3,
+    states
+)
+fig = Figure(size = (1200, 600))
+ax1 = Axis(fig[1, 1],
+    title = &quot;Mass of CO2 in region&quot;,
+    xlabel = &quot;Years&quot;,
+    ylabel = &quot;Tonnes CO2&quot;
+)
+lines!(ax1, t./yr, co2_mass_in_region)
+scatter!(ax1, t[stepno]./yr, co2_mass_in_region[stepno], markersize = 12, color = :red)
+ax2 = Axis3(fig[1, 2], zreversed = true)
+plot_cell_data!(ax2, mesh, states[stepno][:TotalMasses][2, :])
+plot_mesh!(ax2, mesh, cells = findall(is_inside), alpha = 0.5)
+ax2.azimuth[] = 1.5*π
+ax2.elevation[] = 0.0
+fig</code></pre><img src="31d6ead5.png" alt="Example block output"/><h2 id="Example-on-GitHub"><a class="docs-heading-anchor" href="#Example-on-GitHub">Example on GitHub</a><a id="Example-on-GitHub-1"></a><a class="docs-heading-anchor-permalink" href="#Example-on-GitHub" title="Permalink"></a></h2><p>If you would like to run this example yourself, it can be downloaded from the JutulDarcy.jl GitHub repository <a href="https://github.com/sintefmath/JutulDarcy.jl/blob/main/examples/co2_sloped.jl">as a script</a>, or as a <a href="https://github.com/sintefmath/JutulDarcy.jl/blob/gh-pages/dev/examples/co2_sloped.ipynb">Notebook</a></p><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../intro_sensitivities/">« Intro to sensitivities in JutulDarcy</a><a class="docs-footer-nextpage" href="../data_input_file/">Simulating Eclipse/DATA input files »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.7.0 on <span class="colophon-date" title="Sunday 8 September 2024 10:02">Sunday 8 September 2024</span>. Using Julia version 1.10.5.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
