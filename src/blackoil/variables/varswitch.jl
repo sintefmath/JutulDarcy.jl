@@ -36,7 +36,6 @@ end
 @inline water_saturation(sat, i) = value(sat[i])
 
 @inline blackoil_water_filled(sw, eps_s = MINIMUM_COMPOSITIONAL_SATURATION) = sw > 1 - 10*eps_s
-@inline water_filled_blackoil_phase(rs_tab) = isnothing(rs_tab) ? GasOnly : OilOnly
 
 function update_bo_internal!(v, Dx, dr_max, ds_max, rs_tab, rv_tab, reg_rs,
         reg_rv, keep_bub, sat_chop, pressure, active, sw, ϵ, w, context)
@@ -60,14 +59,27 @@ Base.@propagate_inbounds function varswitch_update_inner!(v, i, dx, dr_max, ds_m
     old_state = X.phases_present
     was_near_bubble = !sat_chop || X.sat_close
     is_near_bubble = was_near_bubble
-    if old_state == OilAndGas && blackoil_water_filled(swi, ϵ_s)
-        # A water-filled cell has no hydrocarbon inventory at the scale of
-        # the saturation tolerance. Start the composition variable at zero
-        # so later oil or gas inflow can determine its value.
-        next_state = water_filled_blackoil_phase(rs_tab)
-        next_x = replace_value(old_x, 0)
-        is_near_bubble = false
-    elseif old_state == OilAndGas
+    if old_state == GasOnly || old_state == OilOnly
+        if blackoil_water_filled(swi, ϵ_s)
+            # A water-filled cell has no hydrocarbon inventory at the scale of
+            # the saturation tolerance. Start the saturation at zero so later
+            # oil or gas inflow can determine its value.
+            next_state = OilAndGas
+            next_x = replace_value(old_x, 0)
+            is_near_bubble = false
+        else
+            if old_state == GasOnly
+                tab = rv_tab
+                ϵ_r = ϵ_rv
+            else
+                tab = rs_tab
+                ϵ_r = ϵ_rs
+            end
+            next_x, next_state, is_near_bubble = handle_phase_appearance(pressure, i, tab, dr_max, old_state, old_x, swi, dx, was_near_bubble, ϵ_s, ϵ_r, keep_bubble, w)
+            dx = next_x - old_x
+        end
+    else
+        # Was oil and gas
         next_x = old_x + w*Jutul.choose_increment(value(old_x), dx, ds_max)
         if next_x <= 0
             maybe_state = OilOnly
@@ -83,15 +95,6 @@ Base.@propagate_inbounds function varswitch_update_inner!(v, i, dx, dr_max, ds_m
             ϵ_r = ϵ_s
         end
         next_x, next_state, is_near_bubble = handle_phase_disappearance(pressure, i, tab, next_x, swi, old_state, maybe_state, was_near_bubble, keep_bubble, ϵ_s, ϵ_r)
-    elseif old_state == GasOnly || old_state == OilOnly
-        if old_state == GasOnly
-            tab = rv_tab
-            ϵ_r = ϵ_rv
-        else
-            tab = rs_tab
-            ϵ_r = ϵ_rs
-        end
-        next_x, next_state, is_near_bubble = handle_phase_appearance(pressure, i, tab, dr_max, old_state, old_x, swi, dx, was_near_bubble, ϵ_s, ϵ_r, keep_bubble, w)
     end
     v[i] = BlackOilX(next_x, next_state, is_near_bubble)
     return old_state != next_state
@@ -170,7 +173,7 @@ end
 
 function blackoil_unknown_init(F_rs, F_rv::Nothing, sw, so, sg, rs, rv, p)
     if blackoil_water_filled(sw)
-        return BlackOilX(zero(sg), OilOnly)
+        return BlackOilX(zero(sg), OilAndGas)
     elseif sg > 0
         x = sg
         state = OilAndGas
@@ -183,7 +186,7 @@ end
 
 function blackoil_unknown_init(F_rs::Nothing, F_rv, sw, so, sg, rs, rv, p)
     if blackoil_water_filled(sw)
-        return BlackOilX(zero(sg), GasOnly)
+        return BlackOilX(zero(sg), OilAndGas)
     elseif so > 0
         x = sg
         state = OilAndGas
@@ -196,7 +199,7 @@ end
 
 function blackoil_unknown_init(F_rs, F_rv, sw, so, sg, rs, rv, p)
     if blackoil_water_filled(sw)
-        return BlackOilX(zero(sg), OilOnly)
+        return BlackOilX(zero(sg), OilAndGas)
     elseif sg > 0 && so > 0
         x = sg
         state = OilAndGas
