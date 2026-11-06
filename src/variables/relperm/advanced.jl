@@ -507,10 +507,21 @@ Base.@propagate_inbounds @inline function update_three_phase_relperm!(kr, relper
         val_g = krgd(sg)
     end
 
-    kr[w, c] = val_w
     method = relperm.three_phase_method
-    kr[o, c] = compute_three_phase_oil_kr(method, val_ow, val_og, val_w, val_g, swcon, sg, sw, krowd)
-    kr[g, c] = val_g
+    val_o = compute_three_phase_oil_kr(method, val_ow, val_og, val_w, val_g, swcon, sg, sw, krowd)
+    if false
+        tol = 1e-10
+        kr[w, c] = ifelse(sw > tol, val_w, zero(val_w))
+        kr[o, c] = ifelse(so > tol, val_o, zero(val_o))
+        kr[g, c] = ifelse(sg > tol, val_g, zero(val_g))
+    else
+        if 1 - sw < 1e-10
+            val_o = val_g = 0.0
+        end
+        kr[w, c] = val_w
+        kr[o, c] = val_o
+        kr[g, c] = val_g
+    end
 end
 
 @inline function compute_three_phase_oil_kr(method::SaturationWeightedOilRelperm, val_ow, val_og, val_w, val_g, swcon, sg, sw, krowd)
