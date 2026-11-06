@@ -1376,8 +1376,14 @@ function setup_reservoir_simulator(case::JutulCase;
         is_csr = rmodel.context isa ParallelCSRContext
         is_single_node = mode != :mpi
         is_newton = method == :newton
-        has_groups = case.model isa MultiModel && case.model.groups isa AbstractVector && maximum(case.model.groups) > 1
-        if is_newton && is_csr && is_single_node && has_groups
+        is_multimodel = case.model isa MultiModel
+        is_tracer = haskey(rmodel.equations, :tracers)
+        if is_multimodel
+            has_groups = case.model.groups isa AbstractVector && maximum(case.model.groups) > 1
+        else
+            has_groups = false
+        end
+        if is_multimodel && is_newton && is_csr && is_single_node && has_groups && !is_tracer
             precond = :cprw
         else
             precond = :cpr
