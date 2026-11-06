@@ -141,8 +141,10 @@ If `key` is omitted, the first plottable field in alphabetical order is used.
 Other submodels of a `MultiModel` with a mesh (e.g. fractures in a discrete
 fracture model) can be shown together with the reservoir using the `submodels`
 keyword, either as a list of submodel names (e.g. `submodels = [:Fractures]`)
-or as `submodels = :all`. Each submodel gets a toggle in the GUI and is colored
-by the selected property where it is defined, using a shared color range. To
+or as `submodels = :all`. The models to display (including the reservoir) are
+selected in the GUI. The property menus list the properties of all models, and
+each model is colored by the selected property where it is defined (and hidden
+otherwise), using a color range shared by the selected models. To
 show dynamic data for the submodels, pass the simulation result or the full
 multimodel states (e.g. `result.result.states`). Only supported for
 `fancy = true`.
@@ -311,7 +313,7 @@ function plot_reservoir(model, states = missing;
                 extra_arg = (sens = sens, )
             end
             if length(explorer_submodels) > 0
-                extra_arg = (extra_arg..., submodels = explorer_submodels)
+                extra_arg = (extra_arg..., submodels = explorer_submodels, mesh_name = "Reservoir")
             end
             s = plot_explorer(g;
                 dynamic = states,
