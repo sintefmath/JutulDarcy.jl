@@ -1173,7 +1173,7 @@ these settings. Later TUNING changes in the schedule are ignored.
 
 ## Linear solver options
 
-- `linear_solver=:fgmres`: iterative solver to use (provided model supports it).
+- `linear_solver=:gmres`: iterative solver to use (provided model supports it).
   Typical options are `:bicgstab`, `:fgmres` or `:gmres` Can alternatively pass
   a linear solver instance.
 - `precond=:cprw`: preconditioner for iterative solver. For larger problems, CPR
@@ -1317,7 +1317,7 @@ function setup_reservoir_simulator(case::JutulCase;
         ka_backend = missing,
         method = :newton,
         precond = missing,
-        linear_solver = :fgmres,
+        linear_solver = :gmres,
         linear_solver_backend = :auto,
         max_dt = missing,
         max_timestep = ifelse(ismissing(max_dt), reservoir_simulation_input_defaults(case, :max_timestep), max_dt),
