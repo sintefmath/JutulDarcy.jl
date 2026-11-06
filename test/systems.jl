@@ -1,5 +1,36 @@
 using Test, JutulDarcy, Jutul, MultiComponentFlash
 
+@testset "Black-oil water-only startup" begin
+    deck = JutulDarcy.GeoEnergyIO.test_input_file_path("SPE9", "SPE9.DATA")
+    props = JutulDarcy.GeoEnergyIO.parse_data_file(deck)["PROPS"]
+    pvtw = JutulDarcy.deck_pvt_water(props)
+    pvto = JutulDarcy.deck_pvt_oil(props)
+    pvdg = JutulDarcy.deck_pvt_gas(props)
+    oil, water, gas = only(props["DENSITY"])
+    darcy, bar, day = si_units(:darcy, :bar, :day)
+    domain = reservoir_domain(reservoir_mesh((1, 1, 16), (1.0, 1.0, 16.0));
+        permeability = darcy, porosity = 0.2)
+    model, parameters = JutulDarcy.setup_reservoir_model_from_blackoil_tables(domain;
+        pvtw, pvto, pvdg, reference_densities = [water, oil, gas], extra_out = true,
+        extra_outputs = [:Saturations, :Rs, :TotalMasses])
+    reservoir = reservoir_model(model)
+    kr = BrooksCoreyRelativePermeabilities(reservoir.system, 2.0)
+    set_secondary_variables!(reservoir; RelativePermeabilities = kr)
+    sw = [ones(8); zeros(8)]
+    saturations = vcat(sw', (1 .- sw)', zeros(1, length(sw)))
+    state0 = setup_reservoir_state(model; Pressure = fill(100*bar, 16), Saturations = saturations, Rs = zeros(16))
+    @test all(x -> x.phases_present == JutulDarcy.OilOnly && iszero(x.val),
+        state0[:Reservoir][:BlackOilUnknown])
+    initial = Jutul.evaluate_all_secondary_variables(reservoir, state0[:Reservoir], parameters[:Reservoir])
+    case = JutulCase(model, [0.05*day, 0.5*day]; state0, parameters)
+    result = simulate_reservoir(case; info_level = -1, max_timestep_cuts = 0)
+    @test length(result.states) == length(case.dt)
+    final = last(result.states)
+    @test final[:Saturations][1, 8] < 1
+    @test sum(final[:TotalMasses]; dims = 2) ≈ sum(initial[:TotalMasses]; dims = 2) rtol = 1e-6
+    @test maximum(abs, final[:Rs]) < 1e-6
+end
+
 @testset "number of components and phases" begin
     @testset "immiscible" begin
         for phases in [

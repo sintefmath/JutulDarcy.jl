@@ -35,6 +35,8 @@ end
 @inline water_saturation(::Nothing, i) = 0.0
 @inline water_saturation(sat, i) = value(sat[i])
 
+@inline blackoil_water_filled(sw, eps_s = MINIMUM_COMPOSITIONAL_SATURATION) = sw > 1 - 1e-8#10*eps_s
+
 function update_bo_internal!(v, Dx, dr_max, ds_max, rs_tab, rv_tab, reg_rs,
         reg_rv, keep_bub, sat_chop, pressure, active, sw, ϵ, w, context)
     function update(local_index)
@@ -57,44 +59,48 @@ Base.@propagate_inbounds function varswitch_update_inner!(v, i, dx, dr_max, ds_m
     old_state = X.phases_present
     was_near_bubble = !sat_chop || X.sat_close
     is_near_bubble = was_near_bubble
-    if swi > 1 - 10*ϵ_s
-        # Water filled
-        if old_state == OilAndGas
-            next_x = old_x + w*Jutul.choose_increment(value(old_x), dx, ds_max, nothing, 0, 1 - swi)
-        else
-            if old_state == OilOnly
-                sg = 0
-            else
-                sg = 1 - swi
-            end
-            next_x = replace_value(old_x, sg)
-        end
+    was_single_phase = old_state == GasOnly || old_state == OilOnly
+    if blackoil_water_filled(swi, ϵ_s)
+        # A water-filled cell has no hydrocarbon inventory at the scale of
+        # the saturation tolerance. Start the saturation at zero so later
+        # oil or gas inflow can determine its value.
         next_state = OilAndGas
-    elseif old_state == OilAndGas
-        next_x = old_x + w*Jutul.choose_increment(value(old_x), dx, ds_max)
-        if next_x <= 0
-            maybe_state = OilOnly
-            tab = rs_tab
-            ϵ_r = ϵ_rs
-        elseif next_x >= 1 - swi
-            maybe_state = GasOnly
-            tab = rv_tab
-            ϵ_r = ϵ_rv
+        if was_single_phase
+            next_x = replace_value(old_x, 0.0)
         else
-            maybe_state = OilAndGas
-            tab = nothing
-            ϵ_r = ϵ_s
+            max_sg = 1 - value(swi)
+            next_x = old_x + w*Jutul.choose_increment(value(old_x), dx, ds_max, 0.0, max_sg)
         end
-        next_x, next_state, is_near_bubble = handle_phase_disappearance(pressure, i, tab, next_x, swi, old_state, maybe_state, was_near_bubble, keep_bubble, ϵ_s, ϵ_r)
-    elseif old_state == GasOnly || old_state == OilOnly
-        if old_state == GasOnly
-            tab = rv_tab
-            ϵ_r = ϵ_rv
+        is_near_bubble = false
+    else
+        if was_single_phase
+            if old_state == GasOnly
+                tab = rv_tab
+                ϵ_r = ϵ_rv
+            else
+                tab = rs_tab
+                ϵ_r = ϵ_rs
+            end
+            next_x, next_state, is_near_bubble = handle_phase_appearance(pressure, i, tab, dr_max, old_state, old_x, swi, dx, was_near_bubble, ϵ_s, ϵ_r, keep_bubble, w)
+            dx = next_x - old_x
         else
-            tab = rs_tab
-            ϵ_r = ϵ_rs
+            # Was oil and gas
+            next_x = old_x + w*Jutul.choose_increment(value(old_x), dx, ds_max)
+            if next_x <= 0
+                maybe_state = OilOnly
+                tab = rs_tab
+                ϵ_r = ϵ_rs
+            elseif next_x >= 1 - swi
+                maybe_state = GasOnly
+                tab = rv_tab
+                ϵ_r = ϵ_rv
+            else
+                maybe_state = OilAndGas
+                tab = nothing
+                ϵ_r = ϵ_s
+            end
+            next_x, next_state, is_near_bubble = handle_phase_disappearance(pressure, i, tab, next_x, swi, old_state, maybe_state, was_near_bubble, keep_bubble, ϵ_s, ϵ_r)
         end
-        next_x, next_state, is_near_bubble = handle_phase_appearance(pressure, i, tab, dr_max, old_state, old_x, swi, dx, was_near_bubble, ϵ_s, ϵ_r, keep_bubble, w)
     end
     v[i] = BlackOilX(next_x, next_state, is_near_bubble)
     return old_state != next_state
@@ -172,8 +178,9 @@ function handle_phase_appearance(pressure, i, r_tab, dr_max, old_state, old_x, s
 end
 
 function blackoil_unknown_init(F_rs, F_rv::Nothing, sw, so, sg, rs, rv, p)
-    if sg > 0
-        rs = F_rs(p)
+    if blackoil_water_filled(sw)
+        return BlackOilX(clamp(1.0 - sw, 0, 1), OilAndGas)
+    elseif sg > 0
         x = sg
         state = OilAndGas
     else
@@ -184,8 +191,9 @@ function blackoil_unknown_init(F_rs, F_rv::Nothing, sw, so, sg, rs, rv, p)
 end
 
 function blackoil_unknown_init(F_rs::Nothing, F_rv, sw, so, sg, rs, rv, p)
-    if so > 0
-        rv = F_rv(p)
+    if blackoil_water_filled(sw)
+        return BlackOilX(clamp(1.0 - sw, 0, 1), OilAndGas)
+    elseif so > 0
         x = sg
         state = OilAndGas
     else
@@ -196,9 +204,9 @@ function blackoil_unknown_init(F_rs::Nothing, F_rv, sw, so, sg, rs, rv, p)
 end
 
 function blackoil_unknown_init(F_rs, F_rv, sw, so, sg, rs, rv, p)
-    if sg > 0 && so > 0
-        rs = F_rs(p)
-        rv = F_rv(p)
+    if blackoil_water_filled(sw)
+        return BlackOilX(clamp(1.0 - sw, 0, 1), OilAndGas)
+    elseif sg > 0 && so > 0
         x = sg
         state = OilAndGas
     elseif so > 0
@@ -268,11 +276,12 @@ end
 @jutul_secondary function update_saturations!(s, sat::Saturations, model::SimulationModel{D, S}, BlackOilUnknown, ImmiscibleSaturation, ix) where {D, S<:BlackOilVariableSwitchingSystemWithWater}
     a, l, v = phase_indices(model.system)
     T = eltype(s)
+    ϵ_s = model.system.s_eps
     @inbounds for i in ix
         sw = ImmiscibleSaturation[i]
         X = BlackOilUnknown[i]
         phases = X.phases_present
-        rem = one(T) - sw + MINIMUM_COMPOSITIONAL_SATURATION
+        rem = one(T) - sw# + MINIMUM_COMPOSITIONAL_SATURATION
         if phases == OilOnly
             sg = zero(T)
             so = rem
@@ -281,6 +290,7 @@ end
             so = zero(T)
         else
             sg = X.val
+            # blackoil_water_filled(swi, ϵ_s)
             so = rem - sg
         end
         s[a, i] = sw
@@ -310,7 +320,7 @@ end
     end
 end
 
-@jutul_secondary function update_rs!(rs, ph::Rs, model::SimulationModel{D, S}, Pressure, BlackOilUnknown, ix)  where {D, S<:BlackOilVariableSwitchingSystem}
+@jutul_secondary function update_rs!(rs, ph::Rs, model::SimulationModel{D, S}, Pressure, BlackOilUnknown, ix)  where {D, S<:BlackOilVariableSwitchingSystemWithoutWater}
     T = eltype(rs)
     @inbounds for i in ix
         X = BlackOilUnknown[i]
@@ -327,13 +337,55 @@ end
     end
 end
 
-@jutul_secondary function update_rv!(rv, ph::Rv, model::SimulationModel{D, S}, Pressure, BlackOilUnknown, ix)  where {D, S<:BlackOilVariableSwitchingSystem}
+@jutul_secondary function update_rv!(rv, ph::Rv, model::SimulationModel{D, S}, Pressure, BlackOilUnknown, ix)  where {D, S<:BlackOilVariableSwitchingSystemWithoutWater}
     T = eltype(rv)
     @inbounds for i in ix
         X = BlackOilUnknown[i]
         phases = X.phases_present
         if X.phases_present == GasOnly
             r = X.val
+        else
+            p = @inbounds Pressure[i]
+            reg_i = region(ph.regions, i)
+            rv_max = table_by_region(model.system.rv_max, reg_i)
+            r = rv_max(p)
+        end
+        rv[i] = r
+    end
+end
+
+@jutul_secondary function update_rs!(rs, ph::Rs, model::SimulationModel{D, S}, Pressure, BlackOilUnknown, ImmiscibleSaturation, ix)  where {D, S<:BlackOilVariableSwitchingSystem}
+    ϵ_s = model.system.s_eps
+    @inbounds for i in ix
+        X = BlackOilUnknown[i]
+        phases = X.phases_present
+        T = eltype(rs)
+        if phases == OilOnly
+            r = X.val
+        elseif blackoil_water_filled(ImmiscibleSaturation[i], ϵ_s)
+            r = zero(T)
+            # println("Rs = 0 for Water-filled cell at index $i")
+        else
+            p = @inbounds Pressure[i]
+            reg_i = region(ph.regions, i)
+            rs_max = table_by_region(model.system.rs_max, reg_i)
+            r = rs_max(p)
+        end
+        rs[i] = r
+    end
+end
+
+@jutul_secondary function update_rv!(rv, ph::Rv, model::SimulationModel{D, S}, Pressure, BlackOilUnknown, ImmiscibleSaturation, ix)  where {D, S<:BlackOilVariableSwitchingSystem}
+    T = eltype(rv)
+    ϵ_s = model.system.s_eps
+    @inbounds for i in ix
+        X = BlackOilUnknown[i]
+        phases = X.phases_present
+        if X.phases_present == GasOnly
+            r = X.val
+        elseif blackoil_water_filled(ImmiscibleSaturation[i], ϵ_s)
+            r = zero(T)
+            # println("Rv = 0 for Water-filled cell at index $i")
         else
             p = @inbounds Pressure[i]
             reg_i = region(ph.regions, i)

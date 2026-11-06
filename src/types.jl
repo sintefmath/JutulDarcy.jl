@@ -368,6 +368,11 @@ function PhaseRelativePermeability(s, k; label = :w, connate = s[1], epsilon = 1
             end
         end
     end
+    if s[1] == 0.0 && k[2] > 0.0
+        s[1] = 1e-6
+        pushfirst!(s, 0.0)
+        pushfirst!(k, 0.0)
+    end
     s_max_table = s[end]
     k_max, ix = findmax(k)
     s_max = s[ix]
@@ -375,7 +380,6 @@ function PhaseRelativePermeability(s, k; label = :w, connate = s[1], epsilon = 1
     crit_ix = findfirst(x -> x > eps(Float64), k) - 1
     crit = s[crit_ix]
     s, k = JutulDarcy.add_missing_endpoints(s, k)
-    JutulDarcy.ensure_endpoints!(s, k, epsilon)
     kr = get_1d_interpolator(s, k, cap_endpoints = false, constant_dx = false)
     return PhaseRelativePermeability(kr, label, connate, crit, s_max, k_max, s_max_table)
 end
