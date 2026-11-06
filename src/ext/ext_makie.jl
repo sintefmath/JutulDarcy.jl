@@ -138,6 +138,15 @@ given for each state with the `step_labels` keyword.
 Both the original field name and its displayed name with units are accepted.
 If `key` is omitted, the first plottable field in alphabetical order is used.
 
+Other submodels of a `MultiModel` with a mesh (e.g. fractures in a discrete
+fracture model) can be shown together with the reservoir using the `submodels`
+keyword, either as a list of submodel names (e.g. `submodels = [:Fractures]`)
+or as `submodels = :all`. Each submodel gets a toggle in the GUI and is colored
+by the selected property where it is defined, using a shared color range. To
+show dynamic data for the submodels, pass the simulation result or the full
+multimodel states (e.g. `result.result.states`). Only supported for
+`fancy = true`.
+
 # Positional arguments
 The first entry can be a `model::MultiModel` (from `setup_reservoir_model`), a
 `JutulCase` or `reservoir::DataDomain` (from `reservoir_domain`)
@@ -168,6 +177,7 @@ function plot_reservoir(model, states = missing;
         wells = missing,
         step = missing,
         step_labels = missing,
+        submodels = missing,
         kwarg...
     )
     function maybe_convert_units(x; kwarg...)
@@ -182,8 +192,18 @@ function plot_reservoir(model, states = missing;
     if states isa AbstractDict
         states = [states]
     end
+    submodel_names = reservoir_plot_submodels(model, submodels)
+    submodel_states = missing
+    if !ismissing(states) && is_multimodel_states(states)
+        # Full multimodel states (e.g. result.result.states)
+        submodel_states = states
+        states = map(s -> ismissing(s) ? missing : get(s, :Reservoir, missing), states)
+    end
     if !ismissing(states)
-        states, step_labels = filter_stored_states(states, step_labels)
+        states, step_labels, stored = filter_stored_states(states, step_labels)
+        if !ismissing(submodel_states)
+            submodel_states = submodel_states[stored]
+        end
     end
     if ismissing(step)
         step = 1
@@ -204,6 +224,27 @@ function plot_reservoir(model, states = missing;
             rmodel = reservoir_model(model)
             states = [Jutul.evaluate_all_secondary_variables(rmodel, s) for s in states]
         end
+    end
+    explorer_submodels = map(submodel_names) do k
+        submodel = model[k]
+        sm_states = missing
+        if !ismissing(states)
+            if ismissing(submodel_states)
+                @warn "States for submodel $k not found, only static data will be shown. Pass the full multimodel states (e.g. result.result.states) or the simulation result to show dynamic data."
+            else
+                sm_states = map(s -> s[k], submodel_states)
+                if add_secondary
+                    sm_states = [Jutul.evaluate_all_secondary_variables(submodel, s) for s in sm_states]
+                end
+                sm_states = maybe_convert_units(sm_states)
+            end
+        end
+        return (
+            name = String(k),
+            mesh = physical_representation(submodel.data_domain),
+            static = maybe_convert_units(submodel.data_domain),
+            dynamic = sm_states
+        )
     end
     states = maybe_convert_units(states)
     sens = maybe_convert_units(sens, variant = :sens)
@@ -265,9 +306,12 @@ function plot_reservoir(model, states = missing;
         if fancy
             # In case it is not yet supported in Jutul...
             if ismissing(sens)
-                extra_arg = tuple()
+                extra_arg = NamedTuple()
             else
                 extra_arg = (sens = sens, )
+            end
+            if length(explorer_submodels) > 0
+                extra_arg = (extra_arg..., submodels = explorer_submodels)
             end
             s = plot_explorer(g;
                 dynamic = states,
@@ -285,6 +329,9 @@ function plot_reservoir(model, states = missing;
             ftoggle = s.add_toggle("Faults", faults)
             retval = s
         else
+            if length(explorer_submodels) > 0
+                @warn "Submodels are only shown for fancy = true."
+            end
             if ismissing(states)
                 arg = tuple()
             else
@@ -305,6 +352,9 @@ function plot_reservoir(model, states = missing;
             retval = fig
         end
     else
+        if length(explorer_submodels) > 0
+            @warn "Submodels are only shown for gui = true and fancy = true."
+        end
         fig, ax, _ = plot_reservoir_static(g, static_data, states; step = step, kwarg...)
         if Jutul.dim(g) == 3
             ax.aspect[] = aspect
@@ -387,7 +437,35 @@ function filter_stored_states(states, step_labels)
         end
         states = map(identity, states[stored])
     end
-    return (states, step_labels)
+    return (states, step_labels, stored)
+end
+
+# Names of the submodels (other than the reservoir) to show in plot_reservoir.
+function reservoir_plot_submodels(model, submodels)
+    if ismissing(submodels) || isnothing(submodels)
+        return Symbol[]
+    end
+    model isa MultiModel || throw(ArgumentError("Showing submodels requires a MultiModel."))
+    if submodels == :all
+        names = filter(k -> k != :Reservoir && submodel_is_plottable(model[k]), collect(keys(model.models)))
+    else
+        if submodels isa Symbol
+            submodels = [submodels]
+        end
+        names = Symbol[]
+        for k in submodels
+            k = Symbol(k)
+            haskey(model.models, k) || throw(ArgumentError("Submodel $k not found in model. Available submodels: $(keys(model.models))"))
+            k != :Reservoir || continue
+            submodel_is_plottable(model[k]) || throw(ArgumentError("Submodel $k cannot be shown (only submodels with a mesh such as fractures are supported, wells are shown as trajectories)."))
+            push!(names, k)
+        end
+    end
+    return names
+end
+
+function submodel_is_plottable(m)
+    return !model_or_domain_is_well(m) && physical_representation(m.data_domain) isa JutulMesh
 end
 
 function plot_reservoir_static(g, static_data, states;
@@ -422,15 +500,33 @@ function plot_reservoir_static(g, static_data, states;
 end
 
 function plot_reservoir(model::Union{MultiModel, SimulationModel,}, result::ReservoirSimResult; kwarg...)
-    return plot_reservoir(model, result.states; kwarg...)
+    return plot_reservoir(model, reservoir_plot_states(result; kwarg...); kwarg...)
+end
+
+# Use the full multimodel states when submodels are to be shown
+function reservoir_plot_states(result::ReservoirSimResult; submodels = missing, kwarg...)
+    if ismissing(submodels) || isnothing(submodels)
+        states = result.states
+    else
+        states, = Jutul.expand_to_ministeps(result.result)
+    end
+    return states
 end
 
 function plot_reservoir(case::JutulCase, states = missing; state0 = true, kwarg...)
     if states isa ReservoirSimResult
-        states = states.states
+        states = reservoir_plot_states(states; kwarg...)
     end
     if states isa AbstractDict
         states = [states]
+    end
+    submodel_names = reservoir_plot_submodels(case.model, get(kwarg, :submodels, missing))
+    if !ismissing(states) && is_multimodel_states(states)
+        # Steps without a stored reservoir state count as missing
+        states = map(s -> ismissing(s) || haskey(s, :Reservoir) ? s : missing, states)
+        use_full_states = true
+    else
+        use_full_states = length(submodel_names) > 0 && (ismissing(states) || all(ismissing, states))
     end
     if state0 && !ismissing(states) && any(ismissing, states) && !all(ismissing, states)
         # Label state0 as step 0 so that the stored steps keep their numbers
@@ -439,25 +535,41 @@ function plot_reservoir(case::JutulCase, states = missing; state0 = true, kwarg.
     if state0
         s0 = case.state0
         m = case.model
-        if haskey(s0, :Reservoir)
-            s0 = s0[:Reservoir]
-            m = m[:Reservoir]
+        if use_full_states
+            # Evaluate state0 for the reservoir and the submodels to be shown
+            s0 = Dict{Symbol, Any}(k => Jutul.evaluate_all_secondary_variables(m[k], s0[k]) for k in [:Reservoir; submodel_names])
+        else
+            if haskey(s0, :Reservoir)
+                s0 = s0[:Reservoir]
+                m = m[:Reservoir]
+            end
+            s0 = Jutul.evaluate_all_secondary_variables(m, s0)
         end
-        s0 = Jutul.evaluate_all_secondary_variables(m, s0)
         if ismissing(states) || all(ismissing, states)
             states = [s0]
         else
             s = states[findfirst(!ismissing, states)]
-            s0_new = typeof(s)()
-            for k in keys(s)
-                if haskey(s0, k)
-                    s0_new[k] = s0[k]
-                end
+            if use_full_states
+                s0 = Dict{Symbol, Any}(k => filter_state_keys(v, s[k]) for (k, v) in pairs(s0))
+            else
+                s0 = filter_state_keys(s0, s)
             end
-            states = [s0_new; states]
+            states = [s0; states]
         end
     end
     return plot_reservoir(case.model, states; kwarg...)
+end
+
+is_multimodel_states(states) = any(s -> !ismissing(s) && haskey(s, :Reservoir), states)
+
+function filter_state_keys(s0, s)
+    s0_new = typeof(s)()
+    for k in keys(s)
+        if haskey(s0, k)
+            s0_new[k] = s0[k]
+        end
+    end
+    return s0_new
 end
 
 export plot_faults!
