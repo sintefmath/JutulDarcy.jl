@@ -35,6 +35,9 @@ end
 @inline water_saturation(::Nothing, i) = 0.0
 @inline water_saturation(sat, i) = value(sat[i])
 
+@inline blackoil_water_filled(sw, eps_s = MINIMUM_COMPOSITIONAL_SATURATION) = sw > 1 - 10*eps_s
+@inline water_filled_blackoil_phase(rs_tab) = isnothing(rs_tab) ? GasOnly : OilOnly
+
 function update_bo_internal!(v, Dx, dr_max, ds_max, rs_tab, rv_tab, reg_rs,
         reg_rv, keep_bub, sat_chop, pressure, active, sw, ϵ, w, context)
     function update(local_index)
@@ -57,19 +60,13 @@ Base.@propagate_inbounds function varswitch_update_inner!(v, i, dx, dr_max, ds_m
     old_state = X.phases_present
     was_near_bubble = !sat_chop || X.sat_close
     is_near_bubble = was_near_bubble
-    if swi > 1 - 10*ϵ_s
-        # Water filled
-        if old_state == OilAndGas
-            next_x = old_x + w*Jutul.choose_increment(value(old_x), dx, ds_max, nothing, 0, 1 - swi)
-        else
-            if old_state == OilOnly
-                sg = 0
-            else
-                sg = 1 - swi
-            end
-            next_x = replace_value(old_x, sg)
-        end
-        next_state = OilAndGas
+    if old_state == OilAndGas && blackoil_water_filled(swi, ϵ_s)
+        # A water-filled cell has no hydrocarbon inventory at the scale of
+        # the saturation tolerance. Start the composition variable at zero
+        # so later oil or gas inflow can determine its value.
+        next_state = water_filled_blackoil_phase(rs_tab)
+        next_x = replace_value(old_x, 0)
+        is_near_bubble = false
     elseif old_state == OilAndGas
         next_x = old_x + w*Jutul.choose_increment(value(old_x), dx, ds_max)
         if next_x <= 0
@@ -172,8 +169,9 @@ function handle_phase_appearance(pressure, i, r_tab, dr_max, old_state, old_x, s
 end
 
 function blackoil_unknown_init(F_rs, F_rv::Nothing, sw, so, sg, rs, rv, p)
-    if sg > 0
-        rs = F_rs(p)
+    if blackoil_water_filled(sw)
+        return BlackOilX(zero(sg), OilOnly)
+    elseif sg > 0
         x = sg
         state = OilAndGas
     else
@@ -184,8 +182,9 @@ function blackoil_unknown_init(F_rs, F_rv::Nothing, sw, so, sg, rs, rv, p)
 end
 
 function blackoil_unknown_init(F_rs::Nothing, F_rv, sw, so, sg, rs, rv, p)
-    if so > 0
-        rv = F_rv(p)
+    if blackoil_water_filled(sw)
+        return BlackOilX(zero(sg), GasOnly)
+    elseif so > 0
         x = sg
         state = OilAndGas
     else
@@ -196,9 +195,9 @@ function blackoil_unknown_init(F_rs::Nothing, F_rv, sw, so, sg, rs, rv, p)
 end
 
 function blackoil_unknown_init(F_rs, F_rv, sw, so, sg, rs, rv, p)
-    if sg > 0 && so > 0
-        rs = F_rs(p)
-        rv = F_rv(p)
+    if blackoil_water_filled(sw)
+        return BlackOilX(zero(sg), OilOnly)
+    elseif sg > 0 && so > 0
         x = sg
         state = OilAndGas
     elseif so > 0
