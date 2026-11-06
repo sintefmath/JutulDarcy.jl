@@ -414,6 +414,9 @@ function Base.show(io::IO, t::MIME"text/plain", kr::ReservoirRelativePermeabilit
 end
 
 Base.@propagate_inbounds @inline function three_phase_oil_relperm(Krow, Krog, swcon, sg, sw, ::SaturationWeightedOilRelperm)
+    if value(sw) > 1 - 1e-10
+        # return zero(typeof(Krow))
+    end
     swc = min(swcon, value(sw) - 1e-5)
     sg_and_sw = sg + sw
     d  = (sg_and_sw - swc)
@@ -516,7 +519,11 @@ Base.@propagate_inbounds @inline function update_three_phase_relperm!(kr, relper
         kr[g, c] = ifelse(sg > tol, val_g, zero(val_g))
     else
         if 1 - sw < 1e-10
-            val_o = val_g = 0.0
+            # if val_g > 1e-8
+            #    println("Krg: $val_g sg: $sg")
+            # end
+            # val_g = 0.0
+            # val_o = val_g = 0.0
         end
         kr[w, c] = val_w
         kr[o, c] = val_o
