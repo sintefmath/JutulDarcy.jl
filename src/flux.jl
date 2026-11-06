@@ -134,7 +134,7 @@ end
     return phase_face_average(ρ, tpfa, phase)
 end
 
-@inline function face_average_density(model::CompositionalModel, state, tpfa, phase, ρ = state.PhaseMassDensities)
+@inline function face_average_density(model::Union{CompositionalModel, StandardBlackOilModel}, state, tpfa, phase, ρ = state.PhaseMassDensities)
     l = tpfa.left
     r = tpfa.right
     @inbounds ρ_l = ρ[phase, l]

@@ -65,10 +65,10 @@ Base.@propagate_inbounds function varswitch_update_inner!(v, i, dx, dr_max, ds_m
         # the saturation tolerance. Start the saturation at zero so later
         # oil or gas inflow can determine its value.
         next_state = OilAndGas
-        max_sg = 1 - value(swi)
         if was_single_phase
-            next_x = replace_value(old_x, max_sg)
+            next_x = replace_value(old_x, 0.0)
         else
+            max_sg = 1 - value(swi)
             next_x = old_x + w*Jutul.choose_increment(value(old_x), dx, ds_max, 0.0, max_sg)
         end
         is_near_bubble = false
