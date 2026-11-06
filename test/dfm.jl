@@ -516,7 +516,7 @@ end
     @testset "immiscible simulation runs" begin
         setup = setup_fractured_cube_test(fluid_model = :two_phase)
 
-        sim_args = (info_level = -1, max_nonlinear_iterations = 15, max_timestep_cuts = 25)
+        sim_args = (info_level = -1, max_nonlinear_iterations = 15, max_timestep_cuts = 25, linear_solver = :bicgstab)
         res_fd  = simulate_reservoir(setup.case_fd;  sim_args...)
         res_dfm = simulate_reservoir(setup.case_dfm; sim_args...)
 
@@ -560,7 +560,7 @@ end
         # differences in adaptive time-stepping between the two models do not
         # dominate the temperature comparison.
         sim_args = (info_level = -1, initial_dt = 5.0,
-            tol_cnv = 1e-5, tol_cnve = 1e-6,
+            tol_cnv = 1e-5, tol_cnve = 1e-6, linear_solver = :bicgstab,
             max_timestep = setup.case_fd.dt[1]/4)
         _, cfg = setup_reservoir_simulator(setup.case_dfm; sim_args...)
         @test cfg[:tolerances][:Reservoir][:energy_conservation].CNV == sim_args.tol_cnve
