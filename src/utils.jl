@@ -1317,7 +1317,7 @@ function setup_reservoir_simulator(case::JutulCase;
         ka_backend = missing,
         method = :newton,
         precond = missing,
-        linear_solver = :gmres,
+        linear_solver = ifelse(mode == :parray, :bicgstab, :gmres),
         linear_solver_backend = :auto,
         max_dt = missing,
         max_timestep = ifelse(ismissing(max_dt), reservoir_simulation_input_defaults(case, :max_timestep), max_dt),
@@ -1372,10 +1372,12 @@ function setup_reservoir_simulator(case::JutulCase;
         kwarg...
     )
     if ismissing(precond)
-        is_csr = reservoir_model(case).context isa ParallelCSRContext
+        rmodel = reservoir_model(case)
+        is_csr = rmodel.context isa ParallelCSRContext
         is_single_node = mode != :mpi
         is_newton = method == :newton
-        if is_newton && is_csr && is_single_node
+        has_groups = case.model isa MultiModel && case.model.groups isa AbstractVector && maximum(case.model.groups) > 1
+        if is_newton && is_csr && is_single_node && has_groups
             precond = :cprw
         else
             precond = :cpr
