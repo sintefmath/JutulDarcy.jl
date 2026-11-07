@@ -5,6 +5,71 @@ function hypre_assembly_helper!(p_prec, A, executor, ilower, iupper)
     end
 end
 
+function cprw_hypre_assembly_helper!(p_prec, model, lsys, executor, counts, comm, n)
+    A = JutulDarcy.reservoir_jacobian(lsys)
+    A isa Jutul.StaticSparsityMatrixCSR || throw(ArgumentError(
+        "MPI CPRW requires the CSR backend (backend = :csr)."))
+    bz = number_of_components(reservoir_model(model).system)
+    well_map = JutulDarcy.cpr_construct_well_reservoir_map(model, lsys, bz)
+    pressure_matrix = isnothing(well_map) ? A :
+        JutulDarcy.pressure_matrix_from_global_jacobian(A, Float64, lsys, well_map)
+    ncell = size(A, 1)
+    nwell = size(pressure_matrix, 1) - ncell
+    # Wells belong to a single rank, but each rank can own a different number
+    # of them. HYPRE needs contiguous ownership including these extra rows.
+    pressure_counts = MPI.Allgather(n + nwell, comm)
+    pressure_offsets = cumsum([0; pressure_counts])
+    cell_offsets = cumsum([0; counts])
+    rank = MPI.Comm_rank(comm) + 1
+    offset = pressure_offsets[rank]
+    npressure = pressure_counts[rank]
+    global_indices = Vector{HYPRE.HYPRE_BigInt}(undef, ncell + nwell)
+    for cell in 1:ncell
+        global_cell = Jutul.executor_index_to_global(executor, cell, :column)
+        owner = searchsortedlast(cell_offsets, global_cell - 1)
+        global_indices[cell] = pressure_offsets[owner] + global_cell - cell_offsets[owner]
+    end
+    for well in 1:nwell
+        global_indices[ncell + well] = offset + n + well
+    end
+    # Ghost reservoir rows are skipped; local well rows follow all local cells
+    # in the CSR staging matrix and follow owned cells in the HYPRE matrix.
+    owned_rows = [1:n; (ncell + 1):(ncell + nwell)]
+    positions = reduce(vcat, (collect(nzrange(pressure_matrix, row)) for row in owned_rows); init = Int[])
+    columns = Jutul.colvals(pressure_matrix)
+    indices = HYPRE.HYPRE_BigInt.((offset + 1):(offset + npressure))
+    csr = (
+        nrows = HYPRE.HYPRE_Int(npressure),
+        ncols = HYPRE.HYPRE_Int[length(nzrange(pressure_matrix, row)) for row in owned_rows],
+        rows = indices,
+        cols = global_indices[columns[positions]],
+        values = zeros(HYPRE.HYPRE_Complex, length(positions)),
+        positions = positions,
+    )
+    p_prec.data[:assembly_helper] = (
+        I = Int[], J = Int[], V = nothing,
+        indices = indices, native_zeroed_buffer = zeros(npressure),
+        n = npressure, csr = csr, nreservoir = n,
+        pressure_matrix = pressure_matrix, well_reservoir_map = well_map,
+    )
+    return offset, npressure
+end
+
+function JutulDarcy.update_cpr_pressure_system!(A_p::HYPRE.HYPREMatrix, p_prec,
+        A, w_p, ctx, executor, well_map::NamedTuple, model, storage)
+    helper = p_prec.data[:assembly_helper]
+    pressure_matrix = helper.pressure_matrix
+    # Apply the existing CSR reduction and controls before assembling owned rows.
+    JutulDarcy.update_cpr_pressure_system!(pressure_matrix, p_prec,
+        A, w_p, ctx, executor, well_map, model, storage)
+    values = nonzeros(pressure_matrix)
+    csr = helper.csr
+    for i in eachindex(csr.positions)
+        csr.values[i] = values[csr.positions[i]]
+    end
+    return assemble_pressure_system_hypre_csr!(A_p, csr)
+end
+
 function JutulDarcy.update_pressure_system!(A_p::HYPRE.HYPREMatrix, p_prec, A, w_p, ctx, executor, well_reservoir_map::Nothing)
     (; ilower, iupper) = A_p
     helper = hypre_assembly_helper!(
@@ -36,6 +101,10 @@ function update_pressure_system_hypre_csr!(A_p, A, w_p, helper,
                 nzval[position], w_p, row, ncomp, is_adjoint)
         end
     end
+    return assemble_pressure_system_hypre_csr!(A_p, csr)
+end
+
+function assemble_pressure_system_hypre_csr!(A_p, csr)
     assembler = HYPRE.start_assemble!(A_p)
     HYPRE.@check HYPRE.HYPRE_IJMatrixSetValues(
         A_p, csr.nrows, csr.ncols, csr.rows, csr.cols, csr.values)
@@ -125,8 +194,9 @@ end
 function inner_hypre_p_rhs!(r_p, y, ncomp, bz, w_p, helper, mode)
     R_p = helper.native_zeroed_buffer
     ix = helper.indices
+    n = get(helper, :nreservoir, length(R_p))
     if mode == :forward
-        @inbounds for i in eachindex(R_p)
+        @inbounds for i in 1:n
             v = 0.0
             for b = 1:ncomp
                 v += y[(i-1)*bz + b]*w_p[b, i]
@@ -134,11 +204,11 @@ function inner_hypre_p_rhs!(r_p, y, ncomp, bz, w_p, helper, mode)
             R_p[i] = v
         end
     else
-        @inbounds for i in eachindex(R_p)
+        @inbounds for i in 1:n
             R_p[i] = y[(i-1)*bz + 1]*w_p[1, i]
         end
     end
-
+    # Auxiliary well entries stay zero: the buffer is cleared after each copy.
     Jutul.local_hypre_copy!(r_p, R_p, ix)
     @. R_p = 0.0
 end

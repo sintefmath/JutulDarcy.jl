@@ -82,7 +82,8 @@ module JutulDarcyPartitionedArraysExt
             bz = prec.storage.block_size
             indices = helper.indices
             indices::Vector{HYPRE.HYPRE_BigInt}
-            nvalues = indices[end] - indices[1] + 1
+            # Only reservoir corrections return to the fine-level vector.
+            nvalues = length(ov)
             HYPRE.@check HYPRE.HYPRE_IJVectorGetValues(p_h, nvalues, indices, ov)
         end
 
@@ -144,9 +145,6 @@ module JutulDarcyPartitionedArraysExt
             return x
         end
         if isnothing(cpr.storage)
-            if cpr.variant == :cprw && MPI.Comm_rank(comm) == 0
-                @warn "CPRW is not implemented for MPI, using CPR without well rows."
-            end
             # HYPRE owns one contiguous row range per MPI rank.
             # Each MPI rank stores one local item in these distributed arrays.
             # `getany` returns that item without invoking forbidden scalar
@@ -156,8 +154,15 @@ module JutulDarcyPartitionedArraysExt
             local_storage = Jutul.get_simulator_storage(local_sim)
             local_system = local_storage.LinearizedSystem
             local_matrix = JutulDarcy.reservoir_jacobian(local_system)
-            hypre_assembly_helper!(local_prec.pressure_precond,
-                local_matrix, local_sim.executor, offset + 1, offset + n)
+            if cpr.variant == :cprw
+                local_model = Jutul.get_simulator_model(local_sim)
+                offset, n = cprw_hypre_assembly_helper!(local_prec.pressure_precond,
+                    local_model, local_system, local_sim.executor,
+                    sim.storage.counts, comm, n)
+            else
+                hypre_assembly_helper!(local_prec.pressure_precond,
+                    local_matrix, local_sim.executor, offset + 1, offset + n)
+            end
             A_p = HYPREMatrix(comm, offset + 1, offset + n)
             r_p = create_hypre_vector()
             p = create_hypre_vector()
@@ -189,8 +194,11 @@ module JutulDarcyPartitionedArraysExt
             rid = objectid(rsys)
             prec.pressure_precond.data[:hypre_system] = (A_p, r_p, x_p)
             if isnothing(prec.storage)
-                w_p = zeros(bz, n)
-                prec.storage = CPRStorage(A_p, r_p, x_p, missing, missing, A_ps, w_p, w_rhs, n, bz, ncomp, rid, zeros(n), nothing, Float64)
+                helper = prec.pressure_precond.data[:assembly_helper]
+                well_map = get(helper, :well_reservoir_map, nothing)
+                np = isnothing(well_map) ? get(helper, :nreservoir, n) : well_map.np
+                w_p = zeros(ncomp, np)
+                prec.storage = CPRStorage(A_p, r_p, x_p, missing, missing, A_ps, w_p, w_rhs, np, bz, ncomp, rid, zeros(n), well_map, Float64)
             else
                 @assert prec.storage.id == rid
             end
