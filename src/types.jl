@@ -333,8 +333,9 @@ equal length `s` and `k`):
 
 ``K_r = K(S)``
 
-Optionally, a label for the phase, the connate saturation and a small epsilon
-value used to avoid extrapolation can be specified. The return type holds both
+Optionally, a label for the phase and the connate saturation can be specified.
+The saturation points are preserved; `epsilon` is retained for compatibility
+and no longer shifts the table endpoints. The return type holds both
 the table, the phase context, the autodetected critical and maximum relative
 permeability values and can be passed saturation values to evaluate the
 underlying function:
@@ -367,11 +368,6 @@ function PhaseRelativePermeability(s, k; label = :w, connate = s[1], epsilon = 1
                 @warn "Rel. Perm. $label has value larger than 1.0: $(msg(i))"
             end
         end
-    end
-    if s[1] == 0.0 && k[2] > 0.0
-        s[1] = 1e-6
-        pushfirst!(s, 0.0)
-        pushfirst!(k, 0.0)
     end
     s_max_table = s[end]
     k_max, ix = findmax(k)

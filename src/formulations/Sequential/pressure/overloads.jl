@@ -274,7 +274,15 @@ function Jutul.convergence_criterion(model, storage, eq::PressureEquation, eq_s,
     return R
 end
 
-@jutul_secondary function update_rs!(rs, ph::Rs, model::SimulationModel{D, S, F}, Pressure, BlackOilUnknown, ix)  where {D, S<:BlackOilVariableSwitchingSystem, F<:PressureFormulation}
+@jutul_secondary function update_rs!(rs, ph::Rs, model::SimulationModel{D, S, F}, Pressure, BlackOilUnknown, ix) where {D, S<:JutulDarcy.BlackOilVariableSwitchingSystemWithoutWater, F<:PressureFormulation}
+    update_rs_sequential!(rs, ph, model, Pressure, BlackOilUnknown, nothing, ix)
+end
+
+@jutul_secondary function update_rs!(rs, ph::Rs, model::SimulationModel{D, S, F}, Pressure, BlackOilUnknown, ImmiscibleSaturation, ix) where {D, S<:JutulDarcy.BlackOilVariableSwitchingSystemWithWater, F<:PressureFormulation}
+    update_rs_sequential!(rs, ph, model, Pressure, BlackOilUnknown, ImmiscibleSaturation, ix)
+end
+
+function update_rs_sequential!(rs, ph, model, Pressure, BlackOilUnknown, sw, ix)
     T = eltype(rs)
     @inbounds for i in ix
         X = BlackOilUnknown[i]
@@ -289,6 +297,8 @@ end
             if r >= rs_max_val
                 r = rs_max_val
             end
+        elseif !isnothing(sw) && JutulDarcy.blackoil_water_filled(sw[i], model.system.s_eps)
+            r = zero(T)
         else
             r = rs_max_val
         end

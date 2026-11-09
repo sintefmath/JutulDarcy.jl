@@ -19,9 +19,12 @@ using Test, JutulDarcy, Jutul, MultiComponentFlash
     sw = [ones(8); zeros(8)]
     saturations = vcat(sw', (1 .- sw)', zeros(1, length(sw)))
     state0 = setup_reservoir_state(model; Pressure = fill(100*bar, 16), Saturations = saturations, Rs = zeros(16))
-    @test all(x -> x.phases_present == JutulDarcy.OilOnly && iszero(x.val),
-        state0[:Reservoir][:BlackOilUnknown])
+    unknowns = state0[:Reservoir][:BlackOilUnknown]
+    @test all(x -> x.phases_present == JutulDarcy.OilAndGas && iszero(x.val), unknowns[1:8])
+    @test all(x -> x.phases_present == JutulDarcy.OilOnly && iszero(x.val), unknowns[9:16])
     initial = Jutul.evaluate_all_secondary_variables(reservoir, state0[:Reservoir], parameters[:Reservoir])
+    @test initial[:Saturations] ≈ saturations
+    @test all(iszero, initial[:TotalMasses][2:3, 1:8])
     case = JutulCase(model, [0.05*day, 0.5*day]; state0, parameters)
     result = simulate_reservoir(case; info_level = -1, max_timestep_cuts = 0)
     @test length(result.states) == length(case.dt)
@@ -29,6 +32,67 @@ using Test, JutulDarcy, Jutul, MultiComponentFlash
     @test final[:Saturations][1, 8] < 1
     @test sum(final[:TotalMasses]; dims = 2) ≈ sum(initial[:TotalMasses]; dims = 2) rtol = 1e-6
     @test maximum(abs, final[:Rs]) < 1e-6
+end
+
+@testset "Black-oil water-filled saturation coordinates" begin
+    # Water-filled cells use gas saturation as their coordinate, including
+    # when a small, nonzero hydrocarbon inventory was specified.
+    tab = Jutul.get_1d_interpolator([1e6, 2e7], [10.0, 100.0])
+    sw = 1 - 1e-9
+    rem = 1 - sw
+    for (rs_tab, rv_tab) in ((tab, nothing), (nothing, tab), (tab, tab))
+        for sg in (0.0, rem/4, rem)
+            x = JutulDarcy.blackoil_unknown_init(rs_tab, rv_tab, sw, rem-sg, sg, 0.0, 0.0, 1e7)
+            @test x.phases_present == JutulDarcy.OilAndGas
+            @test x.val ≈ sg
+        end
+    end
+    for sg in (0.0, rem/4, rem), dx in (-0.1, 0.0, 0.1)
+        x = [JutulDarcy.BlackOilX(sg)]
+        JutulDarcy.varswitch_update_inner!(x, 1, dx, Inf, 0.2, tab, nothing,
+            false, true, [1e7], sw, (1e-10, 1e-10, 1e-10), 1.0)
+        @test x[1].phases_present == JutulDarcy.OilAndGas
+        @test x[1].val ≈ clamp(sg + dx, 0.0, rem)
+    end
+end
+
+@testset "Black-oil optimization initial state" begin
+    rs_tab = Jutul.get_1d_interpolator([1e6, 2e7], [10.0, 100.0])
+    rv_tab = Jutul.get_1d_interpolator([1e6, 2e7], [0.001, 0.01])
+    for water in (false, true), (rs, rv) in ((rs_tab, nothing), (nothing, rv_tab), (rs_tab, rv_tab))
+        phases = water ? (AqueousPhase(), LiquidPhase(), VaporPhase()) : (LiquidPhase(), VaporPhase())
+        sys = StandardBlackOilSystem(; rs_max = rs, rv_max = rv, phases)
+        domain = reservoir_domain(reservoir_mesh((3, 1), (3.0, 1.0));
+            permeability = si_unit(:darcy), porosity = 0.2)
+        model, parameters = setup_reservoir_model(domain, sys; extra_out = true)
+        sw = water ? [1.0, 1-1e-9, 0.2] : zeros(3)
+        sg = water ? [0.0, (1-sw[2])/4, 0.3] : [0.0, 0.3, 1.0]
+        so = 1 .- sw .- sg
+        sat = water ? vcat(sw', so', sg') : vcat(so', sg')
+        ratios = Dict{Symbol, Any}()
+        isnothing(rs) || (ratios[:Rs] = zeros(3))
+        isnothing(rv) || (ratios[:Rv] = zeros(3))
+        state0 = setup_reservoir_state(model; Pressure = fill(1e7, 3), Saturations = sat, ratios...)
+        case = JutulCase(model, [1.0]; state0, parameters)
+        dprm = setup_reservoir_dict_optimization(case; verbose = false)
+        extracted = dprm.parameters[:state0]
+        @test extracted[:LiquidSaturation] ≈ so
+        @test extracted[:VaporSaturation] ≈ sg
+        if !isnothing(rs)
+            expected = water ? [0.0, 0.0, rs(1e7)] : [0.0, rs(1e7), rs(1e7)]
+            @test extracted[:Rs] ≈ expected
+        end
+        if !isnothing(rv)
+            expected = water ? [0.0, 0.0, rv(1e7)] : [rv(1e7), rv(1e7), 0.0]
+            @test extracted[:Rv] ≈ expected
+        end
+        rebuilt = dprm.setup_function(dprm.parameters)
+        rmodel = reservoir_model(rebuilt.model)
+        restored = similar(sat)
+        Jutul.update_secondary_variable!(restored, rmodel[:Saturations], rmodel,
+            Jutul.JutulStorage(rebuilt.state0[:Reservoir]), axes(sat, 2))
+        @test restored ≈ sat
+    end
 end
 
 @testset "number of components and phases" begin

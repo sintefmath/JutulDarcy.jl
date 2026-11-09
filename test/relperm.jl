@@ -1,4 +1,4 @@
-using Test, JutulDarcy, Jutul
+using Test, JutulDarcy, Jutul, ForwardDiff
 
 function test_kr_bounds(relperm, n)
     for ph in 1:n
@@ -78,6 +78,17 @@ function test_rel_perm_wrapper()
     @testset "SWOF-like table" begin
         @test krw.(s) ≈ swof[:, 2]
         @test krow.(1 .- s) ≈ swof[:, 3]
+    end
+    @testset "Preserve input near zero saturation" begin
+        # Inserting a zero plateau changes the physical critical saturation,
+        # endpoint scaling and the one-sided derivative at zero.
+        s = [0.0, 1e-8, 1.0]
+        kr = PhaseRelativePermeability(s, s)
+        @test kr.critical == 0.0
+        @test kr.(s) ≈ s
+        @test kr(5e-9) ≈ 5e-9
+        @test ForwardDiff.derivative(kr, 5e-9) ≈ 1.0
+        @test all(diff(kr.k.X) .> 0)
     end
 end
 
@@ -327,6 +338,17 @@ end
 
 ## Wetting phase hysteresis tests
 @testset "WettingPhaseHysteresis" begin
+    @testset "Jargon at and below critical saturation" begin
+        drain = PhaseRelativePermeability([0.0, 0.2, 1.0], [0.0, 0.0, 1.0])
+        imb = PhaseRelativePermeability([0.0, 0.2, 1.0], [0.0, 0.0, 1.0])
+        f(s) = JutulDarcy.kr_hysteresis(JutulDarcy.JargonHysteresis(), drain, imb, s, 0.6)
+        for s in (0.0, 0.1, 0.2)
+            @test f(s) == 0.0
+            @test isfinite(ForwardDiff.derivative(f, s))
+            @test isfinite(ForwardDiff.derivative(x -> ForwardDiff.derivative(f, x), s))
+        end
+        @test f(0.3) ≈ drain(0.3)
+    end
     @testset "Killough wetting" begin
         solve_1d_kr(:wo,
             wetting_hysteresis = JutulDarcy.KilloughHysteresis(),

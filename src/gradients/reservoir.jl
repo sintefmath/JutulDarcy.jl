@@ -169,32 +169,29 @@ function setup_reservoir_dict_optimization(case::JutulCase;
     state0_dict = DT()
     for (k, var) in pairs(rmodel.primary_variables)
         if k == :BlackOilUnknown
-            bo_unknown = state0_r[k]
-            sw_fun(x::Missing, i) = 0.0
-            sw_fun(x, i) = x[i]
+            bo_state = Jutul.JutulStorage(state0_r)
             p = state0_r[:Pressure]
             nc = length(p)
             ix = eachindex(p)
             if has_disgas(rmodel.system)
                 rsdef = rmodel.secondary_variables[:Rs]
                 rs = similar(p)
-                JutulDarcy.update_rs!(rs, rsdef, rmodel, p, bo_unknown, ix)
+                Jutul.update_secondary_variable!(rs, rsdef, rmodel, bo_state, ix)
                 state0_dict[:Rs] = rs
             end
             if has_vapoil(rmodel.system)
                 rvdef = rmodel.secondary_variables[:Rv]
                 rv = similar(p)
-                JutulDarcy.update_rv!(rv, rvdef, rmodel, p, bo_unknown, ix)
+                Jutul.update_secondary_variable!(rv, rvdef, rmodel, bo_state, ix)
                 state0_dict[:Rv] = rv
             end
             satdef = rmodel.secondary_variables[:Saturations]
             nph = number_of_phases(rmodel.system)
             s = zeros(nph, nc)
+            Jutul.update_secondary_variable!(s, satdef, rmodel, bo_state, ix)
             if nph == 3
-                JutulDarcy.update_saturations!(s, satdef, rmodel, bo_unknown, state0_r[:ImmiscibleSaturation], ix)
                 _, l, v = phase_indices(rmodel.system)
             else
-                JutulDarcy.update_saturations!(s, satdef, rmodel, bo_unknown, ix)
                 l, v = phase_indices(rmodel.system)
             end
             state0_dict[:LiquidSaturation] = s[l, :]
