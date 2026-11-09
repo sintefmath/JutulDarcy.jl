@@ -35,7 +35,7 @@ end
 @inline water_saturation(::Nothing, i) = 0.0
 @inline water_saturation(sat, i) = value(sat[i])
 
-@inline blackoil_water_filled(sw, eps_s = MINIMUM_COMPOSITIONAL_SATURATION) = sw > 1 - 1e-8#10*eps_s
+@inline blackoil_water_filled(sw, eps_s = MINIMUM_COMPOSITIONAL_SATURATION) = sw > 1 - 10*eps_s
 
 function update_bo_internal!(v, Dx, dr_max, ds_max, rs_tab, rv_tab, reg_rs,
         reg_rv, keep_bub, sat_chop, pressure, active, sw, ϵ, w, context)
