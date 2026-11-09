@@ -151,11 +151,8 @@ function Jutul.update_equation_in_entity!(v, i, state, state0, eq::ControlEquati
             eq_val += 0*state.BottomHolePressure[w_idx] + 0*state.SurfacePhaseRates[1, w_idx]
         end
     end
-    # A control can depend on the rates of other wells (ReinjectionTarget
-    # injects what its source wells produce). The sparsity pattern is detected
-    # once, for the controls at setup, so include every well's mass rate:
-    # otherwise the derivative with respect to the source wells' rates is
-    # dropped from the Jacobian.
+    # ReinjectionTarget injects what its source wells produce - include all
+    # wells' mass rates to capture sparsity.
     for w_idx in eachindex(wcontroller.well_symbols)
         eq_val += 0*state.TotalSurfaceMassRate[w_idx]
     end
