@@ -335,6 +335,57 @@ end
 end
 
 """
+    FluidThermalConductivity()
+
+Cell-wise fluid thermal conductivity of each phase. This variable is only used
+when the fluid thermal conductivity is state dependent, see
+`set_dynamic_fluid_thermal_conductivity!`. It can then either be a
+parameter or a secondary variable, e.g. a `PressureTemperatureDependentVariable`.
+"""
+struct FluidThermalConductivity <: PhaseVariables end
+Jutul.default_value(model, ::FluidThermalConductivity) = 0.6
+Jutul.minimum_value(::FluidThermalConductivity) = 0.0
+
+function Jutul.default_parameter_values(data_domain, model, param::FluidThermalConductivity, symb)
+    return fluid_thermal_conductivity_values(data_domain, model)
+end
+
+"""
+    fluid_thermal_conductivity_values(data_domain, model)
+
+Fluid thermal conductivity of each phase in each cell (num_phases × num_cells)
+from `:fluid_thermal_conductivity` in the domain, or the default value of
+`FluidThermalConductivity` if not present.
+"""
+function fluid_thermal_conductivity_values(data_domain, model)
+    nph = number_of_phases(model.system)
+    nc = number_of_cells(data_domain)
+    if haskey(data_domain, :fluid_thermal_conductivity, Cells())
+        C = copy(data_domain[:fluid_thermal_conductivity, Cells()])
+    elseif haskey(data_domain, :fluid_thermal_conductivity)
+        C = copy(data_domain[:fluid_thermal_conductivity])
+    else
+        C = default_value(model, FluidThermalConductivity())
+    end
+
+    if C isa Number
+        λ = fill(C, nph, nc)
+    elseif C isa AbstractVector
+        if length(C) == nph
+            λ = repeat(C, 1, nc)
+        else
+            length(C) == nc || error("Expected a vector with length num_cells ($(nc)) or num_phases ($(nph)) for :fluid_thermal_conductivity, got length $(length(C)).")
+            λ = repeat(C', nph, 1)
+        end
+    else
+        size(C, 1) == nph || error("Expected size $(nph) x num_cells for :fluid_thermal_conductivity, got size $(size(C)).")
+        size(C, 2) == nc || error("Expected size $(nph) x $(nc) for :fluid_thermal_conductivity, got size $(size(C)).")
+        λ = C
+    end
+    return ensure_non_negative_trans(λ, "fluid_thermal_conductivity")
+end
+
+"""
     FluidThermalConductivities()
 
 Variable defining the fluid component conductivity.
@@ -370,6 +421,122 @@ function Jutul.default_parameter_values(data_domain, model, param::FluidThermalC
 end
 
 Jutul.associated_entity(::FluidThermalConductivities) = Faces()
+
+"""
+    FluidThermalHalfFaceWeights()
+
+Weights used to scale the static fluid thermal transmissibilities
+(`FluidThermalConductivities`) when the fluid thermal conductivity is state
+dependent. For phase `α`, rows `2α-1` and `2α` hold the weights `b_l` and `b_r`
+of the left and right cell of each face. The fluid thermal transmissibility is
+then
+
+    θ_α = θ_α^static * b_l λ_l b_r λ_r / (b_l λ_l + b_r λ_r)
+
+where `λ` is the current fluid thermal conductivity. The weights are computed
+from the half-face transmissibilities `a_l` and `a_r` of `ϕ λ_ref` as
+`b_l = (a_l + a_r)/(a_r λ_ref,l)` and `b_r = (a_l + a_r)/(a_l λ_ref,r)`, where
+`λ_ref` is the conductivity used for the static transmissibilities. This
+recovers the two-point transmissibility of `ϕ λ` for regular faces, and reduces
+to the static transmissibility when `λ = λ_ref`. Faces with modified static
+transmissibilities (e.g. faces blocked by fractures or non-neighboring
+connections) are scaled by the same factor. Faces where the half-face
+transmissibilities are not available use equal weights.
+"""
+struct FluidThermalHalfFaceWeights <: VectorVariables end
+Jutul.minimum_value(::FluidThermalHalfFaceWeights) = 0.0
+Jutul.values_per_entity(model, ::FluidThermalHalfFaceWeights) = 2*number_of_phases(model.system)
+Jutul.associated_entity(::FluidThermalHalfFaceWeights) = Faces()
+
+function Jutul.default_parameter_values(data_domain, model, param::FluidThermalHalfFaceWeights, symb)
+    nph = number_of_phases(model.system)
+    nf = number_of_faces(data_domain)
+    N = data_domain[:neighbors]
+    λ = fluid_thermal_conductivity_values(data_domain, model)
+    ϕ = data_domain[:porosity]
+    w = zeros(2*nph, nf)
+    a = zeros(2, nf)
+    for ph in 1:nph
+        T_hf, faces, facepos = Jutul.compute_half_face_trans(data_domain, ϕ.*λ[ph, :]; extra_out = true)
+        fill!(a, 0.0)
+        for cell in 1:(length(facepos) - 1)
+            for i in facepos[cell]:(facepos[cell + 1] - 1)
+                face = faces[i]
+                side = N[1, face] == cell ? 1 : 2
+                a[side, face] = T_hf[i]
+            end
+        end
+        for face in 1:nf
+            l, r = N[1, face], N[2, face]
+            λ_l, λ_r = λ[ph, l], λ[ph, r]
+            if λ_l > 0 && λ_r > 0
+                a_l, a_r = a[1, face], a[2, face]
+                if isfinite(a_l) && isfinite(a_r) && a_l > 0 && a_r > 0
+                    w[2ph - 1, face] = (a_l + a_r)/(a_r*λ_l)
+                    w[2ph, face] = (a_l + a_r)/(a_l*λ_r)
+                else
+                    w[2ph - 1, face] = 2.0/λ_l
+                    w[2ph, face] = 2.0/λ_r
+                end
+            end
+        end
+    end
+    return w
+end
+
+"""
+    model_uses_two_point_flow(model)
+
+Check if the flow discretization of the model is a two-point flux
+approximation.
+"""
+function model_uses_two_point_flow(model)
+    domain = model.domain
+    domain isa DiscretizedDomain || return false
+    discr = domain.discretizations
+    disc = haskey(discr, :heat_flow) ? discr.heat_flow : discr.mass_flow
+    if disc isa TwoPointPotentialFlowHardCoded
+        return true
+    elseif disc isa PotentialFlow
+        return eltype(disc.kgrad) <: TPFA
+    else
+        return false
+    end
+end
+
+"""
+    set_dynamic_fluid_thermal_conductivity!(model, λ = FluidThermalConductivity())
+
+Use a cell-wise (and possibly state dependent) fluid thermal conductivity `λ`
+for the reservoir model, e.g. a `PressureTemperatureDependentVariable`
+evaluated from a conductivity table. The static fluid thermal transmissibilities
+are scaled by the conductivity using the weights described in
+`FluidThermalHalfFaceWeights`, so that face-level modifications of the
+static transmissibilities are retained. If `λ` is `FluidThermalConductivity()`,
+the conductivity is a parameter. Requires a two-point flux discretization.
+"""
+function set_dynamic_fluid_thermal_conductivity!(model::MultiModel, arg...)
+    set_dynamic_fluid_thermal_conductivity!(reservoir_model(model), arg...)
+    return model
+end
+
+function set_dynamic_fluid_thermal_conductivity!(model::SimulationModel, λ = FluidThermalConductivity())
+    model_uses_two_point_flow(model) || throw(ArgumentError("Dynamic fluid thermal conductivity requires a two-point flux discretization."))
+    haskey(model.parameters, :FluidThermalConductivities) || throw(ArgumentError("Model does not have the FluidThermalConductivities parameter."))
+    if haskey(model.parameters, :FluidThermalConductivity)
+        delete!(model.parameters, :FluidThermalConductivity)
+    end
+    if haskey(model.secondary_variables, :FluidThermalConductivity)
+        delete!(model.secondary_variables, :FluidThermalConductivity)
+    end
+    if λ isa FluidThermalConductivity
+        set_parameters!(model, FluidThermalConductivity = λ)
+    else
+        set_secondary_variables!(model, FluidThermalConductivity = λ)
+    end
+    set_parameters!(model, FluidThermalHalfFaceWeights = FluidThermalHalfFaceWeights())
+    return model
+end
 
 struct RockThermalConductivities <: ScalarVariable end
 Jutul.variable_scale(::RockThermalConductivities) = 1.0
@@ -634,6 +801,9 @@ function add_thermal_to_model!(model; energy_formulation = :thermal)
         set_secondary_variables!(model,
             RockInternalEnergy = RockInternalEnergy()
         )
+        if haskey(model.data_domain, :thermal_dispersivity)
+            add_thermal_dispersion_to_model!(model)
+        end
     else
         if model_or_domain_is_well(model)
             w = physical_representation(model.domain)
@@ -745,3 +915,4 @@ end
 
 include("variables.jl")
 include("equations.jl")
+include("dispersion.jl")
