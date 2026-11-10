@@ -169,7 +169,7 @@ function BlackOilX(sys::BlackOilVariableSwitchingSystem, p; sw = 0.0, so = 0.0, 
     end
     @assert sw + so + sg ≈ 1 "Saturations must sum up to one"
 
-    return blackoil_unknown_init(F_rs, F_rv, sw, so, sg, rs, rv, p)
+    return blackoil_unknown_init(F_rs, F_rv, sw, so, sg, rs, rv, p; eps_s = sys.s_eps)
 end
 
 Jutul.default_value(model, ::BlackOilUnknown) = (NaN, OilAndGas, false) # NaN, Oil+Gas, away from bubble point

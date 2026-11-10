@@ -333,8 +333,9 @@ equal length `s` and `k`):
 
 ``K_r = K(S)``
 
-Optionally, a label for the phase, the connate saturation and a small epsilon
-value used to avoid extrapolation can be specified. The return type holds both
+Optionally, a label for the phase and the connate saturation can be specified.
+The saturation points are preserved; `epsilon` is retained for compatibility
+and no longer shifts the table endpoints. The return type holds both
 the table, the phase context, the autodetected critical and maximum relative
 permeability values and can be passed saturation values to evaluate the
 underlying function:
@@ -375,7 +376,6 @@ function PhaseRelativePermeability(s, k; label = :w, connate = s[1], epsilon = 1
     crit_ix = findfirst(x -> x > eps(Float64), k) - 1
     crit = s[crit_ix]
     s, k = JutulDarcy.add_missing_endpoints(s, k)
-    JutulDarcy.ensure_endpoints!(s, k, epsilon)
     kr = get_1d_interpolator(s, k, cap_endpoints = false, constant_dx = false)
     return PhaseRelativePermeability(kr, label, connate, crit, s_max, k_max, s_max_table)
 end

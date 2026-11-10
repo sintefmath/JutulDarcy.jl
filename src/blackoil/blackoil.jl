@@ -195,14 +195,14 @@ function handle_alternate_primary_variable_spec!(init, found, rmodel, sys::Stand
             rv = zeros(nc)
             rv_var = nothing
         end
-        bo = handle_alternate_primary_variable_spec_blackoil_initialization(T, rs_var, rv_var, F_rs, F_rv, sw, sg, rs, rv, pressure)
+        bo = handle_alternate_primary_variable_spec_blackoil_initialization(T, rs_var, rv_var, F_rs, F_rv, sw, sg, rs, rv, pressure; eps_s = sys.s_eps)
         init[:BlackOilUnknown] = bo
         push!(found, :BlackOilUnknown)
     end
     return init
 end
 
-function handle_alternate_primary_variable_spec_blackoil_initialization(T, rs_var, rv_var, F_rs, F_rv, sw, sg, rs, rv, pressure)
+function handle_alternate_primary_variable_spec_blackoil_initialization(T, rs_var, rv_var, F_rs, F_rv, sw, sg, rs, rv, pressure; eps_s = MINIMUM_COMPOSITIONAL_SATURATION)
     so = @. 1.0 - sw - sg
     nc = length(pressure)
     bo = Vector{BlackOilX{T}}()
@@ -213,7 +213,7 @@ function handle_alternate_primary_variable_spec_blackoil_initialization(T, rs_va
         F_rs_i = table_by_region(F_rs, reg_rs)
         F_rv_i = table_by_region(F_rv, reg_rv)
         sw_i, so_i, sg_i, rs_i, rv_i, pressure_i = promote(sw[i], so[i], sg[i], rs[i], rv[i], pressure[i])
-        v = blackoil_unknown_init(F_rs_i, F_rv_i, sw_i, so_i, sg_i, rs_i, rv_i, pressure_i)
+        v = blackoil_unknown_init(F_rs_i, F_rv_i, sw_i, so_i, sg_i, rs_i, rv_i, pressure_i; eps_s = eps_s)
         push!(bo, v)
     end
     return bo

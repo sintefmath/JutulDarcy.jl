@@ -507,9 +507,10 @@ Base.@propagate_inbounds @inline function update_three_phase_relperm!(kr, relper
         val_g = krgd(sg)
     end
 
-    kr[w, c] = val_w
     method = relperm.three_phase_method
-    kr[o, c] = compute_three_phase_oil_kr(method, val_ow, val_og, val_w, val_g, swcon, sg, sw, krowd)
+    val_o = compute_three_phase_oil_kr(method, val_ow, val_og, val_w, val_g, swcon, sg, sw, krowd)
+    kr[w, c] = val_w
+    kr[o, c] = val_o
     kr[g, c] = val_g
 end
 

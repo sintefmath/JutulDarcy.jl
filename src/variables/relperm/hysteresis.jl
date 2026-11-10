@@ -160,9 +160,17 @@ function hysteresis_impl(h_model::KilloughHysteresis, drain, imb, S, S_max)
     return kr
 end
 
+# Branch selection must also strip the parameter AD tags preserved by Jutul.value.
+@inline hysteresis_primal(s) = value(s)
+@inline hysteresis_primal(s::ForwardDiff.Dual) = hysteresis_primal(ForwardDiff.value(s))
+
 function hysteresis_impl(h_model::JargonHysteresis, drain, imb, S, S_max)
-    S_crit_imbibition = imb.critical
     S_crit_drainage = drain.critical
+    if hysteresis_primal(S) <= hysteresis_primal(S_crit_drainage)
+        # Both the drainage permeability and its normalized value vanish on
+        # the immobile interval. Avoid the otherwise undefined 0/0 ratio.
+        return zero(S)
+    end
     # TODO: Check that this matches that of imbibition?
     kr_s_max = drain.s_max
     S_norm = S_crit_drainage + (S - S_crit_drainage)*(kr_s_max - S_crit_drainage)/(S_max - S_crit_drainage)
