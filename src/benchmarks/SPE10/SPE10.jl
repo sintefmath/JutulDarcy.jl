@@ -1,5 +1,8 @@
 module SPE10
     using LazyArtifacts, Artifacts, JutulDarcy, DelimitedFiles, Jutul
+    using MultiComponentFlash: MultiComponentMixture, GenericCubicEOS, PengRobinson
+
+    include("compositional.jl")
 
     """
         JutulDarcy.SPE10.setup_case()
@@ -272,7 +275,39 @@ module SPE10
         elseif equil isa Function
             equil = equil(model)
         end
+        set_equilibrium_temperature!(model, equil)
         return setup_reservoir_state(model, equil)
+    end
+
+    function set_equilibrium_temperature!(model, equil)
+        rmodel = reservoir_model(model)
+        # In isothermal models Temperature is a parameter, so initializing the
+        # state alone does not retain the temperature used for equilibrium.
+        if !haskey(rmodel.parameters, :Temperature)
+            return model
+        end
+        regions = equil isa EquilibriumRegion ? (equil,) : equil
+        if all(region -> ismissing(region.temperature_vs_depth), regions)
+            return model
+        end
+        reservoir = reservoir_domain(model)
+        temperature = Jutul.default_parameter_values(reservoir, rmodel,
+            rmodel.parameters[:Temperature], :Temperature)
+        depths = reservoir[:cell_centroids][3, :]
+        for region in regions
+            if !ismissing(region.temperature_vs_depth)
+                cells = ismissing(region.cells) ? eachindex(depths) : region.cells
+                temperature[cells] = region.temperature_vs_depth.(depths[cells])
+            end
+        end
+        reservoir[:temperature, Cells()] = temperature
+        for name in JutulDarcy.well_symbols(model)
+            domain = model[name].data_domain
+            well = physical_representation(domain)
+            cells = JutulDarcy.map_well_nodes_to_reservoir_cells(well, reservoir)
+            domain[:temperature, Cells()] = temperature[cells]
+        end
+        return model
     end
 
     """
@@ -282,6 +317,7 @@ module SPE10
     other wells are producers. The default injection rate scales with pore volume
     per injector, including vertically repeated layers. A supplied
     `injection_control` is used as-is for every injector.
+    Compositional systems without water inject their first component as gas.
     """
     function setup_well_forces(model; do_scale = true, injection_control = missing)
         well_names = JutulDarcy.well_symbols(model)
@@ -310,7 +346,13 @@ module SPE10
                 component = isnothing(water) ? 1 : water
             end
             mix[component] = 1.0
-            phase = isnothing(water) ? 1 : water
+            if !isnothing(water)
+                phase = water
+            elseif sys isa MultiPhaseCompositionalSystemLV
+                phase = JutulDarcy.vapor_phase_index(sys)
+            else
+                phase = 1
+            end
             density = JutulDarcy.reference_densities(sys)[phase]
             injection_control = InjectorControl(TotalRateTarget(irate), mix;
                 density = density, phases = ((phase, 1.0),))
