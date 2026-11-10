@@ -158,7 +158,7 @@ function compositional_criterion_backend(dt, residual, sl, liquid_density,
             end
         end
         mapreduce(scaled_residual, max, residual_component, sl,
-            liquid_density, sv, vapor_density, sw, volume)
+            liquid_density, sv, vapor_density, sw, volume, init = zero(eltype(residual)))
     end
     water_residual = Jutul.matrix_row_view(residual, N)
     function scaled_water_residual(r, rho_w, pv)
