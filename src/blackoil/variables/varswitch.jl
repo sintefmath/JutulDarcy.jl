@@ -176,8 +176,8 @@ function handle_phase_appearance(pressure, i, r_tab, dr_max, old_state, old_x, s
     return (next_x, next_state, is_near_bubble)
 end
 
-function blackoil_unknown_init(F_rs, F_rv::Nothing, sw, so, sg, rs, rv, p)
-    if blackoil_water_filled(sw)
+function blackoil_unknown_init(F_rs, F_rv::Nothing, sw, so, sg, rs, rv, p; eps_s = MINIMUM_COMPOSITIONAL_SATURATION)
+    if blackoil_water_filled(sw, eps_s)
         return BlackOilX(clamp(sg, 0, 1.0 - sw), OilAndGas)
     elseif sg > 0
         x = sg
@@ -189,8 +189,8 @@ function blackoil_unknown_init(F_rs, F_rv::Nothing, sw, so, sg, rs, rv, p)
     return BlackOilX(x, state, false)
 end
 
-function blackoil_unknown_init(F_rs::Nothing, F_rv, sw, so, sg, rs, rv, p)
-    if blackoil_water_filled(sw)
+function blackoil_unknown_init(F_rs::Nothing, F_rv, sw, so, sg, rs, rv, p; eps_s = MINIMUM_COMPOSITIONAL_SATURATION)
+    if blackoil_water_filled(sw, eps_s)
         return BlackOilX(clamp(sg, 0, 1.0 - sw), OilAndGas)
     elseif so > 0
         x = sg
@@ -202,8 +202,8 @@ function blackoil_unknown_init(F_rs::Nothing, F_rv, sw, so, sg, rs, rv, p)
     return BlackOilX(x, state, false)
 end
 
-function blackoil_unknown_init(F_rs, F_rv, sw, so, sg, rs, rv, p)
-    if blackoil_water_filled(sw)
+function blackoil_unknown_init(F_rs, F_rv, sw, so, sg, rs, rv, p; eps_s = MINIMUM_COMPOSITIONAL_SATURATION)
+    if blackoil_water_filled(sw, eps_s)
         return BlackOilX(clamp(sg, 0, 1.0 - sw), OilAndGas)
     elseif sg > 0 && so > 0
         x = sg

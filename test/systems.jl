@@ -38,7 +38,9 @@ end
     # Water-filled cells use gas saturation as their coordinate, including
     # when a small, nonzero hydrocarbon inventory was specified.
     tab = Jutul.get_1d_interpolator([1e6, 2e7], [10.0, 100.0])
-    sw = 1 - 1e-9
+    eps_s = JutulDarcy.MINIMUM_COMPOSITIONAL_SATURATION
+    # Stay strictly inside the cutoff; equality uses normal phase switching.
+    sw = 1 - 5*eps_s
     rem = 1 - sw
     for (rs_tab, rv_tab) in ((tab, nothing), (nothing, tab), (tab, tab))
         for sg in (0.0, rem/4, rem)
@@ -50,29 +52,60 @@ end
     for sg in (0.0, rem/4, rem), dx in (-0.1, 0.0, 0.1)
         x = [JutulDarcy.BlackOilX(sg)]
         JutulDarcy.varswitch_update_inner!(x, 1, dx, Inf, 0.2, tab, nothing,
-            false, true, [1e7], sw, (1e-10, 1e-10, 1e-10), 1.0)
+            false, true, [1e7], sw, (1e-10, 1e-10, eps_s), 1.0)
         @test x[1].phases_present == JutulDarcy.OilAndGas
         @test x[1].val ≈ clamp(sg + dx, 0.0, rem)
+    end
+    @testset "Cutoff boundary" begin
+        for eps_s in (1e-12, 1e-10, 1e-8)
+            cutoff = 1 - 10*eps_s
+            @test !JutulDarcy.blackoil_water_filled(prevfloat(cutoff), eps_s)
+            @test !JutulDarcy.blackoil_water_filled(cutoff, eps_s)
+            @test JutulDarcy.blackoil_water_filled(nextfloat(cutoff), eps_s)
+        end
+    end
+    @testset "Initialization uses the system tolerance" begin
+        for eps_s in (1e-12, 1e-10, 1e-8), (rs_tab, rv_tab) in ((tab, nothing), (nothing, tab), (tab, tab))
+            sys = StandardBlackOilSystem(; rs_max = rs_tab, rv_max = rv_tab, eps_s)
+            for (factor, water_filled) in ((5, true), (20, false))
+                sw = 1 - factor*eps_s
+                rem = 1 - sw
+                sg = isnothing(rs_tab) ? rem : 0.0
+                so = rem - sg
+                single_phase = isnothing(rs_tab) ? JutulDarcy.GasOnly : JutulDarcy.OilOnly
+                expected_phase = water_filled ? JutulDarcy.OilAndGas : single_phase
+                expected_value = water_filled ? sg : 0.0
+                direct = JutulDarcy.blackoil_unknown_init(rs_tab, rv_tab, sw, so, sg, 0.0, 0.0, 1e7; eps_s)
+                initialized = BlackOilX(sys, 1e7; sw, so, sg, rs = 0.0, rv = 0.0)
+                for x in (direct, initialized)
+                    @test x.phases_present == expected_phase
+                    @test x.val ≈ expected_value
+                end
+            end
+        end
     end
 end
 
 @testset "Black-oil optimization initial state" begin
     rs_tab = Jutul.get_1d_interpolator([1e6, 2e7], [10.0, 100.0])
     rv_tab = Jutul.get_1d_interpolator([1e6, 2e7], [0.001, 0.01])
-    for water in (false, true), (rs, rv) in ((rs_tab, nothing), (nothing, rv_tab), (rs_tab, rv_tab))
+    for water in (false, true), eps_s in (water ? (1e-12, 1e-10, 1e-8) : (1e-10,)), (rs, rv) in ((rs_tab, nothing), (nothing, rv_tab), (rs_tab, rv_tab))
         phases = water ? (AqueousPhase(), LiquidPhase(), VaporPhase()) : (LiquidPhase(), VaporPhase())
-        sys = StandardBlackOilSystem(; rs_max = rs, rv_max = rv, phases)
+        sys = StandardBlackOilSystem(; rs_max = rs, rv_max = rv, phases, eps_s)
         domain = reservoir_domain(reservoir_mesh((3, 1), (3.0, 1.0));
             permeability = si_unit(:darcy), porosity = 0.2)
         model, parameters = setup_reservoir_model(domain, sys; extra_out = true)
-        sw = water ? [1.0, 1-1e-9, 0.2] : zeros(3)
-        sg = water ? [0.0, (1-sw[2])/4, 0.3] : [0.0, 0.3, 1.0]
+        sw = water ? [1.0, 1-5*sys.s_eps, 0.2] : zeros(3)
+        sg = water ? [0.0, isnothing(rs) ? 1-sw[2] : 0.0, 0.3] : [0.0, 0.3, 1.0]
         so = 1 .- sw .- sg
         sat = water ? vcat(sw', so', sg') : vcat(so', sg')
         ratios = Dict{Symbol, Any}()
         isnothing(rs) || (ratios[:Rs] = zeros(3))
         isnothing(rv) || (ratios[:Rv] = zeros(3))
         state0 = setup_reservoir_state(model; Pressure = fill(1e7, 3), Saturations = sat, ratios...)
+        if water
+            @test state0[:Reservoir][:BlackOilUnknown][2].phases_present == JutulDarcy.OilAndGas
+        end
         case = JutulCase(model, [1.0]; state0, parameters)
         dprm = setup_reservoir_dict_optimization(case; verbose = false)
         extracted = dprm.parameters[:state0]
