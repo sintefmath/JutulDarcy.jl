@@ -128,3 +128,19 @@ simulate_reservoir
 setup_reservoir_simulator
 ReservoirSimResult
 ```
+
+### Standard output files
+
+Write the summary, restart and EGRID files for a simulation using a common basename.
+
+```julia
+result = simulate_reservoir(case)
+paths = write_standard_output(result, case, "CASE")
+```
+
+```@docs
+write_standard_output
+write_standard_summary
+write_standard_restart
+write_standard_egrid
+```

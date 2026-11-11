@@ -39,6 +39,15 @@ function add_missing_endpoints(s, kr)
     return (s, kr)
 end
 
+function deck_output_units(runspec)
+    if !isnothing(runspec)
+        haskey(runspec, "FIELD") && return :field
+        haskey(runspec, "LAB") && return :lab
+        haskey(runspec, "PVT-M") && throw(ArgumentError("PVT-M unit conversion is not supported."))
+    end
+    return :metric
+end
+
 """
     summary_result(case::JutulCase, res::ReservoirSimResult) # units from case input data
     summary_result(case::JutulCase, res::ReservoirSimResult, :field) # field units
@@ -86,23 +95,9 @@ function summary_result(model::MultiModel, wellresult, states = missing, usys = 
         return x_c
     end
 
-    data = input_data
-    has_data = !isnothing(data) && !ismissing(data) && haskey(data, "RUNSPEC") 
+    runspec = input_data isa AbstractDict ? get(input_data, "RUNSPEC", nothing) : nothing
     if ismissing(usys)
-        if has_data
-            rs = data["RUNSPEC"]
-            if haskey(rs, "FIELD")
-                usys = :field
-            elseif haskey(rs, "LAB")
-                usys = :lab
-            elseif haskey(rs, "PVT-M")
-                error("PVT-M not supported for unit conversion.")
-            else
-                usys = :metric
-            end
-        else
-            usys = :metric
-        end
+        usys = deck_output_units(runspec)
     end
 
     out = Dict()
@@ -151,12 +146,8 @@ function summary_result(model::MultiModel, wellresult, states = missing, usys = 
         vals["GROUP"] = g_smry
     end
 
-    if ismissing(start_date)
-        if has_data && haskey(data["RUNSPEC"], "START")
-            start_date = data["RUNSPEC"]["START"]
-        else
-            start_date = missing
-        end
+    if ismissing(start_date) && !isnothing(runspec)
+        start_date = get(runspec, "START", missing)
     end
     out["TIME"] = (start_date = start_date, seconds = t)
 

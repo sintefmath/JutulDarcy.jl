@@ -13,6 +13,7 @@ end
     include("input_timestep_defaults.jl")
     include("efficiency_summary.jl")
     include("group_summary.jl")
+    include("standard_output.jl")
 end
 
 @testitem "Rel. Perm." begin
