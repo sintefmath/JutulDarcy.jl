@@ -83,22 +83,24 @@ function Adapt.adapt_structure(ctx::Jutul.KernelAbstractionsContext,
         model::SimulationModel{D, S}) where {D<:Jutul.JutulDomain, S<:MultiPhaseCompositionalSystemLV}
     adapted = invoke(Adapt.adapt_structure,
         Tuple{Jutul.KernelAbstractionsContext, SimulationModel}, ctx, model)
-    flash = adapted.secondary_variables.FlashResults
-    if !Jutul.KernelExecution.is_cpu_backend(ctx) &&
-            MultiComponentFlash.number_of_components(adapted.system.equation_of_state) > 3 &&
-            flash.stability_bypass
-        # StaticArrays' eigenvalue calculation above size three calls LAPACK.
-        # Keep previous-flash reuse while disabling this GPU-only shortcut.
-        flash = FlashResults{typeof(flash.method), false, flash.reuse_guess}(
-            flash.method, flash.use_threads, flash.tolerance,
-            flash.tolerance_bypass, false, flash.reuse_guess)
-        secondary = merge(adapted.secondary_variables, (FlashResults = flash,))
-        adapted = SimulationModel(adapted.domain, adapted.system, adapted.context,
-            adapted.formulation, adapted.data_domain, adapted.primary_variables,
-            secondary, adapted.parameters, adapted.equations,
-            adapted.output_variables, adapted.extra, adapted.optimization_level)
-    end
-    return adapted
+    Jutul.KernelExecution.is_cpu_backend(ctx) && return adapted
+    flash = get(adapted.secondary_variables, :FlashResults, nothing)
+    flash isa FlashResults && flash.stability_bypass || return adapted
+    ncomp = MultiComponentFlash.number_of_components(adapted.system.equation_of_state)
+    ncomp <= 3 && return adapted
+
+    # StaticArrays' eigenvalue calculation above size three calls LAPACK.
+    Jutul.jutul_message("Flash",
+        "Disabling the stability bypass for the $ncomp-component GPU model. The GPU limit is three EOS components.",
+        color = :yellow)
+    flash = FlashResults{typeof(flash.method), false, flash.reuse_guess}(
+        flash.method, flash.use_threads, flash.tolerance,
+        flash.tolerance_bypass, false, flash.reuse_guess)
+    secondary = merge(adapted.secondary_variables, (FlashResults = flash,))
+    return SimulationModel(adapted.domain, adapted.system, adapted.context,
+        adapted.formulation, adapted.data_domain, adapted.primary_variables,
+        secondary, adapted.parameters, adapted.equations,
+        adapted.output_variables, adapted.extra, adapted.optimization_level)
 end
 
 function Adapt.adapt_structure(to,
