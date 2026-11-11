@@ -1597,6 +1597,22 @@ function set_deck_diffusivities!(domain, props, sys, is_gaswat)
     return domain
 end
 
+function deck_cubic_coefficients(type, props, n)
+    a, b, = MultiComponentFlash.static_coefficients(type)
+    overrides = NamedTuple()
+    for (keyword, name, default) in (("OMEGAA", :omega_a, a), ("OMEGAB", :omega_b, b))
+        haskey(props, keyword) || continue
+        values = first(props[keyword])
+        length(values) == n || throw(ArgumentError("$keyword requires one value per component."))
+        # Defaulted entries and the simulator's negative sentinel use the EOS default.
+        values = map(x -> isnan(x) || x < 0 ? default : x, values)
+        all(x -> isfinite(x) && x > 0, values) || throw(ArgumentError("$keyword coefficients must be finite and positive."))
+        all(==(default), values) && continue
+        overrides = merge(overrides, NamedTuple{(name,)}((Tuple(values),)))
+    end
+    return overrides
+end
+
 function parse_physics_types(datafile; pvt_region = missing, for_facility = false)
     runspec = datafile["RUNSPEC"]
     props = datafile["PROPS"]
@@ -1737,7 +1753,7 @@ function parse_physics_types(datafile; pvt_region = missing, for_facility = fals
             eos_type = MultiComponentFlash.SoreideWhitson(mixture;
                 molality = get(props, "SALINITY", 0.0))
         end
-        eos_type = deck_cubic_coefficients(eos_type, props, length(mp))
+        overrides = deck_cubic_coefficients(eos_type, props, length(mp))
         shift_key = ifelse(for_facility && haskey(props, "SSHIFTS"), "SSHIFTS", "SSHIFT")
         if haskey(props, shift_key)
             vshift = Tuple(first(props[shift_key]))
@@ -1745,7 +1761,7 @@ function parse_physics_types(datafile; pvt_region = missing, for_facility = fals
         else
             vshift = nothing
         end
-        eos = GenericCubicEOS(mixture, eos_type, volume_shift = vshift)
+        eos = GenericCubicEOS(mixture, eos_type; volume_shift = vshift, overrides...)
         sys = MultiPhaseCompositionalSystemLV(eos, phases, reference_densities = rhoS)
     else
         if has_oil

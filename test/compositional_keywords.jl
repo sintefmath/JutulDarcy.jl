@@ -116,20 +116,19 @@ end
         end
         @test eos.volume_shift == (0.01, 0.02, 0.03)
         @test facility_eos.volume_shift == (0.04, 0.05, 0.06)
-        for keyword in ("OMEGAA", "OMEGAB")
+        @test eos.type isa PengRobinson
+        for (keyword, name) in (("OMEGAA", :omega_a), ("OMEGAB", :omega_b))
             props = Dict(keyword => data["PROPS"][keyword])
             parameters = JutulDarcy.deck_cubic_coefficients(PengRobinson(), props, 3)
-            if keyword != "OMEGAA"
-                @test parameters.omega_a == (base.ω_a, base.ω_a, base.ω_a)
-            end
-            if keyword != "OMEGAB"
-                @test parameters.omega_b == (base.ω_b, base.ω_b, base.ω_b)
-            end
+            @test parameters == NamedTuple{(name,)}((Tuple(first(props[keyword])),))
         end
+        defaults = Dict("OMEGAA" => [[base.ω_a, -1.0, NaN]], "OMEGAB" => [fill(base.ω_b, 3)])
+        @test isempty(JutulDarcy.deck_cubic_coefficients(PengRobinson(), defaults, 3))
         for F in (Float64, Float32)
             static = MCF.make_eos_immutable(eos; float_type = F)
             @test isbitstype(typeof(static))
-            @test eltype(static.type.omega_a) == F
+            @test static.ω_a == map(F, eos.ω_a)
+            @test static.ω_b == map(F, eos.ω_b)
             @test MCF.force_coefficients(static, cond).A_i ≈ MCF.force_coefficients(eos, cond).A_i rtol = 1e-6
         end
         flash = MCF.flashed_mixture_2ph(eos, cond)
@@ -230,7 +229,7 @@ end
         @test inherited_case.model[:Facility].system.multiphase.equation_of_state.volume_shift == (0.01, 0.02, 0.03)
         data["PROPS"]["PRCORR"] = true
         corrected, = JutulDarcy.parse_physics_types(data)
-        @test corrected.equation_of_state.type.type isa PengRobinsonCorrected
+        @test corrected.equation_of_state.type isa PengRobinsonCorrected
     end
 end
 
