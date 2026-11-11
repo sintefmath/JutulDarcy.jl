@@ -1,0 +1,81 @@
+-- Small regression for Drogon's passive water tracers with custom unit labels.
+RUNSPEC
+WATER
+METRIC
+DIMENS
+ 5 5 1 /
+WELLDIMS
+ 2 1 1 2 /
+TRACERS
+ 1* 2 /
+START
+ 1 JAN 2018 /
+GRID
+DX
+ 25*10 /
+DY
+ 25*10 /
+DZ
+ 25*10 /
+TOPS
+ 25*1000 /
+PORO
+ 25*0.2 /
+PERMX
+ 25*100 /
+PERMY
+ 25*100 /
+PROPS
+PVTW
+ 200 1 3e-6 0.5 0 /
+ROCK
+ 200 3e-6 /
+DENSITY
+ 800 1000 1 /
+TRACER
+ WT1 WAT 'g' /
+ WT2 WAT 'g' /
+/
+SOLUTION
+PRESSURE
+ 25*200 /
+TVDPFWT1
+ 1000 0
+ 2500 0 /
+TVDPFWT2
+ 1000 0
+ 2500 0 /
+SUMMARY
+ALL
+SCHEDULE
+WELSPECS
+ I G 5 5 1000 WAT /
+ P G 1 1 1000 WAT /
+/
+COMPDAT
+ I 5 5 1 1 OPEN 0 0 1 /
+ P 1 1 1 1 OPEN 0 0 1 /
+/
+WCONPROD
+ P OPEN WRAT 1* 100 /
+/
+WCONINJE
+ I WAT OPEN RATE 100 /
+/
+WTRACER
+ I WT1 3.125 /
+/
+TSTEP
+ 0.1 1 /
+WTRACER
+ I WT1 0 /
+ I WT2 3.125 /
+/
+TSTEP
+ 1 /
+WTRACER
+ I WT2 0 /
+/
+TSTEP
+ 1 /
+END

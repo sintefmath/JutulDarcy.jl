@@ -33,6 +33,11 @@ given as `parse_arg`. The optional input `include_data=true` will make the
 function return the parsed data in addition the case itself. Additional keyword
 arguments are passed on to [`setup_case_from_parsed_data`](@ref).
 
+Passive `TRACER` entries support custom unit labels such as `g`, keeping initial
+and injected concentrations on the same numeric scale. Tracers are transported
+through simple and multisegment wells. Tracer partitioning and adsorption are
+not supported.
+
 Surface-rate `GCONPROD` and `GCONINJE` controls are mapped to well groups,
 including individual well limits and `GRUPTREE` ancestor lookup. Production
 groups are named `<group>_PRODUCTION`, and injection groups `<group>_<phase>`.
@@ -185,7 +190,9 @@ function setup_case_from_parsed_data(datafile;
                 push!(tracer_types, Tracers.PolymerTracer(sys))
             else
                 rec = only(filter(rec -> rec[1] == t, props["TRACER"]))
-                @assert isempty(rec[3]) && isempty(rec[4]) && rec[5] == 0 && isempty(rec[6]) "Only non-partitioning tracers with default units are supported."
+                # Passive tracer units (e.g. Drogon's 'g') are labels: keep the
+                # same concentration scale for initialization and injection.
+                @assert isempty(rec[4]) && rec[5] == 0 && isempty(rec[6]) "Only non-partitioning tracers without adsorption are supported."
                 if rec[2] in ("WAT", "WATER")
                     phase = AqueousPhase()
                 elseif rec[2] == "OIL"
