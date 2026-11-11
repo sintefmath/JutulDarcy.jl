@@ -59,11 +59,14 @@ end
         case = setup_case_from_data_file(data_path;
             skip_wells = true,
             flash_reuse_guess = reuse,
-            flash_stability_bypass = bypass)
+            flash_stability_bypass = bypass,
+            warm_ssi = 4,
+            warm_newton = 2)
         model = reservoir_model(case)
         flash = model.secondary_variables[:FlashResults]
         @test flash.reuse_guess == reuse
         @test flash.stability_bypass == bypass
+        @test (flash.warm_ssi, flash.warm_newton) == (4, 2)
         configurations[(reuse, bypass)] = flash
         eos = model.system.equation_of_state
     end
@@ -71,6 +74,9 @@ end
     bypass_only = configurations[(false, true)]
     both = JutulDarcy.FlashResults(model;
         reuse_guess = true, stability_bypass = true)
+    @test (both.warm_ssi, both.warm_newton) == (5, 3)
+    @test_throws ArgumentError JutulDarcy.FlashResults(model; warm_ssi = -1)
+    @test_throws ArgumentError JutulDarcy.FlashResults(model; warm_newton = -1)
     z = @SVector [0.6, 0.1, 0.3]
     initial = JutulDarcy.static_flashed_mixture(eos, Float64)
 
@@ -100,6 +106,16 @@ end
     @test !reused_stability.report.liquid.trivial # quick two-phase attempt
     @test full_stability.report.liquid.trivial # full stability test
     @test !full_stability.bypassed # no valid single-phase bypass cache
+
+    for (warm_ssi, warm_newton) in ((0, 0), (0, 3), (5, 0))
+        options = JutulDarcy.FlashResults(model; reuse_guess = true, warm_ssi, warm_newton)
+        V, K, stability = JutulDarcy.numeric_flash(previous_two_phase, options, eos, nearby_two_phase)
+        @test V ≈ V_full rtol = 1e-7
+        @test K ≈ K_full rtol = 1e-7
+        if warm_ssi == 0 && warm_newton == 0
+            @test stability.report.liquid.trivial
+        end
+    end
 
     # A phase change must reject the quick result and use a full flash.
     single_phase = (p = 7.5e6, T = 300.0, z = z)

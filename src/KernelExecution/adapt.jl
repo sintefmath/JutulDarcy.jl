@@ -95,7 +95,7 @@ function Adapt.adapt_structure(ctx::Jutul.KernelAbstractionsContext,
         color = :yellow)
     flash = FlashResults{typeof(flash.method), false, flash.reuse_guess}(
         flash.method, flash.use_threads, flash.tolerance,
-        flash.tolerance_bypass, false, flash.reuse_guess)
+        flash.tolerance_bypass, false, flash.reuse_guess, flash.warm_ssi, flash.warm_newton)
     secondary = merge(adapted.secondary_variables, (FlashResults = flash,))
     return SimulationModel(adapted.domain, adapted.system, adapted.context,
         adapted.formulation, adapted.data_domain, adapted.primary_variables,

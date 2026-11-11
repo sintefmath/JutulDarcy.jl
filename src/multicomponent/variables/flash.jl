@@ -14,6 +14,9 @@ function Jutul.default_parameter_values(domain, model, ::PhaseLabelFactor, symb)
     end
 end
 
+const DEFAULT_FLASH_WARM_SSI = 5
+const DEFAULT_FLASH_WARM_NEWTON = 3
+
 struct FlashResults{M, StabilityBypass, ReuseGuess} <: ScalarVariable
     method::M
     use_threads::Bool
@@ -21,6 +24,17 @@ struct FlashResults{M, StabilityBypass, ReuseGuess} <: ScalarVariable
     tolerance_bypass::Float64
     stability_bypass::Bool
     reuse_guess::Bool
+    warm_ssi::Int
+    warm_newton::Int
+
+    function FlashResults{M, B, R}(method, use_threads, tolerance, tolerance_bypass,
+            stability_bypass, reuse_guess, warm_ssi::Integer = DEFAULT_FLASH_WARM_SSI,
+            warm_newton::Integer = DEFAULT_FLASH_WARM_NEWTON) where {M, B, R}
+        warm_ssi >= 0 && warm_newton >= 0 ||
+            throw(ArgumentError("warm_ssi and warm_newton must be nonnegative."))
+        return new{M, B, R}(method, use_threads, tolerance, tolerance_bypass,
+            stability_bypass, reuse_guess, warm_ssi, warm_newton)
+    end
 end
 
 function FlashResults(model::SimulationModel;
@@ -30,13 +44,15 @@ function FlashResults(model::SimulationModel;
         tolerance_bypass = 10,
         reuse_guess = false,
         stability_bypass = false,
+        warm_ssi = DEFAULT_FLASH_WARM_SSI,
+        warm_newton = DEFAULT_FLASH_WARM_NEWTON,
         kwarg...)
     method isa SSIFlash || throw(ArgumentError(
         "The immutable compositional flash currently supports SSIFlash only."))
     # Specialize the two independent switches for allocation-free GPU kernels.
     return FlashResults{typeof(method), stability_bypass, reuse_guess}(
         method, threads, Float64(tolerance), Float64(tolerance_bypass),
-        stability_bypass, reuse_guess)
+        stability_bypass, reuse_guess, warm_ssi, warm_newton)
 end
 
 @inline function static_flashed_mixture(

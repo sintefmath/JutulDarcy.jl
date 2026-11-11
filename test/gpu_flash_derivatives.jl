@@ -49,7 +49,7 @@ end
         domain = reservoir_domain(CartesianMesh((1, 1));
             porosity = 0.2, permeability = 1e-12)
         model = reservoir_model(setup_reservoir_model(domain, system;
-            fast_flash = true))
+            fast_flash = true, warm_ssi = 4, warm_newton = 2))
         host_options = model.secondary_variables[:FlashResults]
         cpu_model = Adapt.adapt(cpu_context, model)
         gpu_model = Adapt.adapt(gpu_context, model)
@@ -58,6 +58,7 @@ end
         @test cpu_model.secondary_variables.FlashResults.stability_bypass
         @test options.stability_bypass == (n <= 3)
         @test options.reuse_guess
+        @test (options.warm_ssi, options.warm_newton) == (4, 2)
         @test options isa JutulDarcy.FlashResults{SSIFlash, n <= 3, true}
         # Exercise both sides of the cutoff without requiring the large-model
         # Newton reuse kernel to compile for every component count above it.
