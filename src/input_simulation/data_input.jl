@@ -80,7 +80,7 @@ function setup_case_from_parsed_data(datafile;
         convert_co2store = true,
         repair_zcorn = true,
         process_pinch = true,
-        include_tracers = false,
+        include_tracers = true,
         cell_nz = 1,
         kwarg...
     )
