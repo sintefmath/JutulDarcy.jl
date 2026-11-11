@@ -80,6 +80,7 @@ function setup_case_from_parsed_data(datafile;
         convert_co2store = true,
         repair_zcorn = true,
         process_pinch = true,
+        include_tracers = false,
         cell_nz = 1,
         kwarg...
     )
@@ -177,7 +178,7 @@ function setup_case_from_parsed_data(datafile;
         extra_arg[:salt_mole_fractions] = rs["SALT_MOLE_FRACTIONS"]
         extra_arg[:salt_names] = rs["SALTS"]
     end
-    tracers = data_file_active_tracers(datafile)
+    tracers = data_file_active_tracers(datafile, include_tracers = include_tracers)
     if length(tracers) > 0
         tracer_types = []
         for t in tracers
@@ -1791,21 +1792,23 @@ function pick_system_from_pvt(pvt, rhoS, phases, is_immiscible)
     return sys
 end
 
-function data_file_active_tracers(datafile_or_runspec)
+function data_file_active_tracers(datafile_or_runspec; include_tracers = true)
     if haskey(datafile_or_runspec, "RUNSPEC")
-        return data_file_active_tracers(datafile_or_runspec["RUNSPEC"], datafile_or_runspec["PROPS"])
+        return data_file_active_tracers(datafile_or_runspec["RUNSPEC"], datafile_or_runspec["PROPS"]; include_tracers = include_tracers)
     end
-    return data_file_active_tracers(datafile_or_runspec, Dict())
+    return data_file_active_tracers(datafile_or_runspec, Dict(); include_tracers = include_tracers)
 end
 
-function data_file_active_tracers(runspec, props)
+function data_file_active_tracers(runspec, props; include_tracers = true)
     out = String[]
     if haskey(runspec, "POLYMER")
         push!(out, "POLYMER")
     end
-    for rec in get(props, "TRACER", [])
-        @assert !(rec[1] in out) "Duplicate tracer name $(rec[1])."
-        push!(out, rec[1])
+    if include_tracers
+        for rec in get(props, "TRACER", [])
+            @assert !(rec[1] in out) "Duplicate tracer name $(rec[1])."
+            push!(out, rec[1])
+        end
     end
     return out
 end
