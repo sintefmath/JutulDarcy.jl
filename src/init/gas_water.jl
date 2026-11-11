@@ -1,7 +1,4 @@
 function gas_water_component_index(eos)
-    if eos.type isa DeckCubicParameters
-        eos = underlying_deck_eos(eos)
-    end
     w = findfirst(isequal(MultiComponentFlash.COMPONENT_H2O), eos.type.component_types)
     isnothing(w) && throw(ArgumentError("GASWAT requires a water component."))
     return w

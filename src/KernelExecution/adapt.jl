@@ -79,6 +79,30 @@ function adapt_compositional_eos(to, eos::MultiComponentFlash.KValuesEOS; float_
         volume_shift = eos.volume_shift)
 end
 
+function Adapt.adapt_structure(ctx::Jutul.KernelAbstractionsContext,
+        model::SimulationModel{D, S}) where {D<:Jutul.JutulDomain, S<:MultiPhaseCompositionalSystemLV}
+    adapted = invoke(Adapt.adapt_structure,
+        Tuple{Jutul.KernelAbstractionsContext, SimulationModel}, ctx, model)
+    Jutul.KernelExecution.is_cpu_backend(ctx) && return adapted
+    flash = get(adapted.secondary_variables, :FlashResults, nothing)
+    flash isa FlashResults && flash.stability_bypass || return adapted
+    ncomp = MultiComponentFlash.number_of_components(adapted.system.equation_of_state)
+    ncomp <= 3 && return adapted
+
+    # StaticArrays' eigenvalue calculation above size three calls LAPACK.
+    Jutul.jutul_message("Flash",
+        "Disabling the stability bypass. The model has $ncomp components, which is more than the limit (3) for the StaticArrays eigenvalue calculation required on GPUs.",
+        color = :yellow)
+    flash = FlashResults{typeof(flash.method), false, flash.reuse_guess}(
+        flash.method, flash.use_threads, flash.tolerance,
+        flash.tolerance_bypass, false, flash.reuse_guess, flash.warm_ssi, flash.warm_newton)
+    secondary = merge(adapted.secondary_variables, (FlashResults = flash,))
+    return SimulationModel(adapted.domain, adapted.system, adapted.context,
+        adapted.formulation, adapted.data_domain, adapted.primary_variables,
+        secondary, adapted.parameters, adapted.equations,
+        adapted.output_variables, adapted.extra, adapted.optimization_level)
+end
+
 function Adapt.adapt_structure(to,
         system::MultiPhaseCompositionalSystemLV{E, T, O, R, N, C, Ref}) where {
         E, T, O, R, N, C, Ref}

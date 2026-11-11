@@ -133,6 +133,7 @@ end
 
 @testitem "Compositional validation" begin
     include("compositional.jl")
+    include("soreide_whitson_flash.jl")
 end
 
 @testitem "Compositional deck keywords" begin

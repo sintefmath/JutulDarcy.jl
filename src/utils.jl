@@ -494,8 +494,13 @@ low values can lead to slow convergence.
   Transient Simulations" by Rasmussen et al (2006).
 - `flash_reuse_guess=fast_flash`: Reuse previous flash guess when a cell remains
   in two-phase.
+- `warm_ssi=5`: Maximum successive substitution iterations for a reused flash guess.
+- `warm_newton=3`: Maximum safeguarded Newton steps if the reused flash guess
+  still needs work after successive substitution. Set either budget to `0` to
+  skip that stage.
 - `flash_stability_bypass=fast_flash`: Bypass stability testing for cells
-  outside the two-phase and shadow region.
+  outside the two-phase and shadow region. Disabled on GPU backends for more
+  than three EOS components, where the eigenvalue calculation requires LAPACK.
 - `can_shut_wells=true`: Configure facility to allow shutting wells that
   repeatedly get rates with the wrong side. Disabling this can make certain
   models infeasible to simulate, but it can be useful to do so for simple models
@@ -536,6 +541,8 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         can_shut_wells = true,
         flash_reuse_guess = fast_flash,
         flash_stability_bypass = fast_flash,
+        warm_ssi = DEFAULT_FLASH_WARM_SSI,
+        warm_newton = DEFAULT_FLASH_WARM_NEWTON,
         parameters = Dict{Symbol, Any}(),
         block_backend = true,
         nthreads = Threads.nthreads(),
@@ -626,7 +633,9 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         dT_max_abs = dT_max_abs,
         T_min = T_min,
         flash_reuse_guess = flash_reuse_guess,
-        flash_stability_bypass = flash_stability_bypass
+        flash_stability_bypass = flash_stability_bypass,
+        warm_ssi = warm_ssi,
+        warm_newton = warm_newton
     )
 
     if extra_outputs isa Bool
@@ -697,7 +706,9 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
                 dT_max_rel = dT_max_rel,
                 dT_max_abs = dT_max_abs,
                 flash_reuse_guess = flash_reuse_guess,
-                flash_stability_bypass = flash_stability_bypass
+                flash_stability_bypass = flash_stability_bypass,
+                warm_ssi = warm_ssi,
+                warm_newton = warm_newton
             )
             models[wname] = wmodel
             if split_wells
@@ -913,7 +924,9 @@ function set_reservoir_variable_defaults!(model;
         dT_max_abs = nothing,
         T_min = minimum_value(Temperature()),
         flash_reuse_guess = false,
-        flash_stability_bypass = false
+        flash_stability_bypass = false,
+        warm_ssi = DEFAULT_FLASH_WARM_SSI,
+        warm_newton = DEFAULT_FLASH_WARM_NEWTON
     )
     # Replace various variables - if they are available
     replace_variables!(model, OverallMoleFractions = OverallMoleFractions(dz_max = dz_max), throw = false)
@@ -924,8 +937,8 @@ function set_reservoir_variable_defaults!(model;
 
     rmodel = reservoir_model(model)
     if rmodel isa CompositionalModel
-        sys = rmodel.system
-        flash = FlashResults(rmodel, stability_bypass = flash_stability_bypass, reuse_guess = flash_reuse_guess)
+        flash = FlashResults(rmodel, stability_bypass = flash_stability_bypass,
+            reuse_guess = flash_reuse_guess, warm_ssi = warm_ssi, warm_newton = warm_newton)
         replace_variables!(rmodel, FlashResults = flash, throw = false)
     end
     p_def = Pressure(

@@ -33,25 +33,34 @@ end
         fr::FlashResults{M, use_stability_bypass, reuse_guess}, eos, cond
     ) where {M, use_stability_bypass, reuse_guess}
     config = MultiComponentFlash.StaticConfig()
-    # The paper's shortcut is a short, safeguarded Gibbs minimization from
-    # estimated phase amounts. Any difficulty reverts to the ordinary flash.
-    if reuse_guess && f.state == MultiComponentFlash.two_phase_lv
+    if reuse_guess && f.state == MultiComponentFlash.two_phase_lv &&
+            (fr.warm_ssi > 0 || fr.warm_newton > 0)
         V0 = oftype(cond.p, compositional_primal(f.V))
-        if isfinite(V0) && 1e-6 < V0 < 1.0 - 1e-6
+        if 1e-6 < V0 < 1.0 - 1e-6
             liquid, vapor = estimated_phase_amounts_from_previous_flash(f, V0, cond.z)
             L, V = sum(liquid), sum(vapor)
-            K0 = (vapor/V) ./ (liquid/L)
+            K = (vapor/V) ./ (liquid/L)
             V /= L + V
-            V, K, report = flash_2ph!(config, K0, eos, cond, V;
-                method = NewtonFlash(dMax = 1.0), maxiter = 3,
-                extra_out = true, tolerance = fr.tolerance, z_min = nothing,
-                stability_bypass = false, check = false, verbose = false)
-            if valid_reused_flash(V, K, report.converged, cond.z, fr.tolerance) &&
-                    reused_flash_is_stable(eos, cond, K, V, fr.tolerance)
-                stability = MultiComponentFlash.StaticStabilityResult(false,
-                    MultiComponentFlash.StabilityReport(), K,
-                    MultiComponentFlash.StaticStabilityStorage(cond, oftype(cond.p, NaN)), false)
-                return V, K, stability
+            if 0 < V < 1 && all(k -> isfinite(k) && k > 0, K)
+                converged = false
+                options = (extra_out = true, tolerance = fr.tolerance, z_min = nothing,
+                    stability_bypass = false, check = false, verbose = false)
+                if fr.warm_ssi > 0
+                    V, K, report = flash_2ph!(config, K, eos, cond, V;
+                        method = fr.method, maxiter = fr.warm_ssi, options...)
+                    converged = report.converged
+                end
+                if !converged && fr.warm_newton > 0 && 1e-6 < V < 1.0 - 1e-6
+                    V, K, report = flash_2ph!(config, K, eos, cond, V;
+                        method = NewtonFlash(dMax = 1.0), maxiter = fr.warm_newton, options...)
+                    converged = report.converged
+                end
+                if valid_reused_flash(eos, V, K, converged, cond.z, fr.tolerance)
+                    stability = MultiComponentFlash.StaticStabilityResult(false,
+                        MultiComponentFlash.StabilityReport(), K,
+                        MultiComponentFlash.StaticStabilityStorage(cond, oftype(cond.p, NaN)), false)
+                    return V, K, stability
+                end
             end
         end
     end
