@@ -131,7 +131,10 @@ ReservoirSimResult
 
 ### Standard output files
 
-Write the summary, restart and EGRID files for a simulation using a common basename.
+!!! note "Experimental feature"
+    This feature is experimental and subject to change. Bug reports are welcome!
+
+Write the summary, restart and EGRID files for a simulation using a common basename. These routines currently write all presently supported output fields, rather than what would be requested from a SUMMARY section.
 
 ```julia
 result = simulate_reservoir(case)
