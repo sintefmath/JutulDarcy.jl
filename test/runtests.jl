@@ -98,6 +98,11 @@ end
     include("thermal_data.jl")
 end
 
+@testitem "Passive tracer DATA and multisegment wells" begin
+    include("deck_tracers.jl")
+    include("tracers_multisegment.jl")
+end
+
 @testitem "Tabulated thermal properties" begin
     include("thermal_properties.jl")
 end

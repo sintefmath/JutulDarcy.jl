@@ -25,6 +25,35 @@ function tracer_flux(Q, face, state, model, kgrad, upw, ft::TracerFluxType)
     return Q
 end
 
+function Jutul.update_equation_in_entity!(eq_buf::AbstractVector, self_cell,
+        state, state0, eq::ConservationLaw{:TracerMasses, <:JutulDarcy.WellSegmentFlow},
+        model, dt, ldisc = Jutul.local_discretization(eq, self_cell))
+    mass, mass0 = state.TracerMasses, state0.TracerMasses
+    tracers = eq.flux_type.tracers
+    for i in eachindex(tracers)
+        eq_buf[i] = (mass[i, self_cell] - mass0[i, self_cell])/dt
+    end
+    S, rho = state.Saturations, state.PhaseMassDensities
+    for (cell, face, sgn) in zip(ldisc.cells, ldisc.faces, ldisc.signs)
+        v = sgn*state.TotalMassFlux[face]
+        density_self = JutulDarcy.total_density(S, rho, self_cell)
+        density_other = JutulDarcy.total_density(S, rho, cell)
+        # Segment flow uses the upstream phase mass fractions, as in the
+        # well's component and energy balances.
+        phase_mass_fluxes = ntuple(number_of_phases(model.system)) do ph
+            f_self = S[ph, self_cell]*rho[ph, self_cell]/density_self
+            f_other = S[ph, cell]*rho[ph, cell]/density_other
+            return v*Jutul.upw_flux(v, f_self, f_other)
+        end
+        upw = SPU(self_cell, cell)
+        for i in eachindex(tracers)
+            eq_buf[i] += tracer_total_mass_flux(tracers[i], model, state,
+                phase_mass_fluxes, i, upw)
+        end
+    end
+    return eq_buf
+end
+
 function tracer_scale(model, tracer::AbstractTracer)
     # Assume density of roughly 100.0 This function reduces the convergence
     # criterion by this factor. Higher values means slacker criterion.
