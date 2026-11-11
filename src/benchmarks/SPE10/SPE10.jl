@@ -1,24 +1,39 @@
 module SPE10
     using LazyArtifacts, Artifacts, JutulDarcy, DelimitedFiles, Jutul
+    using MultiComponentFlash: MultiComponentMixture, GenericCubicEOS, PengRobinson
+
+    include("compositional.jl")
 
     """
         JutulDarcy.SPE10.setup_case()
-        JutulDarcy.SPE10.setup_case(layers = 1:5, nsteps = 200)
+        JutulDarcy.SPE10.setup_case(layers = 1:5, num_steps = 200)
+        JutulDarcy.SPE10.setup_case(layers = 1:5, tiling = (2, 3, 1))
 
     Set up the SPE10, model2, benchmark case. This model is a 1.1 million cell
     nearly incompressible oil-water model with highly heterogenous static
     properties (permeability/porosity).
+
+    `tiling = (tilex, tiley, tilez)` repeats the selected layers and static
+    properties in each direction. Each horizontal tile has an injector at its
+    center, with producers shared at tile corners to avoid adjacent wells at
+    tile boundaries. Vertical wells span all repeated layers.
+
+    Pass `system` to use a custom fluid system without installing the SPE10
+    relative permeability or PVT functions. `equil` can be an `EquilibriumRegion`
+    or a function `model -> EquilibriumRegion(model, ...)`. `forces_arg` forwards
+    keyword arguments to `setup_well_forces`, including a custom `injection_control`.
     """
     function setup_case(;
             num_steps = 100,
             t_total = 2000*si_unit(:day),
+            equil = missing,
+            forces_arg = NamedTuple(),
             kwarg...
         )
         model = setup_model(; kwarg...)
-        state0 = setup_state0(model)
+        state0 = setup_state0(model; equil = equil)
         dt = fill(t_total/num_steps, num_steps)
-        forces = setup_well_forces(model)
-        forces = setup_well_forces(model)
+        forces = setup_well_forces(model; forces_arg...)
         return JutulCase(model, dt, forces, state0 = state0)
     end
 
@@ -27,8 +42,10 @@ module SPE10
             anisotropy = true,
             minporo = 0.01,
             remove_cells = true,
+            tiling = (1, 1, 1),
             source = spe10_artifact_path()
         )
+        check_tiling(tiling)
         minporo > 0 || error("Minimum porosity must be positive.")
         nx = 60
         ny = 220
@@ -45,7 +62,7 @@ module SPE10
             if layers != 1:85
                 x = x[:, :, layers]
             end
-            return vec(x)
+            return vec(repeat(x, tiling...))
         end
 
         function get_perm(i)
@@ -71,11 +88,11 @@ module SPE10
             permz = permx .* anisotropy
             perm = cat(permx', permx', permz'; dims = 1)
         end
-        mesh = setup_mesh(layers)
+        mesh = setup_mesh(layers; tiling = tiling)
         if remove_cells
             # Remove cells with too low porosity
             active = findall(poro .>= minporo)
-            perm = perm[:, active]
+            perm = perm isa AbstractVector ? perm[active] : perm[:, active]
             poro = poro[active]
             mesh = extract_submesh(mesh, active)
         else
@@ -84,13 +101,21 @@ module SPE10
         return reservoir_domain(mesh, permeability = perm, porosity = poro)
     end
 
-    function setup_mesh(layers = 1:85)
+    function check_tiling(tiling)
+        if !(tiling isa Tuple{Integer, Integer, Integer}) || any(t -> t < 1, tiling)
+            throw(ArgumentError("tiling must be a tuple of three positive integers"))
+        end
+        return nothing
+    end
+
+    function setup_mesh(layers = 1:85; tiling = (1, 1, 1))
+        check_tiling(tiling)
         ft = si_unit(:feet)
         nx = 60
         ny = 220
         nz = length(layers)
         cell_dims = (20.0, 10.0, 2.0).*ft
-        dims = (nx, ny, nz)
+        dims = (nx, ny, nz).*tiling
         mesh = reservoir_mesh(dims, dims.*cell_dims)
         depth = 12000*ft
         offset = [0.0, 0.0, depth]
@@ -112,6 +137,10 @@ module SPE10
     end
 
     function setup_wells(domain::Jutul.DataDomain; well_triplets = missing)
+        mesh = physical_representation(domain)
+        nx, ny, nz = grid_dims_ijk(mesh)
+        nx > 0 && nx % 60 == 0 || error("Expected nx to be a positive multiple of 60, got $nx")
+        ny > 0 && ny % 220 == 0 || error("Expected ny to be a positive multiple of 220, got $ny")
         if ismissing(well_triplets)
             well_triplets = [
                 (30, 110, :I1),
@@ -120,11 +149,26 @@ module SPE10
                 (60, 220, :P3),
                 (1, 220, :P4)
             ]
+            tilex, tiley = nx ÷ 60, ny ÷ 220
+            ninj = 1
+            for j in 0:(tiley-1), i in 0:(tilex-1)
+                if i == 0 && j == 0
+                    continue
+                end
+                ninj += 1
+                push!(well_triplets, (30 + 60*i, 110 + 220*j, Symbol(:I, ninj)))
+            end
+            nprod = 4
+            for j in 0:tiley, i in 0:tilex
+                if i <= 1 && j <= 1
+                    continue
+                end
+                # Keep a single well at each shared corner, using the cell on
+                # the lower-index side of internal tile boundaries.
+                nprod += 1
+                push!(well_triplets, (max(1, 60*i), max(1, 220*j), Symbol(:P, nprod)))
+            end
         end
-        mesh = physical_representation(domain)
-        nx, ny, nz = grid_dims_ijk(mesh)
-        nx == 60 || error("Expected nx=60, got $nx")
-        ny == 220 || error("Expected ny=220, got $ny")
         addw(I, J, name) = setup_vertical_well(domain, I, J, name = name, verbose = false, radius = 5*si_unit(:inch))
         wells = []
         for (I, J, name) in well_triplets
@@ -185,51 +229,104 @@ module SPE10
             model_arg = NamedTuple(),
             well_triplets = missing,
             domain = missing,
+            system = missing,
             kwarg...
         )
         if ismissing(domain)
             domain = setup_reservoir(; layers = layers, kwarg...)
         end
-        sys = setup_system()
+        use_spe10_fluid = ismissing(system)
+        if use_spe10_fluid
+            system = setup_system()
+        end
         wells = setup_wells(domain; well_triplets = well_triplets)
-        model = setup_reservoir_model(domain, sys; ds_max = 0.1, wells = wells, model_arg...)
-        kr = setup_relperm()
-        mu = setup_viscosity()
-        rho = setup_density()
+        model = setup_reservoir_model(domain, system; ds_max = 0.1, wells = wells, model_arg...)
+        if use_spe10_fluid
+            kr = setup_relperm()
+            mu = setup_viscosity()
+            rho = setup_density()
 
-        rmodel = reservoir_model(model)
-        set_secondary_variables!(rmodel,
-            RelativePermeabilities = kr,
-            PhaseMassDensities = rho,
-            PhaseViscosities = mu
-        )
-        for (k, submodel) in pairs(model.models)
-            if JutulDarcy.model_or_domain_is_well(submodel)
-                set_secondary_variables!(submodel,
-                    PhaseMassDensities = rho,
-                    PhaseViscosities = mu
-                )
+            rmodel = reservoir_model(model)
+            set_secondary_variables!(rmodel,
+                RelativePermeabilities = kr,
+                PhaseMassDensities = rho,
+                PhaseViscosities = mu
+            )
+            for (k, submodel) in pairs(model.models)
+                if JutulDarcy.model_or_domain_is_well(submodel)
+                    set_secondary_variables!(submodel,
+                        PhaseMassDensities = rho,
+                        PhaseViscosities = mu
+                    )
+                end
             end
         end
         JutulDarcy.set_rock_compressibility!(model, reference_pressure = 6000*si_unit(:psi), compressibility = 1e-6/si_unit(:psi))
         return model
     end
 
-    function setup_state0(model)
-        p_datum = 6000*si_unit(:psi)
-        datum_depth = 12000*si_unit(:feet)
-        reservoir = reservoir_domain(model)
-        woc = maximum(reservoir[:cell_centroids][3, :]) + 100*si_unit(:feet)
-        equil = EquilibriumRegion(model, p_datum, datum_depth, woc = woc)
+    function setup_state0(model; equil = missing)
+        if ismissing(equil)
+            p_datum = 6000*si_unit(:psi)
+            datum_depth = 12000*si_unit(:feet)
+            reservoir = reservoir_domain(model)
+            woc = maximum(reservoir[:cell_centroids][3, :]) + 100*si_unit(:feet)
+            equil = EquilibriumRegion(model, p_datum, datum_depth, woc = woc)
+        elseif equil isa Function
+            equil = equil(model)
+        end
+        set_equilibrium_temperature!(model, equil)
         return setup_reservoir_state(model, equil)
     end
 
-    function setup_well_forces(model; do_scale = true)
+    function set_equilibrium_temperature!(model, equil)
+        rmodel = reservoir_model(model)
+        # In isothermal models Temperature is a parameter, so initializing the
+        # state alone does not retain the temperature used for equilibrium.
+        if !haskey(rmodel.parameters, :Temperature)
+            return model
+        end
+        regions = equil isa EquilibriumRegion ? (equil,) : equil
+        if all(region -> ismissing(region.temperature_vs_depth), regions)
+            return model
+        end
+        reservoir = reservoir_domain(model)
+        temperature = Jutul.default_parameter_values(reservoir, rmodel,
+            rmodel.parameters[:Temperature], :Temperature)
+        depths = reservoir[:cell_centroids][3, :]
+        for region in regions
+            if !ismissing(region.temperature_vs_depth)
+                cells = ismissing(region.cells) ? eachindex(depths) : region.cells
+                temperature[cells] = region.temperature_vs_depth.(depths[cells])
+            end
+        end
+        reservoir[:temperature, Cells()] = temperature
+        for name in JutulDarcy.well_symbols(model)
+            domain = model[name].data_domain
+            well = physical_representation(domain)
+            cells = JutulDarcy.map_well_nodes_to_reservoir_cells(well, reservoir)
+            domain[:temperature, Cells()] = temperature[cells]
+        end
+        return model
+    end
+
+    """
+        setup_well_forces(model; do_scale = true, injection_control = missing)
+
+    Set up controls for all SPE10 wells. Names starting with `I` are injectors;
+    other wells are producers. The default injection rate scales with pore volume
+    per injector, including vertically repeated layers. A supplied
+    `injection_control` is used as-is for every injector.
+    Compositional systems without water inject their first component as gas.
+    """
+    function setup_well_forces(model; do_scale = true, injection_control = missing)
+        well_names = JutulDarcy.well_symbols(model)
+        injectors = filter(name -> startswith(string(name), "I"), well_names)
         if do_scale
             reservoir = reservoir_domain(model)
             pv = pore_volume(reservoir)
             pv_tot = 2.1673386968997316e6
-            fraction = min(sum(pv)/pv_tot, 1.0)
+            fraction = sum(pv)/(pv_tot*max(length(injectors), 1))
         else
             fraction = 1.0
         end
@@ -237,20 +334,40 @@ module SPE10
         ibhp = 10000*si_unit(:psi)
         pbhp = 4000*si_unit(:psi)
 
-        rhows = JutulDarcy.reference_densities(setup_system())[1]
-
-        ictrl = InjectorControl(TotalRateTarget(irate), [1.0, 0.0], density = rhows)
+        if ismissing(injection_control)
+            sys = reservoir_model(model).system
+            ncomp = JutulDarcy.number_of_components(sys)
+            mix = zeros(ncomp)
+            water = findfirst(isequal(AqueousPhase()), JutulDarcy.get_phases(sys))
+            if sys isa MultiPhaseCompositionalSystemLV
+                # The immiscible component follows the EOS components.
+                component = isnothing(water) ? 1 : ncomp
+            else
+                component = isnothing(water) ? 1 : water
+            end
+            mix[component] = 1.0
+            if !isnothing(water)
+                phase = water
+            elseif sys isa MultiPhaseCompositionalSystemLV
+                phase = JutulDarcy.vapor_phase_index(sys)
+            else
+                phase = 1
+            end
+            density = JutulDarcy.reference_densities(sys)[phase]
+            injection_control = InjectorControl(TotalRateTarget(irate), mix;
+                density = density, phases = ((phase, 1.0),))
+        end
         pctrl = ProducerControl(BottomHolePressureTarget(pbhp))
-        ctrl = Dict(
-            :I1 => ictrl,
-            :P1 => pctrl,
-            :P2 => pctrl,
-            :P3 => pctrl,
-            :P4 => pctrl,
-        )
-        limits = Dict{Symbol, Any}(
-            :I1 => (bhp = ibhp, )
-        )
+        ctrl = Dict{Symbol, Any}()
+        limits = Dict{Symbol, Any}()
+        for name in well_names
+            if name in injectors
+                ctrl[name] = injection_control
+                limits[name] = (bhp = ibhp, )
+            else
+                ctrl[name] = pctrl
+            end
+        end
         return setup_reservoir_forces(model, control = ctrl, limits = limits)
     end
 end
