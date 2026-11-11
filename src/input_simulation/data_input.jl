@@ -1924,6 +1924,11 @@ function parse_control_steps(runspec, props, schedule, sys)
     active_controls = sdict()
     shut_requests = sdict()
     limits = sdict()
+    # History pressure limits are well properties: another rate observation must
+    # not reset a WELTARG BHP. Track the keyword mode even while the well is shut.
+    history_bhp_limits = Dict{String, Float64}()
+    explicit_history_bhp = Set{String}()
+    previous_production = Dict{String, Tuple{String, String}}()
     streams = sdict()
     polymer = sdict()
     tracer_concentrations = sdict()
@@ -1987,6 +1992,26 @@ function parse_control_steps(runspec, props, schedule, sys)
     default_bhp = nothing
     function parse_control_record(wk, key, group_specs)
         name = wk[1]
+        flag_ix = ifelse(key in ("WCONPROD", "WCONHIST"), 2, 3)
+        mode = key == "WCONINJH" ? wk[12] : wk[flag_ix + 1]
+        history_bhp_limit = 1.01*si_unit(:atm)
+        if key == "WCONHIST"
+            previous_key, previous_mode = get(previous_production, name, ("", ""))
+            if previous_key != key || previous_mode == "BHP"
+                history_bhp_limits[name] = isnothing(default_bhp) ? history_bhp_limit : default_bhp[1]
+            end
+            history_bhp_limit = history_bhp_limits[name]
+        end
+        if key in ("WCONPROD", "WCONHIST")
+            if mode != "Default"
+                previous_production[name] = (key, mode)
+            end
+        elseif !(name in explicit_history_bhp)
+            # An injector has independent pressure limits. Keep an explicitly
+            # set producer history limit across injection; otherwise re-enter
+            # history with the current field default.
+            delete!(previous_production, name)
+        end
         spec = get(group_specs, name, nothing)
         group_target = nothing
         if !isnothing(spec)
@@ -1995,6 +2020,7 @@ function parse_control_steps(runspec, props, schedule, sys)
         return keyword_to_control(sys, streams, wk, key;
             group_target = group_target,
             default_bhp = default_bhp,
+            history_bhp_limit = history_bhp_limit,
             factor = well_factor[name],
             temperature = well_temp[name],
             polymer = polymer[name],
@@ -2119,7 +2145,7 @@ function parse_control_steps(runspec, props, schedule, sys)
                     name = wk[1]
                     flag_ix = ifelse(key in ("WCONPROD", "WCONHIST"), 2, 3)
                     flag = wk[flag_ix]
-                    mode = wk[flag_ix + 1]
+                    mode = key == "WCONINJH" ? wk[12] : wk[flag_ix + 1]
                     if key in ("WCONPROD", "WCONINJE") && mode == "GRUP"
                         push!(group_requested, name)
                     elseif mode != "Default"
@@ -2159,6 +2185,12 @@ function parse_control_steps(runspec, props, schedule, sys)
             elseif key == "WELTARG"
                 for wk in kword
                     controls, limits = apply_weltarg!(controls, limits, wk)
+                    name, mode, value = wk
+                    previous_key, _ = get(previous_production, name, ("", ""))
+                    if previous_key == "WCONHIST" && mode == "BHP" && controls[name] isa ProducerControl
+                        history_bhp_limits[name] = value
+                        push!(explicit_history_bhp, name)
+                    end
                 end
                 set_active_controls!(active_controls, controls)
             elseif key == "TUNING"
@@ -2360,10 +2392,12 @@ function refresh_injection_streams!(controls, sys, streams)
     return controls
 end
 
-function keyword_to_control(sys, streams, kw, k::String; default_bhp = nothing, kwarg...)
+function keyword_to_control(sys, streams, kw, k::String; default_bhp = nothing, history_bhp_limit = 1.01*si_unit(:atm), kwarg...)
     keyword = Val(Symbol(k))
     if k in ("WCONINJE", "WCONPROD")
         return keyword_to_control(sys, streams, kw, keyword; default_bhp, kwarg...)
+    elseif k == "WCONHIST"
+        return keyword_to_control(sys, streams, kw, keyword; history_bhp_limit, kwarg...)
     else
         return keyword_to_control(sys, streams, kw, keyword; kwarg...)
     end
@@ -2424,7 +2458,7 @@ function producer_limits(; bhp = Inf, lrat = Inf, orat = Inf, wrat = Inf, grat =
     return NamedTuple(pairs(lims))
 end
 
-function producer_control(sys, flag, ctrl, orat, wrat, grat, lrat, bhp; is_hist = false, temperature = NaN, resv = 0.0, tracers = String[], polymer = 0.0, tracer_concentrations = nothing, group_target = nothing, kwarg...)
+function producer_control(sys, flag, ctrl, orat, wrat, grat, lrat, bhp; is_hist = false, history_bhp_limit = 1.01*si_unit(:atm), temperature = NaN, resv = 0.0, tracers = String[], polymer = 0.0, tracer_concentrations = nothing, group_target = nothing, kwarg...)
     rho_s = reference_densities(sys)
     phases = get_phases(sys)
 
@@ -2485,11 +2519,12 @@ function producer_control(sys, flag, ctrl, orat, wrat, grat, lrat, bhp; is_hist 
         end
         ctrl = ProducerControl(t; kwarg...)
         if is_hist
-            # Put pressure slightly above 1 atm to avoid hard limit.
+            # Observed BHP is a target only in BHP mode. Rate history uses the
+            # persistent WELTARG/FBHPDEF limit, independently of observed BHP.
             if self_symbol == :resv_history
-                lims = (; :bhp => 1.01*si_unit(:atm))
+                lims = (; :bhp => history_bhp_limit)
             else
-                lims = (; :bhp => 1.01*si_unit(:atm), self_symbol => self_val)
+                lims = (; :bhp => history_bhp_limit, self_symbol => self_val)
             end
         else
             lims = producer_limits(bhp = bhp, orat = orat, wrat = wrat, grat = grat, lrat = lrat)

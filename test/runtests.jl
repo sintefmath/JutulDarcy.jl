@@ -5,6 +5,7 @@ using JutulDarcy, TestItems, Test, TestItemRunner
     include("corner_geometry.jl")
     include("schedule_completions.jl")
     include("afi_well_order.jl")
+    include("history_bhp_limits.jl")
     include("zero_rate_deck_controls.jl")
 end
 
