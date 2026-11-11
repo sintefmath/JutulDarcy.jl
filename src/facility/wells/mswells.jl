@@ -1,5 +1,17 @@
 const MSWellDomain = DiscretizedDomain{<:MultiSegmentWell}
 const MSWellFlowModel = SimulationModel{<:MSWellDomain, <:MultiPhaseSystem}
+
+function Jutul.initialize_extra_state_fields!(state, domain::MSWellDomain, model; T = Float64)
+    state[:SegmentModels] = copy(physical_representation(domain).segment_models)
+end
+
+function Jutul.update_before_step!(storage, domain::MSWellDomain, model, dt, forces; kwarg...)
+    defaults = physical_representation(domain).segment_models
+    models = isnothing(forces) ? defaults : something(get(forces, :segment_models, nothing), defaults)
+    copyto!(storage.state.SegmentModels, models)
+    return nothing
+end
+
 # Selection of primary variables
 function select_primary_variables!(S, domain::MSWellDomain, model::MSWellFlowModel)
     if count_active_entities(domain, Faces()) > 0

@@ -603,7 +603,9 @@ of the well. If not provided, these are automatically detected as nodes that are
 not "from" nodes in the connectivity matrix. The optional argument
 `segment_models` can be used to provide a vector of segment pressure drop
 models, one per segment. If not provided, a default `SegmentWellBoreFrictionHB`
-model is used for all segments. The `include_inertia` flag toggles the transient
+model is used for all segments. `SegmentValve` adds a subcritical valve pressure
+loss. Mixed models are stored in a union of at most four concrete types for
+union splitting. The `include_inertia` flag toggles the transient
 acceleration term in the segment pressure balance, which is useful for transient
 well effects when set to `true`.
 """
@@ -634,6 +636,7 @@ function MultiSegmentWell(neighbors::AbstractMatrix, perforation_cells_reservoir
     else
         segment_models::AbstractVector
         length(segment_models) == num_segments || throw(ArgumentError("If segment models are provided, there must be one per segment. Was $(length(segment_models)), expected $num_segments"))
+        segment_models = concrete_segment_models(segment_models)
     end
     perf = (self = perforation_cells_self, reservoir = perforation_cells_reservoir)
     return MultiSegmentWell(
@@ -650,6 +653,21 @@ function MultiSegmentWell(neighbors::AbstractMatrix, perforation_cells_reservoir
         include_inertia,
         nothing
     )
+end
+
+function concrete_segment_models(models)
+    if models isa AbstractVector
+        types = Base.uniontypes(eltype(models))
+        if all(isconcretetype, types) && length(types) <= 4
+            return copy(models)
+        end
+    end
+    types = unique(typeof(model) for model in models)
+    isempty(types) && return SegmentWellBoreFrictionHB[]
+    length(types) <= 4 || throw(ArgumentError("At most four concrete segment model types are supported for union splitting."))
+    all(isconcretetype, types) || throw(ArgumentError("Segment model types must be concrete."))
+    T = reduce((A, B) -> Union{A, B}, types)
+    return T[model for model in models]
 end
 
 

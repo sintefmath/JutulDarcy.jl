@@ -33,11 +33,6 @@ given as `parse_arg`. The optional input `include_data=true` will make the
 function return the parsed data in addition the case itself. Additional keyword
 arguments are passed on to [`setup_case_from_parsed_data`](@ref).
 
-Passive `TRACER` entries support custom unit labels such as `g`, keeping initial
-and injected concentrations on the same numeric scale. Tracers are transported
-through simple and multisegment wells. Tracer partitioning and adsorption are
-not supported.
-
 Surface-rate `GCONPROD` and `GCONINJE` controls are mapped to well groups,
 including individual well limits and `GRUPTREE` ancestor lookup. Production
 groups are named `<group>_PRODUCTION`, and injection groups `<group>_<phase>`.
@@ -344,6 +339,9 @@ function parse_well_from_compdat(domain, wname, cdat, wspecs, msdata, compord, s
         if has_ms_data
             has_welsegs = haskey(msdata, "WELSEGS")
             has_compsegs = haskey(msdata, "COMPSEGS")
+            if haskey(msdata, "WSEGVALV") && !(has_welsegs && has_compsegs)
+                throw(ArgumentError("WSEGVALV requires WELSEGS and COMPSEGS for well $wname."))
+            end
             if has_welsegs || has_compsegs
                 @assert has_welsegs && has_compsegs "Both COMPSEGS and WELSEGS must be defined"
                 @assert msdata["COMPSEGS"][1] == wname
@@ -368,7 +366,7 @@ function parse_well_from_compdat(domain, wname, cdat, wspecs, msdata, compord, s
                 top_y = header[9]
                 @assert segment_increment_type in ("ABS", "INC")
                 is_inc = segment_increment_type == "INC"
-                max_seg = maximum(x -> x[1], segments, init = 0)
+                max_seg = maximum(x -> x[2], segments, init = 0)
                 num_edges = max_seg-1
                 conn = Tuple{Int, Int}[]
 
@@ -376,6 +374,8 @@ function parse_well_from_compdat(domain, wname, cdat, wspecs, msdata, compord, s
                 centers = zeros(3, num_edges+1)
                 centers[:, 1] = top_node
                 diameter = fill(NaN, num_edges)
+                roughness = fill(NaN, num_edges)
+                cross_sections = fill(NaN, num_edges)
                 branches = zeros(Int, num_edges)
                 tubing_lengths = zeros(num_edges)
                 tubing_depths = zeros(num_edges)
@@ -388,7 +388,7 @@ function parse_well_from_compdat(domain, wname, cdat, wspecs, msdata, compord, s
                         depth_at_start = top_depth
                         tubing_at_start = top_tubing_delta
                     else
-                        depth_at_start = centers[3, start_conn-1]
+                        depth_at_start = centers[3, start_conn]
                         tubing_at_start = tubing_depths[start_conn-1]
                     end
                     if is_inc
@@ -405,16 +405,18 @@ function parse_well_from_compdat(domain, wname, cdat, wspecs, msdata, compord, s
                         vol = cross_sect*L
                     end
 
-                    push!(conn, (start, start_conn))
                     current_tubing = tubing_at_start
                     current_depth = depth_at_start
                     for (ix, seg_ix) in enumerate(start:stop)
+                        push!(conn, (seg_ix, ix == 1 ? start_conn : seg_ix - 1))
                         current_tubing += L
                         current_depth += Δz
 
                         edge_ix = seg_ix - 1
                         @assert isnan(diameter[edge_ix]) "Values are being overwritten in ms well - programming error?"
                         diameter[edge_ix] = D
+                        roughness[edge_ix] = rough
+                        cross_sections[edge_ix] = cross_sect
                         branches[edge_ix] = branch
                         tubing_lengths[edge_ix] = L
                         # TODO: Set better x, y
@@ -424,7 +426,6 @@ function parse_well_from_compdat(domain, wname, cdat, wspecs, msdata, compord, s
                         tubing_depths[edge_ix] = current_tubing
                     end
                 end
-                # segment_models = [i for i in segment_models]
                 N = zeros(Int, 2, length(conn))
                 for (i, t) in enumerate(conn)
                     N[:, i] .= t
@@ -437,6 +438,12 @@ function parse_well_from_compdat(domain, wname, cdat, wspecs, msdata, compord, s
                 extra_arg[:perforation_cells_well] = perforation_cells
                 extra_arg[:well_cell_centers] = centers
                 extra_arg[:use_top_node] = false
+                if haskey(msdata, "WSEGVALV")
+                    geometry = (neighbors = N, length = tubing_lengths,
+                        diameter = diameter, roughness = roughness, area = cross_sections)
+                    msdata["VALVE_GEOMETRY"] = geometry
+                    extra_arg[:segment_models] = data_file_segment_valve_models(msdata; first_only = true)
+                end
             end
         end
     end
@@ -465,6 +472,37 @@ function parse_well_from_compdat(domain, wname, cdat, wspecs, msdata, compord, s
     return (W, wc, WI, open)
 end
 
+function data_file_segment_valve_models(msdata; step = typemax(Int), first_only = false)
+    geometry = msdata["VALVE_GEOMETRY"]
+    N = geometry.neighbors
+    models = Union{SegmentWellBoreFrictionHB, SegmentValve}[
+        SegmentWellBoreFrictionHB() for _ in axes(N, 2)]
+    seen = Set{Int}()
+    for update in msdata["WSEGVALV"]
+        update.step <= step || continue
+        rec = update.record
+        name, segment, coefficient, area, length, diameter, roughness, pipe_area, status, max_area = rec
+        face = findfirst(isequal(segment), view(N, 1, :))
+        isnothing(face) && throw(ArgumentError("WSEGVALV references unknown or top segment $segment in well $name."))
+        first_only && face in seen && continue
+        push!(seen, face)
+        status in ("OPEN", "SHUT") || throw(ArgumentError("Unknown WSEGVALV status $status."))
+        previous = models[face]
+        inherited_diameter = previous isa SegmentValve ? previous.pipe_diameter : geometry.diameter[segment-1]
+        inherited_roughness = previous isa SegmentValve ? previous.pipe_roughness : geometry.roughness[segment-1]
+        inherited_area = previous isa SegmentValve ? previous.pipe_area : geometry.area[segment-1]
+        diameter = diameter < 0 ? inherited_diameter : diameter
+        roughness = roughness < 0 ? inherited_roughness : roughness
+        pipe_area = pipe_area < 0 ? inherited_area : pipe_area
+        length = length < 0 ? geometry.length[segment-1] : length
+        max_area = max_area < 0 ? pipe_area : max_area
+        models[face] = SegmentValve(coefficient, area; pipe_length = length,
+            pipe_diameter = diameter, pipe_roughness = roughness, pipe_area = pipe_area,
+            maximum_area = max_area, is_open = status == "OPEN")
+    end
+    return models
+end
+
 function map_compdat_to_multisegment_segments(compsegs, branches, tubing_lengths, tubing_depths, cdat)
     completions = keys(cdat)
     perforation_cells = zeros(Int, length(completions))
@@ -479,7 +517,11 @@ function map_compdat_to_multisegment_segments(compsegs, branches, tubing_lengths
         closest = -1
         for segment_index in segment_candidates
             I, J, K, branch, tube_start, tube_end, dir, dir_ijk, cdepth, = compsegs[segment_index]
-            for (i, b) in enumerate(branches)
+            explicit_segment = compsegs[segment_index][11]
+            candidates = explicit_segment > 0 ? (explicit_segment - 1,) : eachindex(branches)
+            for i in candidates
+                1 <= i <= length(branches) || throw(ArgumentError("Invalid COMPSEGS segment $explicit_segment."))
+                b = branches[i]
                 if b == branch
                     L = tubing_lengths[i]
                     seg_end = tubing_depths[i]
@@ -493,7 +535,8 @@ function map_compdat_to_multisegment_segments(compsegs, branches, tubing_lengths
                 end
             end
         end
-        perforation_cells[completion_index] = closest
+        closest > 0 || throw(ArgumentError("No well segment found for completion $completion."))
+        perforation_cells[completion_index] = closest + 1
     end
     return perforation_cells
 end
@@ -637,7 +680,12 @@ function parse_schedule(domain, runspec, props, schedule, sys; simple_well = tru
                 mask = PerforationMask(wi_mul)
             end
             # TODO: Make this use setup_forces properly
-            well_forces[i][Symbol(k)] = (mask = mask, )
+            if !isnothing(msdata_k) && haskey(msdata_k, "WSEGVALV")
+                segment_models = data_file_segment_valve_models(msdata_k; step = i)
+                well_forces[i][Symbol(k)] = (mask = mask, segment_models = segment_models)
+            else
+                well_forces[i][Symbol(k)] = (mask = mask, )
+            end
         end
         push!(wells, W)
     end
@@ -2109,7 +2157,12 @@ function parse_control_steps(runspec, props, schedule, sys)
                 # Initial settings are applied in setup_reservoir_simulator.
             elseif key in skip || key in ("GRUPTREE", "GCONPROD", "GCONINJE", "WGRUPCON")
                 # Already handled
-            elseif key in ("WSEGVALV", "COMPSEGS", "WELSEGS")
+            elseif key == "WSEGVALV"
+                for rec in kword
+                    storage = get_and_create_mswell_kw(rec[1], key)
+                    push!(storage, (step = length(all_controls) + 1, record = copy(rec)))
+                end
+            elseif key in ("COMPSEGS", "WELSEGS")
                 for val in kword
                     wname = val[1]
                     ms_storage = get_and_create_mswell_kw(wname, key)

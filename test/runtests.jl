@@ -69,6 +69,7 @@ end
 
 @testitem "Multisegment wells" tags = [:ci_wells, :wells, :multisegment] begin
     include("mswells.jl")
+    include("wsegvalv.jl")
 end
 
 @testitem "Sensitivities (simple)" tags = [:ci_adjoint_parameters, :adjoint, :parameters, :immiscible] begin

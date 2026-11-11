@@ -69,6 +69,56 @@ end
 well_segment_is_closed(::ClosedSegment) = true
 
 """
+    SegmentValve(flow_coefficient, area; pipe_length = -1.0,
+        pipe_diameter = -1.0, pipe_roughness = -1.0, pipe_area = -1.0,
+        maximum_area = -1.0, is_open = true)
+
+Subcritical valve (`WSEGVALV`). The signed constriction loss for mass rate `V`
+and mixture density `ρ` is `V*abs(V)/(2ρ*(flow_coefficient*area)^2)`.
+Optional pipe geometry adds well-bore friction; negative geometry values inherit
+the enclosing segment's values. A shut valve imposes zero segment mass rate.
+"""
+struct SegmentValve
+    flow_coefficient::Float64
+    area::Float64
+    pipe_length::Float64
+    pipe_diameter::Float64
+    pipe_roughness::Float64
+    pipe_area::Float64
+    maximum_area::Float64
+    is_open::Bool
+    function SegmentValve(flow_coefficient, area; pipe_length = -1.0,
+            pipe_diameter = -1.0, pipe_roughness = -1.0, pipe_area = -1.0,
+            maximum_area = -1.0, is_open = true)
+        isfinite(flow_coefficient) && flow_coefficient > 0 || throw(ArgumentError("Valve flow coefficient must be finite and positive."))
+        isfinite(area) && area >= 0 || throw(ArgumentError("Valve area must be finite and nonnegative."))
+        all(isfinite, (pipe_length, pipe_diameter, pipe_roughness, pipe_area, maximum_area)) || throw(ArgumentError("Valve geometry must be finite."))
+        pipe_diameter != 0 && pipe_area != 0 || throw(ArgumentError("Valve pipe diameter and area must be positive or defaulted."))
+        return new(flow_coefficient, area, pipe_length, pipe_diameter,
+            pipe_roughness, pipe_area, maximum_area, is_open)
+    end
+end
+
+well_segment_is_closed(v::SegmentValve) = !v.is_open
+
+function segment_pressure_drop(valve::SegmentValve, L, rough, radius_outer, radius_inner, V, ρ, μ)
+    area = max(valve.area, 1e-10)
+    loss = V*abs(V)/(2*ρ*(valve.flow_coefficient*area)^2)
+    length = valve.pipe_length < 0 ? L : valve.pipe_length
+    if length > 0
+        diameter = valve.pipe_diameter < 0 ? 2*radius_outer : valve.pipe_diameter
+        roughness = valve.pipe_roughness < 0 ? rough : valve.pipe_roughness
+        circular_area = π*(diameter/2)^2
+        pipe_area = valve.pipe_area < 0 ? well_cross_section_area(radius_outer, radius_inner) : valve.pipe_area
+        # Preserve the specified pipe velocity if PIPE_A differs from πD²/4.
+        pipe_rate = V*(circular_area/pipe_area)
+        loss += segment_pressure_drop(SegmentWellBoreFrictionHB(), length,
+            roughness, diameter/2, 0.0, pipe_rate, ρ, μ)
+    end
+    return loss
+end
+
+"""
     PotentialDropBalanceWell(discretization)
 
 Equation for the pressure drop equation in a multisegment well. This equation
@@ -104,10 +154,18 @@ function Jutul.update_equation_in_entity!(eq_buf, i, state, state0, eq::Potentia
     s = state.Saturations
     p = state.Pressure
 
-    w = physical_representation(model.domain)
-    seg_model = w.segment_models[face]
+    seg_model = state.SegmentModels[face]
     if well_segment_is_closed(seg_model)
         eq_value = V
+        if seg_model isa SegmentValve
+            # Retain the open-valve stencil while shut so a scheduled
+            # reopening can reuse the Jacobian caches.
+            eq_value += 0*(p[left] + p[right])
+            for ph in axes(densities, 1)
+                eq_value += 0*(densities[ph, left] + densities[ph, right] +
+                    μ[ph, left] + μ[ph, right] + s[ph, left] + s[ph, right])
+            end
+        end
     else
         rho_l, mu_l = saturation_mixed(s, densities, μ, left)
         rho_r, mu_r = saturation_mixed(s, densities, μ, right)
