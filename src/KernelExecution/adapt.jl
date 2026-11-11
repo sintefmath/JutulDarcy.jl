@@ -91,7 +91,7 @@ function Adapt.adapt_structure(ctx::Jutul.KernelAbstractionsContext,
 
     # StaticArrays' eigenvalue calculation above size three calls LAPACK.
     Jutul.jutul_message("Flash",
-        "Disabling the stability bypass. The model has $ncomp components, which is more than the limit (3) for the StaticArrays eigenvalue calculation required.",
+        "Disabling the stability bypass. The model has $ncomp components, which is more than the limit (3) for the StaticArrays eigenvalue calculation required on GPUs.",
         color = :yellow)
     flash = FlashResults{typeof(flash.method), false, flash.reuse_guess}(
         flash.method, flash.use_threads, flash.tolerance,
