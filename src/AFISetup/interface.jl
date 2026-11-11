@@ -23,6 +23,9 @@ currently supported.
   time points are normalized (i.e. in the range [0, 1]). Defaults to false.
 - `reservoir`: An optional existing reservoir domain to use instead of setting
   up a new one from the AFI file.
+- `perf_sort`: The perforation order. Defaults to `:input`, preserving each
+  well's AFI connection order. Pass `:depth`, `:track`, or a dictionary keyed by
+  well name strings to request a different order.
 """
 function setup_case_from_afi
 

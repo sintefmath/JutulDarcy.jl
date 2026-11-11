@@ -673,6 +673,11 @@ end
 
 function setup_forces(model::SimulationModel{D, S}; mask = nothing) where {D <: DiscretizedDomain{G}, S<:MultiPhaseSystem} where G<:WellDomain
     mask::Union{Nothing, PerforationMask}
+    if !isnothing(mask)
+        nperf = count_entities(model.data_domain, Perforations())
+        length(mask.values) == nperf ||
+            throw(DimensionMismatch("Expected $nperf perforation mask values, got $(length(mask.values))"))
+    end
     return (mask = mask,)
 end
 

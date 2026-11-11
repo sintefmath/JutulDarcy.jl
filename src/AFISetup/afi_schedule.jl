@@ -6,7 +6,6 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel;
         injector_max_bhp_limit = Inf,
         producer_min_bhp_limit = si_unit(:atm)
     )
-    OPEN = GeoEnergyIO.IXParser.IX_OPEN
     CLOSED = GeoEnergyIO.IXParser.IX_CLOSED
     well_setup = Dict{Symbol, Any}()
     group_lists = Dict{String, Any}(
@@ -16,40 +15,34 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel;
     wells = get_model_wells(model)
     for (wname, w) in pairs(wells)
         w_dd = model[wname].data_domain
-        orig_perf = w_dd[:perforation_connection_ids, JutulDarcy.Perforations()]
-        remap = Dict{Any, Int}()
-        for (i, p) in enumerate(orig_perf)
-            remap[p] = i
-        end
-        wdomain = physical_representation(w)
-        nperf = length(wdomain.perforations.reservoir)
-        if haskey(w_dd, :well_index_multiplier)
-            pimult = copy(w_dd[:well_index_multiplier, JutulDarcy.Perforations()])
-        else
-            pimult = ones(length(nperf))
-        end
+        ids = w_dd[:perforation_connection_ids, JutulDarcy.Perforations()]
+        nperf = length(physical_representation(w).perforations.reservoir)
+        length(ids) == nperf && allunique(ids) ||
+            throw(ArgumentError("Well $wname must have one unique AFI connection ID per perforation"))
         well_setup[wname] = Dict{String, Any}(
             "Constraints" => OrderedDict{String, Float64}(),
             "HistoryDataControl" => missing,
             "HistoricalControlModes" => missing,
             "Status" => "OPEN",
-            "PiMultiplier" => pimult,
-            "BaseMultiplier" => ones(nperf),
-            "ConnectionStatus" => fill(OPEN, nperf),
-            "EffectivePiMultiplier" => ones(nperf),
+            "PiMultiplier" => ones(nperf),
+            "ConnectionStatus" => fill(CLOSED, nperf),
             "Type" => "PRODUCER",
-            "PerforationMap" => remap,
+            "PerforationMap" => Dict(id => i for (i, id) in enumerate(ids)),
+            "InputConnectionOrder" => OrderedDict{Tuple, Int}(),
             "Enthalpy" => missing,
             "injector_max_bhp_limit" => injector_max_bhp_limit,
             "producer_min_bhp_limit" => producer_min_bhp_limit
         )
     end
 
+    completion_names = afi_completion_names(find_records(afi, "WellDef", "IX"))
+    for record in find_records(afi, "WellDef", "IX", steps = false)
+        update_afi_well_connections!(well_setup, record.value, completion_names)
+    end
+
     stream_keys = ("FluidEnthalpy", "FluidStream", "FluidSourceExternal", "FluidSourceInternal")
     streams = Dict(k => Dict{String, Any}() for k in stream_keys)
 
-    reservoir = reservoir_domain(model)
-    wells = get_model_wells(model)
     sys = reservoir_model(model).system
     is_geothermal = JutulDarcy.get_phases(sys) == (AqueousPhase(),) && JutulDarcy.model_is_thermal(model)
     if is_geothermal
@@ -57,13 +50,6 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel;
     else
         tab = missing
     end
-    # Constraints are in FM + completion status?
-    # IX Steps:
-    # WellDef:
-    #  - connection_factor_reset
-    #  - pi_multiplier_reset
-    # WellToCellConnections status change
-
     ix_steps = afi["IX"]["STEPS"]
     fm_steps = afi["FM"]["STEPS"]
     observation_data = get(afi["FM"], "OBSH", missing)
@@ -93,55 +79,7 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel;
             kw = recv.keyword
             rec = recv.value
             if kw == "WellDef"
-                w2c = get(rec, "WellToCellConnections", missing)
-                if !ismissing(w2c)
-                    wname = Symbol(rec["WellName"])
-                    ws = get(well_setup, wname, missing)
-                    if ismissing(ws)
-                        continue
-                    end
-                    # Match this record's rows by identity, independent of ordering.
-                    cells = get(w2c, "Cell", [])
-                    completion = get(w2c, "Completion", map(i -> "Completion$i", 1:length(cells)))
-                    connection_ids = map(tuple, cells, completion)
-                    pmap = Dict(i => ws["PerforationMap"][uid] for (i, uid) in enumerate(connection_ids) if haskey(ws["PerforationMap"], uid))
-                    eff_mult = ws["EffectivePiMultiplier"]
-                    mult = ws["PiMultiplier"]
-                    base_mult = ws["BaseMultiplier"]
-                    status = ws["ConnectionStatus"]
-                    # base_trans = model[wname].data_domain[:well_index]
-
-                    for (i, v) in enumerate(get(w2c, "PiMultiplier", []))
-                        i_mapped = get(pmap, i, missing)
-                        if ismissing(i_mapped)
-                            continue
-                        end
-                        # Not sure what -1 means but we truncate to zero
-                        mult[i_mapped] = max(v, 0.0)
-                    end
-                    for (i, v) in enumerate(get(w2c, "Status", []))
-                        i_mapped = get(pmap, i, missing)
-                        if ismissing(i_mapped)
-                            continue
-                        end
-                        status[i_mapped] = v
-                    end
-                    # TODO: Figure out what to do with Transmissibility changes outside of multiplier
-                    # for (i, v) in enumerate(get(w2c, "Transmissibility", []))
-                    #     base_mult[i] = v/base_trans[i]
-                    # end
-                    for i in eachindex(eff_mult, mult, status)
-                        next_mult = mult[i]
-                        if status[i] != OPEN
-                            next_mult = 0.0
-                        end
-                        if next_mult < 0.0
-                            error("Negative pi multiplier $next_mult for well $wname, perforation index $i at report step $dateno: $date")
-                        end
-                        @assert base_mult[i] == 1.0
-                        eff_mult[i] = base_mult[i]*next_mult
-                    end
-                end
+                update_afi_well_connections!(well_setup, rec, completion_names)
             else
                 println("IX: $kw: Skipping record $i for $date, record not used by setup code.")
             end
@@ -212,13 +150,7 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel;
                                 end
                             end
                         end
-                        s = get(rec, "Status", "OPEN")
-                        wsetup["Status"] = s
-                        if s == "ALL_COMPLETIONS_SHUTIN" && false
-                            well_setup[wname]["ConnectionStatus"] .= CLOSED
-                            eff_mult = well_setup[wname]["EffectivePiMultiplier"]
-                            eff_mult .= 0.0
-                        end
+                        wsetup["Status"] = get(rec, "Status", wsetup["Status"])
                         if haskey(rec, "Type")
                             wsetup["Type"] = rec["Type"]
                         end
@@ -294,6 +226,45 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel;
     return (timesteps, forces)
 end
 
+function update_afi_well_connections!(well_setup, record, completion_names)
+    name = record["WellName"]
+    well = get(well_setup, Symbol(name), nothing)
+    isnothing(well) && return
+    connections = get(record, "WellToCellConnections", Dict())
+    ids = afi_connection_ids(name, connections, completion_names)
+    input_order = well["InputConnectionOrder"]
+    if isnothing(ids)
+        # Indexed updates use AFI input order, including rows for inactive grid cells.
+        positions = collect(values(input_order))
+    else
+        model_positions = well["PerforationMap"]
+        positions = map(ids) do id
+            get!(input_order, id) do
+                i = get(model_positions, id, 0)
+                if i > 0
+                    well["ConnectionStatus"][i] = GeoEnergyIO.IXParser.IX_OPEN
+                end
+                return i
+            end
+        end
+    end
+    # Time-dependent Transmissibility and reset functions are not supported here.
+    for field in ("PiMultiplier", "Status")
+        updates = get(connections, field, missing)
+        ismissing(updates) && continue
+        target = field == "Status" ? well["ConnectionStatus"] : well["PiMultiplier"]
+        for (row, value) in enumerate(updates)
+            ismissing(value) && continue
+            row <= length(positions) ||
+                throw(ArgumentError("Well $name has a $field update at row $row with no corresponding AFI connection"))
+            i = positions[row]
+            i == 0 && continue
+            target[i] = field == "PiMultiplier" ? max(value, 0.0) : value
+        end
+    end
+    return nothing
+end
+
 function date_delta_to_seconds(dt_i::Millisecond)
     return Dates.value(dt_i)/1000.0
 end
@@ -308,9 +279,17 @@ function forces_from_constraints(well_setup, observation_data, streams, date, sy
 
     for wname in keys(wells)
         wmodel = model[wname]
-        wdomain = wmodel.data_domain
         wsetup = well_setup[wname]
         status = wsetup["Status"]
+        open = wsetup["ConnectionStatus"] .== GeoEnergyIO.IXParser.IX_OPEN
+        mult = ifelse.(open, wsetup["PiMultiplier"], 0.0)
+        if status == "ALL_COMPLETIONS_SHUTIN"
+            fill!(mult, 0.0)
+        end
+        if any(x -> !(x ≈ 1.0), mult)
+            wforces[wname] = setup_forces(wmodel, mask = PerforationMask(mult))
+        end
+        do_shut = all(iszero, mult)
         wtype = lowercase(wsetup["Type"])
         c = wsetup["Constraints"]
         hctrl = wsetup["HistoryDataControl"]
@@ -366,14 +345,6 @@ function forces_from_constraints(well_setup, observation_data, streams, date, sy
                 )
                 wsgn = 1.0
             end
-            mult = well_setup[wname]["EffectivePiMultiplier"]
-            if any(x -> !(x ≈ 1.0), mult)
-                mask = PerforationMask(mult)
-                wforces[wname] = setup_forces(wmodel, mask = mask)
-                do_shut = sum(mask.values) ≈ 0.0
-            else
-                do_shut = false
-            end
             if do_shut && !(ctrl isa DisabledControl)
                 println("Well $wname has all perforations closed at $date, disabling well for this step.")
                 ctrl = JutulDarcy.setup_disabled_control()
@@ -409,7 +380,7 @@ function forces_from_constraints(well_setup, observation_data, streams, date, sy
                 limits[wname] = lims
             end
         else
-            ctrl = JutulDarcy.setup_disabled_control()
+            control[wname] = JutulDarcy.setup_disabled_control()
         end
     end
     f = setup_reservoir_forces(model; control = control, limits = limits, pairs(wforces)...)

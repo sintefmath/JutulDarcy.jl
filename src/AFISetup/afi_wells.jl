@@ -1,123 +1,101 @@
-function setup_wells(d::AFIInputFile, reservoir; perf_sort = Dict())
-    welldefs = find_records(d, "WellDef", "IX", steps = true, model = true)
-    well_dict = OrderedDict{String, Any}()
-    for welldef in welldefs
-        w2c = get(welldef.value, "WellToCellConnections", Dict())
-        if !haskey(w2c, "Cell")
+function afi_completion_names(welldefs)
+    names = Dict{Tuple{String, Any}, Union{String, Missing}}()
+    for record in welldefs
+        wname = record.value["WellName"]
+        connections = get(record.value, "WellToCellConnections", Dict())
+        cells = get(connections, "Cell", missing)
+        completions = get(connections, "Completion", missing)
+        if ismissing(cells) || ismissing(completions) || isempty(completions)
             continue
         end
-        wname = welldef.value["WellName"]
-        w2c = copy(w2c)
-
-        cells = w2c["Cell"]
-        if haskey(w2c, "Completion")
-            completion = w2c["Completion"]
-        else
-            @warn "WellTocellConnections entry $wname has no Completion information. Generating default completion names."
-            completion = map(d -> "Completion$d", 1:length(cells))
-        end
-        w2c["UniqueID"] = map(tuple, cells, completion)
-        if haskey(well_dict, wname)
-            current_w2c = well_dict[wname]["w2c"]
-            current_uids = current_w2c["UniqueID"]
-            uid_pos_in_current = Int[]
-            n_added = 0
-            is_new = Bool[]
-            for uid in w2c["UniqueID"]
-                pos = findfirst(x -> x == uid, current_uids)
-                if isnothing(pos)
-                    push!(current_uids, uid)
-                    n_added += 1
-                    new_idx = length(current_uids)
-                    push!(is_new, true)
-                else
-                    new_idx = pos
-                    push!(is_new, false)
-                end
-                push!(uid_pos_in_current, new_idx)
+        length(completions) == length(cells) ||
+            throw(ArgumentError("Well $wname has different numbers of cells and completion names"))
+        for (cell, completion) in zip(cells, completions)
+            ismissing(completion) && continue
+            key = (wname, cell)
+            name = String(completion)
+            if !isequal(get!(names, key, name), name)
+                names[key] = missing
             end
-            if n_added > 0
-                missing_fields = setdiff(keys(current_w2c), keys(w2c))
-                if length(missing_fields) > 0
-                    @warn "New WellDef entry for well $wname has new cells but is missing fields $(missing_fields). These will be filled with UNINITIALIZED values and may lead to a crash if used. Please check the AFI file for consistency."
-                end
-                nuid = length(current_uids)
-                for (k, v) in pairs(current_w2c)
-                    if k == "UniqueID"
-                        continue
-                    end
-                    function get_value(i)
-                        # Pad with missing
-                        if i <= length(v)
-                            out = v[i]
-                        else
-                            out = missing
-                        end
-                        return out
-                    end
-                    current_w2c[k] = map(get_value, 1:nuid)
-                end
-            end
-            @assert length(uid_pos_in_current) == length(w2c["UniqueID"])
-            for (k, v) in pairs(w2c)
-                if k in ("Transmissibility", "Status", "PiMultiplier")
-                    # These can vary over time - we skip these
-                    continue
-                end
-                if haskey(current_w2c, k)
-                    old_value = current_w2c[k]
-                    new_value = v
-                    if old_value != new_value
-                        # Sometimes these get set to zero, which we allow
-                        if k == "WellBoreRadius" && length(old_value) == length(new_value)
-                            ok = true
-                            for i in eachindex(old_value, new_value)
-                                ov = old_value[i]
-                                nv = new_value[i]
-                                if !isapprox(ov, nv, atol = 1e-3) && nv > 0.0
-                                    ok = false
-                                    break
-                                end
-                            end
-                            if ok
-                                continue
-                            end
-                        end
-                        msg = ""
-                        for (i, v) in enumerate(new_value)
-                            current_i = uid_pos_in_current[i]
-                            if is_new[i]
-                                # This is a new cell - we take the new value
-                                old_value[current_i] = v
-                                continue
-                            end
-                            ov = old_value[current_i]
-                            uid = current_uids[current_i]
-                            if ov isa Real && ov ≈ 0.0 && !(v ≈ 0.0)
-                                # Old value was set to zero - we accept the new value
-                                old_value[current_i] = v
-                            elseif (v isa Real && !isapprox(v, ov, rtol = 1e-6) && !(k == "WellBoreRadius" && v ≈ 0.0)) || (v isa String && v != ov)
-                                msg *= " Index $i cell-completion $uid: old=$(ov) vs new=$v\n"
-                            end
-                        end
-                        if msg != ""
-                            @warn "Duplicate WellDef WellToCellConnections entry for well $wname entry in AFI file with different values. Keyword: $k. Using initially provided entry. Details:\n$msg"
-                        end
-                    end
-                else
-                    current_w2c[k] = v
-                end
-            end
-        else
-            well_dict[wname] = Dict()
-            well_dict[wname]["w2c"] = deepcopy(w2c)
-            well_dict[wname]["ref_depth"] = nothing
         end
     end
-    if perf_sort isa Symbol
-        perf_sort = Dict{String, Symbol}(
-            k => perf_sort for k in keys(well_dict)
-        )
+    return names
+end
+
+function afi_connection_ids(wname, connections, names)
+    cells = get(connections, "Cell", missing)
+    ismissing(cells) && return nothing
+    completions = get(connections, "Completion", missing)
+    ids = map(eachindex(cells)) do i
+        cell = cells[i]
+        if ismissing(completions) || isempty(completions) || ismissing(completions[i])
+            name = get(names, (wname, cell), nothing)
+            ismissing(name) &&
+                throw(ArgumentError("Well $wname has multiple completions in cell $cell. The AFI record must identify the completion."))
+        else
+            name = String(completions[i])
+        end
+        return (cell, name)
+    end
+    allunique(ids) || throw(ArgumentError("Well $wname has duplicate cell and completion pairs in a WellDef record"))
+    return ids
+end
+
+function merge_afi_perforation_properties!(properties, connections, positions, wname)
+    for field in ("TrueVerticalDepth", "Skin", "PiMultiplier", "PenetrationDirection",
+            "Transmissibility", "PermeabilityThickness", "WellBoreRadius")
+        values = get(connections, field, missing)
+        if ismissing(values) || isempty(values)
+            continue
+        end
+        if field != "PiMultiplier" && length(values) != length(positions)
+            throw(ArgumentError("Well $wname has different numbers of cells and $field values"))
+        end
+        column = get!(Dict{Int, Any}, properties, field)
+        changes_over_time = field in ("PiMultiplier", "Transmissibility")
+        for (row, value) in enumerate(values)
+            ismissing(value) && continue
+            row <= length(positions) ||
+                throw(ArgumentError("Well $wname has a $field value at row $row with no corresponding AFI connection"))
+            position = positions[row]
+            old = get(column, position, missing)
+            if ismissing(old) || (!changes_over_time && old isa Real && old ≈ 0.0)
+                column[position] = value
+            elseif !changes_over_time
+                if field == "WellBoreRadius"
+                    matches = value ≈ 0.0 || isapprox(old, value; atol = 1e-3)
+                elseif old isa Real && value isa Real
+                    matches = isapprox(old, value; rtol = 1e-6)
+                else
+                    matches = isequal(old, value)
+                end
+                if !matches
+                    @warn "Conflicting $field for well $wname, connection $(connections["Cell"][row]). Using the first value ($old)."
+                end
+            end
+        end
+    end
+end
+
+function setup_wells(d::AFIInputFile, reservoir; perf_sort = :input)
+    welldefs = find_records(d, "WellDef", "IX", steps = true, model = true)
+    completion_names = afi_completion_names(welldefs)
+    well_dict = OrderedDict{String, Any}()
+    for record in welldefs
+        wname = record.value["WellName"]
+        connections = get(record.value, "WellToCellConnections", Dict())
+        well = get!(well_dict, wname) do
+            Dict{String, Any}(
+                "positions" => OrderedDict{Tuple, Int}(),
+                "properties" => Dict{String, Dict{Int, Any}}(),
+                "ref_depth" => nothing
+            )
+        end
+        ids = afi_connection_ids(wname, connections, completion_names)
+        (isnothing(ids) || isempty(ids)) && continue
+        positions = well["positions"]
+        rows = [get!(() -> length(positions) + 1, positions, id) for id in ids]
+        merge_afi_perforation_properties!(well["properties"], connections, rows, wname)
     end
     # We do a second pass when all wells have been found
     well_kws = find_records(d, "Well", "FM", steps = true, model = true)
@@ -129,7 +107,7 @@ function setup_wells(d::AFIInputFile, reservoir; perf_sort = Dict())
             welltab = get(val, "wells", Dict())
         end
         for (wname, val) in pairs(welltab)
-            if haskey(val, "BottomHoleRefDepth")
+            if haskey(val, "BottomHoleRefDepth") && haskey(well_dict, wname)
                 newval = val["BottomHoleRefDepth"]
                 oldval = well_dict[wname]["ref_depth"]
                 if isnothing(oldval)
@@ -145,127 +123,65 @@ function setup_wells(d::AFIInputFile, reservoir; perf_sort = Dict())
         GeoEnergyIO.IXParser.IX_J => :y,
         GeoEnergyIO.IXParser.IX_K => :z,
     )
-    if haskey(reservoir, :net_to_gross)
-        ntg = reservoir[:net_to_gross]
-    else
-        ntg = missing
-    end
-    # Set up mappings
     mesh = physical_representation(reservoir)
-    # IJK indices
-    ijk = map(i -> cell_ijk(mesh, i), 1:number_of_cells(mesh))
-    ijk_to_local = Dict{Tuple{Int, Int, Int}, Int}()
-    for (i, c) in enumerate(ijk)
-        ijk_to_local[c] = i
-    end
-    # Linear indices
+    ijk_to_local = Dict(cell_ijk(mesh, i) => i for i in 1:number_of_cells(mesh))
     global_to_local = afi_to_jutul_cell_map(d, mesh)
-    function get_if_active(w2c, kw, active)
-        x = get(w2c, kw, missing)
-        if ismissing(x) || length(x) == 0
-            return missing
-        end
-        return x[active]
-    end
     wells = []
-    for (k, v) in pairs(well_dict)
-        w2c = v["w2c"]
-        cells = get(w2c, "Cell", Int[])
-        active = Bool[]
-        cells_mapped = Int[]
-        head = missing
-        for c in cells
-            if c isa Int
-                # TODO: Not clear to me if these include the cell index offset or not
-                # next = c
-                next = get(global_to_local, c, missing)
-            else
-                c::Tuple{Int, Int, Int}
-                next = get(ijk_to_local, Tuple(c), missing)
-            end
-            if ismissing(next)
-                push!(active, false)
-            else
-                if ismissing(head)
-                    head = cell_ijk(mesh, c)
-                end
-                push!(active, true)
-                push!(cells_mapped, next)
+    for (name, well) in pairs(well_dict)
+        ids = collect(keys(well["positions"]))
+        isempty(ids) && continue
+        properties = well["properties"]
+        input_indices = Int[]
+        local_cells = Int[]
+        for (i, (cell, _)) in enumerate(ids)
+            local_cell = get(cell isa Int ? global_to_local : ijk_to_local, cell, nothing)
+            if !isnothing(local_cell)
+                push!(input_indices, i)
+                push!(local_cells, local_cell)
             end
         end
-        tvd = get(w2c, "TrueVerticalDepth", missing)
-        if !ismissing(tvd)
-            if isnothing(v["ref_depth"]) && length(cells) > 0
-                v["ref_depth"] = w2c["TrueVerticalDepth"][1]
-            end
-            tvd = tvd[active]
-        end
-        nperf = length(cells)
-        skin = get(w2c, "Skin", zeros(nperf))[active]
-        pi_mult = get(w2c, "PiMultiplier", ones(nperf))[active]
-        dir = get(w2c, "PenetrationDirection", missing)
-        if ismissing(dir)
-            dir = fill(:z, nperf)
-        else
-            dir = map(x -> dir_to_symbol[x], dir)
-        end
-        dir = dir[active]
-        WI = get_if_active(w2c, "Transmissibility", active)
-        Kh = get_if_active(w2c, "PermeabilityThickness", active)
-        drainage_radius = get_if_active(w2c, "PressureEquivalentRadius", active)
-        r = get(w2c, "WellBoreRadius", fill(0.1, nperf))[active]
-        compnames = get(w2c, "Completion", missing)
-        if ismissing(compnames)
-            compnames = map(i -> "COMPLETION_$i", cells)
-        end
-        compnames = compnames[active]
-        worder = get(perf_sort, k, :track)
-        sorted_ix = JutulDarcy.well_completion_sortperm(reservoir, head, worder, cells_mapped, dir)
-        function reorder_and_typecheck(::Missing, T = missing, default = missing)
-            return missing
-        end
-        function reorder_and_typecheck(arr::AbstractVector, T = missing, default = missing)
-            out = arr[sorted_ix]
-            for (i, v) in enumerate(out)
-                if ismissing(v)
-                    out[i] = default
-                end
-            end
-            if ismissing(T)
-                out = out
-            else
-                out = convert(Vector{T}, out)
-            end
-            return out
+        if isempty(local_cells)
+            @warn "Skipping AFI well $name because it has no active connections"
+            continue
         end
 
-        cells_mapped = cells_mapped[sorted_ix]
-        skin = reorder_and_typecheck(skin, Float64)
-        WI = reorder_and_typecheck(WI, Float64, NaN)
-        Kh = reorder_and_typecheck(Kh, Float64)
-        r = reorder_and_typecheck(r, Float64)
-        pi_mult = reorder_and_typecheck(pi_mult, Float64, 1.0)
-        # Not necessarily Float64
-        dir = reorder_and_typecheck(dir)
-        tvd = reorder_and_typecheck(tvd)
-        compnames = reorder_and_typecheck(compnames)
-        w = setup_well(reservoir, cells_mapped,
-            skin = skin,
-            dir = dir,
-            WI = WI,
-            Kh = Kh,
-            net_to_gross = ntg,
-            # drainage_radius = drainage_radius,
-            radius = r,
-            reference_depth = v["ref_depth"],
-            name = Symbol(k)
+        dirs = get(properties, "PenetrationDirection", Dict())
+        direction = Symbol[dir_to_symbol[get(dirs, i, GeoEnergyIO.IXParser.IX_K)] for i in input_indices]
+        head = cell_ijk(mesh, first(local_cells))
+        order = perf_sort isa Symbol ? perf_sort : get(perf_sort, name, :input)
+        permutation = JutulDarcy.well_completion_sortperm(reservoir, head, order, local_cells, direction)
+        input_indices = input_indices[permutation]
+        local_cells = local_cells[permutation]
+
+        function property_values(field, default)
+            column = get(properties, field, Dict())
+            return [get(column, i, default) for i in input_indices]
+        end
+        depth = get(properties, "TrueVerticalDepth", Dict())
+        reference_depth = well["ref_depth"]
+        if isnothing(reference_depth)
+            reference_depth = get(depth, 1, nothing)
+        end
+        w = setup_well(reservoir, local_cells,
+            skin = Float64.(property_values("Skin", 0.0)),
+            dir = direction[permutation],
+            WI = Float64.(property_values("Transmissibility", NaN)),
+            Kh = Float64.(property_values("PermeabilityThickness", NaN)),
+            radius = Float64.(property_values("WellBoreRadius", 0.1)),
+            reference_depth = reference_depth,
+            name = Symbol(name)
         )
-        w[:well_index_multiplier, JutulDarcy.Perforations()] = pi_mult
-        w[:perforation_names, JutulDarcy.Perforations()] = compnames
-        w[:original_perforation_indices, JutulDarcy.Perforations()] = findall(active)[sorted_ix]
-        w[:perforation_connection_ids, JutulDarcy.Perforations()] = w2c["UniqueID"][active][sorted_ix]
-        if !ismissing(tvd)
-            w[:perforation_centroids, JutulDarcy.Perforations()][3, :] .= tvd
+        perfs = JutulDarcy.Perforations()
+        connection_ids = ids[input_indices]
+        w[:well_index_multiplier, perfs] = Float64.(property_values("PiMultiplier", 1.0))
+        w[:perforation_names, perfs] = [isnothing(completion) ? "COMPLETION_$cell" : completion for (cell, completion) in connection_ids]
+        w[:original_perforation_indices, perfs] = input_indices
+        w[:perforation_connection_ids, perfs] = connection_ids
+        if !isempty(depth)
+            centroids = w[:perforation_centroids, perfs]
+            for (i, input_index) in enumerate(input_indices)
+                centroids[3, i] = get(depth, input_index, centroids[3, i])
+            end
         end
         push!(wells, w)
     end
@@ -275,7 +191,7 @@ end
 function afi_to_jutul_cell_map(d, mesh)
     cell_offset = cell_index_offset(d)
     global_to_local = Dict{Int, Int}()
-    cmap = mesh.cell_map
+    cmap = mesh isa UnstructuredMesh ? mesh.cell_map : nothing
     if isnothing(cmap)
         cmap = 1:number_of_cells(mesh)
     end
