@@ -71,12 +71,14 @@ well_segment_is_closed(::ClosedSegment) = true
 """
     SegmentValve(flow_coefficient, area; pipe_length = -1.0,
         pipe_diameter = -1.0, pipe_roughness = -1.0, pipe_area = -1.0,
-        maximum_area = -1.0, is_open = true)
+        maximum_area = -1.0, is_open = true, enabled = true)
 
 Subcritical valve (`WSEGVALV`). The signed constriction loss for mass rate `V`
 and mixture density `ρ` is `V*abs(V)/(2ρ*(flow_coefficient*area)^2)`.
 Optional pipe geometry adds well-bore friction; negative geometry values inherit
 the enclosing segment's values. A shut valve imposes zero segment mass rate.
+With `enabled = false`, the enclosing segment's pipe friction is used until
+the valve is introduced by the schedule.
 """
 struct SegmentValve
     flow_coefficient::Float64
@@ -87,21 +89,26 @@ struct SegmentValve
     pipe_area::Float64
     maximum_area::Float64
     is_open::Bool
+    enabled::Bool
     function SegmentValve(flow_coefficient, area; pipe_length = -1.0,
             pipe_diameter = -1.0, pipe_roughness = -1.0, pipe_area = -1.0,
-            maximum_area = -1.0, is_open = true)
+            maximum_area = -1.0, is_open = true, enabled = true)
         isfinite(flow_coefficient) && flow_coefficient > 0 || throw(ArgumentError("Valve flow coefficient must be finite and positive."))
         isfinite(area) && area >= 0 || throw(ArgumentError("Valve area must be finite and nonnegative."))
         all(isfinite, (pipe_length, pipe_diameter, pipe_roughness, pipe_area, maximum_area)) || throw(ArgumentError("Valve geometry must be finite."))
         pipe_diameter != 0 && pipe_area != 0 || throw(ArgumentError("Valve pipe diameter and area must be positive or defaulted."))
         return new(flow_coefficient, area, pipe_length, pipe_diameter,
-            pipe_roughness, pipe_area, maximum_area, is_open)
+            pipe_roughness, pipe_area, maximum_area, is_open, enabled)
     end
 end
 
-well_segment_is_closed(v::SegmentValve) = !v.is_open
+well_segment_is_closed(v::SegmentValve) = v.enabled && !v.is_open
 
 function segment_pressure_drop(valve::SegmentValve, L, rough, radius_outer, radius_inner, V, ρ, μ)
+    if !valve.enabled
+        return segment_pressure_drop(SegmentWellBoreFrictionHB(), L, rough,
+            radius_outer, radius_inner, V, ρ, μ)
+    end
     area = max(valve.area, 1e-10)
     loss = V*abs(V)/(2*ρ*(valve.flow_coefficient*area)^2)
     length = valve.pipe_length < 0 ? L : valve.pipe_length
@@ -154,7 +161,7 @@ function Jutul.update_equation_in_entity!(eq_buf, i, state, state0, eq::Potentia
     s = state.Saturations
     p = state.Pressure
 
-    seg_model = state.SegmentModels[face]
+    seg_model = physical_representation(model.domain).segment_models[face]
     if well_segment_is_closed(seg_model)
         eq_value = V
         if seg_model isa SegmentValve
@@ -183,6 +190,7 @@ function Jutul.update_equation_in_entity!(eq_buf, i, state, state0, eq::Potentia
         end
     end
     eq_buf[] = eq_value
+    return nothing
 end
 
 function saturation_mixed(saturations, densities, viscosities, ix)

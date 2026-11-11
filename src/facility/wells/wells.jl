@@ -677,8 +677,7 @@ function setup_forces(model::SimulationModel{D, S}; mask = nothing, segment_mode
         well = physical_representation(model.domain)
         well isa MultiSegmentWell || throw(ArgumentError("Segment model forces require a multisegment well."))
         length(segment_models) == well.num_segments || throw(ArgumentError("Expected one model per well segment."))
-        all(v -> v isa eltype(well.segment_models), segment_models) || throw(ArgumentError("Segment model forces must use types included in the well's segment_models element type."))
-        return (mask = mask, segment_models = concrete_segment_models(segment_models))
+        return (mask = mask, segment_models = Any[segment_models...])
     end
     return (mask = mask,)
 end

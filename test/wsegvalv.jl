@@ -1,5 +1,7 @@
 using Jutul, JutulDarcy, GeoEnergyIO, Test
 
+struct ConstructorTestSegment{I} end
+
 @testset "Segment valve pressure loss" begin
     JD = JutulDarcy
     valve = SegmentValve(0.9, 2e-4; pipe_length = 0)
@@ -10,6 +12,7 @@ using Jutul, JutulDarcy, GeoEnergyIO, Test
     @test drop(SegmentValve(0.9, 1e-4; pipe_length = 0), 2.0) ≈ 4*drop(valve, 2.0)
     pipe = SegmentValve(0.9, 2e-4)
     @test drop(pipe, 2.0) ≈ drop(valve, 2.0) + drop(SegmentWellBoreFrictionHB(), 2.0)
+    @test drop(SegmentValve(0.9, 2e-4; enabled = false), 2.0) ≈ drop(SegmentWellBoreFrictionHB(), 2.0)
     explicit = SegmentValve(0.9, 2e-4; pipe_length = 12, pipe_diameter = 0.12,
         pipe_roughness = 1e-4, pipe_area = 0.02)
     pipe_loss = segment_pressure_drop(SegmentWellBoreFrictionHB(), 12.0, 1e-4,
@@ -23,12 +26,15 @@ using Jutul, JutulDarcy, GeoEnergyIO, Test
     well = MultiSegmentWell([1 2; 2 3], [1, 2], [2, 3];
         segment_models = Any[SegmentWellBoreFrictionHB(), valve])
     @test eltype(well.segment_models) == Union{SegmentWellBoreFrictionHB, SegmentValve}
-    @test length(Base.uniontypes(eltype(well.segment_models))) <= 4
-    @test isbitstype(SegmentValve)
-    mixed_drop(models, i, q) = drop(models[i], q)
-    @test (@inferred mixed_drop(well.segment_models, 2, 2.0)) ≈ drop(valve, 2.0)
-    @test_throws ArgumentError JD.concrete_segment_models(
-        Any[valve, SegmentWellBoreFrictionHB(), JD.ClosedSegment(), nothing, missing])
+    for supplied in (Any[valve, valve], Union{SegmentWellBoreFrictionHB, SegmentValve}[valve, valve])
+        homogeneous = MultiSegmentWell([1 2; 2 3], [1, 2], [2, 3]; segment_models = supplied)
+        @test eltype(homogeneous.segment_models) == SegmentValve
+        @test homogeneous.segment_models == supplied
+    end
+    supplied = Any[ConstructorTestSegment{i}() for i in 1:5]
+    many = MultiSegmentWell([1 2 3 4 5; 2 3 4 5 6], [1], [6]; segment_models = supplied)
+    @test length(Base.uniontypes(eltype(many.segment_models))) == 5
+    @test many.segment_models == supplied
 end
 
 @testset "WSEGVALV schedule and simulation" begin
@@ -38,7 +44,7 @@ end
     well = physical_representation(case.model[:P])
     @test well.neighborship == [2 3; 1 2]
     @test well.perforations.self == [2, 3]
-    @test eltype(well.segment_models) == Union{SegmentWellBoreFrictionHB, SegmentValve}
+    @test eltype(well.segment_models) == SegmentValve
     @test all(v -> v isa SegmentValve, well.segment_models)
     valve1, valve2 = well.segment_models
     @test valve1.pipe_length == 0
@@ -61,9 +67,9 @@ end
     @test abs(result.result.states[2][:P][:TotalMassFlux][1]) < 1e-10
     @test abs(result.result.states[1][:P][:TotalMassFlux][1]) > 1e-6
     @test abs(result.result.states[3][:P][:TotalMassFlux][1]) > 1e-6
-    # A second simulator and the model retain their original configuration.
     @test well.segment_models[1].is_open
-    @test case.state0[:P][:SegmentModels][1].is_open
+    @test !haskey(case.state0[:P], :SegmentModels)
+    @test all(state -> !haskey(state[:P], :SegmentModels), result.result.states)
 
     @testset "Merging preserves valve types and forces" begin
         wm = JutulDarcy.WellMerging
@@ -85,7 +91,6 @@ end
         @test !combined.segment_models[1].is_open
         @test combined.segment_models[2] == valve2
         @test all(v -> v isa SegmentWellBoreFrictionHB, combined.segment_models[3:4])
-        @test eltype(combined.segment_models) != Any
     end
 
     @testset "Initially shut valve reopens" begin
@@ -97,6 +102,19 @@ end
             error_on_incomplete = true, timesteps = :none, nonlinear_tolerance = 1e-7)
         @test abs(reopened.result.states[1][:P][:TotalMassFlux][1]) < 1e-10
         @test abs(reopened.result.states[2][:P][:TotalMassFlux][1]) > 1e-6
+    end
+
+    @testset "Valves introduced after the first step" begin
+        delayed = deepcopy(data)
+        steps = delayed["SCHEDULE"]["STEPS"]
+        steps[2]["WSEGVALV"] = pop!(steps[1], "WSEGVALV")
+        delayed_case = setup_case_from_data_file(delayed; block_backend = false)
+        @test eltype(physical_representation(delayed_case.model[:P]).segment_models) == SegmentValve
+        @test all(v -> v isa SegmentValve && !v.enabled, delayed_case.forces[1][:P].segment_models)
+        @test all(v -> v isa SegmentValve && v.enabled, delayed_case.forces[2][:P].segment_models)
+        delayed_result = simulate_reservoir(delayed_case; info_level = -1,
+            error_on_incomplete = true, timesteps = :none, nonlinear_tolerance = 1e-7)
+        @test length(delayed_result.states) == 3
     end
 
     @testset "Invalid segment number" begin

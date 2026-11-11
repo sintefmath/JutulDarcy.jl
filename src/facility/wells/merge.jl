@@ -10,7 +10,7 @@ import ..JutulDarcy:
     WellFromFacilityFlowCT, WellFromFacilityThermalCT,
     FacilityFromWellBottomHolePressureCT, FacilityFromWellSurfaceComponentRatesCT,
     FacilityFromWellTemperatureCT, FacilityFromWellEnthalpyCT,
-    setup_reservoir_cross_terms!, concrete_segment_models
+    setup_reservoir_cross_terms!
 
 import ..JutulDarcy: model_energy_formulation
 
@@ -236,9 +236,7 @@ function merge_well_domains(domains, name)
         end
         neighbors = reduce(hcat, neighbor_blocks)
         end_nodes = reduce(vcat, end_node_blocks)
-        segment_type = reduce((A, B) -> Union{A, B}, eltype.(segment_model_blocks))
-        segment_models = concrete_segment_models(segment_type[
-            model for block in segment_model_blocks for model in block])
+        segment_models = Any[model for block in segment_model_blocks for model in block]
         merged_well = MultiSegmentWell(first_well.type, sum(cell_counts),
             sum(face_counts), sum(perforation_counts), perforations, neighbors,
             end_nodes, first_well.surface, name, segment_models, inc_inertia, info)
@@ -353,12 +351,7 @@ function merge_case_storage(storage, model, replacements)
             end
             for field in fields
                 field_values = [entry[field] for entry in entries]
-                if field == :SegmentModels
-                    T = eltype(well.segment_models)
-                    merged_entry[field] = T[value for block in field_values for value in block]
-                else
-                    merged_entry[field] = merge_entity_values(field_values)
-                end
+                merged_entry[field] = merge_entity_values(field_values)
             end
             merged_storage[key] = merged_entry
         else
@@ -391,7 +384,7 @@ function merge_case_forces(forces, model, replacements)
                 merged_forces[key] = (mask = PerforationMask(combined_values),)
             end
             if any(name -> !isnothing(get(forces[name], :segment_models, nothing)), well.multiwell.names)
-                models = copy(well.segment_models)
+                models = Any[well.segment_models...]
                 for (index, name) in enumerate(well.multiwell.names)
                     updates = get(forces[name], :segment_models, nothing)
                     if !isnothing(updates)

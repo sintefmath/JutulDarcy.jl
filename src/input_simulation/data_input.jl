@@ -475,8 +475,7 @@ end
 function data_file_segment_valve_models(msdata; step = typemax(Int), first_only = false)
     geometry = msdata["VALVE_GEOMETRY"]
     N = geometry.neighbors
-    models = Union{SegmentWellBoreFrictionHB, SegmentValve}[
-        SegmentWellBoreFrictionHB() for _ in axes(N, 2)]
+    models = Any[SegmentWellBoreFrictionHB() for _ in axes(N, 2)]
     seen = Set{Int}()
     for update in msdata["WSEGVALV"]
         update.step <= step || continue
@@ -499,6 +498,15 @@ function data_file_segment_valve_models(msdata; step = typemax(Int), first_only 
         models[face] = SegmentValve(coefficient, area; pipe_length = length,
             pipe_diameter = diameter, pipe_roughness = roughness, pipe_area = pipe_area,
             maximum_area = max_area, is_open = status == "OPEN")
+    end
+    if !first_only
+        initial = data_file_segment_valve_models(msdata; first_only = true)
+        for i in eachindex(models)
+            if models[i] isa SegmentWellBoreFrictionHB && initial[i] isa SegmentValve
+                v = initial[i]
+                models[i] = SegmentValve(v.flow_coefficient, v.area; enabled = false)
+            end
+        end
     end
     return models
 end
