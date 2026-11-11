@@ -1,4 +1,5 @@
-using CUDA, JutulDarcy, MultiComponentFlash, StaticArrays, Test
+using CUDA, Jutul, JutulDarcy, MultiComponentFlash, StaticArrays, Test
+import Adapt
 
 const FlashFD = JutulDarcy.ForwardDiff
 
@@ -19,6 +20,67 @@ function cubic_flash_derivatives_kernel!(out, eos, options, initial)
         end
     end
     return nothing
+end
+
+function flash_stability_bypass_kernel!(out, eos, options, initial, cond)
+    if CUDA.threadIdx().x == 1
+        cached = JutulDarcy.immutable_flash_result(initial, options, eos,
+            cond.p, cond.T, cond.z, 0.0)
+        nearby = (p = cond.p + eps(cond.p), T = cond.T, z = cond.z)
+        storage = MultiComponentFlash.StaticStabilityStorage(
+            cached.flash_cond, cached.critical_distance)
+        @inbounds out[1] = cached.critical_distance
+        @inbounds out[2] = MultiComponentFlash.stability_bypass_available(storage, nearby)
+    end
+    return nothing
+end
+
+@testset "GPU stability bypass component limit" begin
+    names = [
+        "Methane", "Ethane", "n-Propane", "n-Butane", "n-Pentane",
+        "n-Hexane", "n-Heptane", "n-Octane", "n-Nonane", "n-Decane",
+    ]
+    KA = Jutul.KernelExecution.KernelAbstractions
+    cpu_context = Jutul.KernelAbstractionsContext(KA.CPU())
+    gpu_context = Jutul.KernelAbstractionsContext(CUDA.CUDABackend())
+    for n in (3, 4, 5, 10)
+        host_eos = GenericCubicEOS(MultiComponentMixture(names[1:n]))
+        system = MultiPhaseCompositionalSystemLV(host_eos)
+        domain = reservoir_domain(CartesianMesh((1, 1));
+            porosity = 0.2, permeability = 1e-12)
+        model = reservoir_model(setup_reservoir_model(domain, system;
+            fast_flash = true))
+        host_options = model.secondary_variables[:FlashResults]
+        cpu_model = Adapt.adapt(cpu_context, model)
+        gpu_model = Adapt.adapt(gpu_context, model)
+        options = gpu_model.secondary_variables.FlashResults
+        @test host_options.stability_bypass
+        @test cpu_model.secondary_variables.FlashResults.stability_bypass
+        @test options.stability_bypass == (n <= 3)
+        @test options.reuse_guess
+        @test options isa JutulDarcy.FlashResults{SSIFlash, n <= 3, true}
+        # Exercise both sides of the cutoff without requiring the large-model
+        # Newton reuse kernel to compile for every component count above it.
+        n in (3, 5) || continue
+        eos = gpu_model.system.equation_of_state
+        initial = JutulDarcy.static_flashed_mixture(eos, Float64)
+        z = SVector{n, Float64}(ntuple(_ -> 1.0/n, n))
+        cond = (p = 5e7, T = 800.0, z = z)
+        reference = JutulDarcy.immutable_flash_result(initial, options, eos,
+            cond.p, cond.T, cond.z, 0.0)
+        output = CUDA.zeros(Float64, 2)
+        CUDA.@sync CUDA.@cuda threads=1 flash_stability_bypass_kernel!(
+            output, eos, options, initial, cond)
+        distance, bypassed = Array(output)
+        if n <= 3
+            @test distance ≈ reference.critical_distance
+            @test bypassed == 1
+        else
+            @test isnan(reference.critical_distance)
+            @test isnan(distance)
+            @test bypassed == 0
+        end
+    end
 end
 
 function four_k_evaluator(cond)

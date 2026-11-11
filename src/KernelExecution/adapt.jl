@@ -79,6 +79,28 @@ function adapt_compositional_eos(to, eos::MultiComponentFlash.KValuesEOS; float_
         volume_shift = eos.volume_shift)
 end
 
+function Adapt.adapt_structure(ctx::Jutul.KernelAbstractionsContext,
+        model::SimulationModel{D, S}) where {D<:Jutul.JutulDomain, S<:MultiPhaseCompositionalSystemLV}
+    adapted = invoke(Adapt.adapt_structure,
+        Tuple{Jutul.KernelAbstractionsContext, SimulationModel}, ctx, model)
+    flash = adapted.secondary_variables.FlashResults
+    if !Jutul.KernelExecution.is_cpu_backend(ctx) &&
+            MultiComponentFlash.number_of_components(adapted.system.equation_of_state) > 3 &&
+            flash.stability_bypass
+        # StaticArrays' eigenvalue calculation above size three calls LAPACK.
+        # Keep previous-flash reuse while disabling this GPU-only shortcut.
+        flash = FlashResults{typeof(flash.method), false, flash.reuse_guess}(
+            flash.method, flash.use_threads, flash.tolerance,
+            flash.tolerance_bypass, false, flash.reuse_guess)
+        secondary = merge(adapted.secondary_variables, (FlashResults = flash,))
+        adapted = SimulationModel(adapted.domain, adapted.system, adapted.context,
+            adapted.formulation, adapted.data_domain, adapted.primary_variables,
+            secondary, adapted.parameters, adapted.equations,
+            adapted.output_variables, adapted.extra, adapted.optimization_level)
+    end
+    return adapted
+end
+
 function Adapt.adapt_structure(to,
         system::MultiPhaseCompositionalSystemLV{E, T, O, R, N, C, Ref}) where {
         E, T, O, R, N, C, Ref}

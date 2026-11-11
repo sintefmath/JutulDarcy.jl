@@ -46,8 +46,7 @@ end
                 method = NewtonFlash(dMax = 1.0), maxiter = 3,
                 extra_out = true, tolerance = fr.tolerance, z_min = nothing,
                 stability_bypass = false, check = false, verbose = false)
-            if valid_reused_flash(V, K, report.converged, cond.z, fr.tolerance) &&
-                    reused_flash_is_stable(eos, cond, K, V, fr.tolerance)
+            if valid_reused_flash(eos, V, K, report.converged, cond.z, fr.tolerance)
                 stability = MultiComponentFlash.StaticStabilityResult(false,
                     MultiComponentFlash.StabilityReport(), K,
                     MultiComponentFlash.StaticStabilityStorage(cond, oftype(cond.p, NaN)), false)

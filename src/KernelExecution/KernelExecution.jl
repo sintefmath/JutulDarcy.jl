@@ -23,7 +23,7 @@ module KernelExecution
         update_pressure_system!, update_quasi_impes_weights!,
         update_true_impes_weights!,
         BrineCO2MixingDensities, KValueWrapper, PTViscosities,
-        MultiPhaseCompositionalSystemLV,
+        MultiPhaseCompositionalSystemLV, FlashResults,
         PressureTemperatureDependentVariable, PressureTemperatureDependentEnthalpy,
         TemperatureDependentVariable,
         kernel_abstractions_backend

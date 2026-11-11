@@ -495,7 +495,8 @@ low values can lead to slow convergence.
 - `flash_reuse_guess=fast_flash`: Reuse previous flash guess when a cell remains
   in two-phase.
 - `flash_stability_bypass=fast_flash`: Bypass stability testing for cells
-  outside the two-phase and shadow region.
+  outside the two-phase and shadow region. Disabled on GPU backends for more
+  than three EOS components, where the eigenvalue calculation requires LAPACK.
 - `can_shut_wells=true`: Configure facility to allow shutting wells that
   repeatedly get rates with the wrong side. Disabling this can make certain
   models infeasible to simulate, but it can be useful to do so for simple models
