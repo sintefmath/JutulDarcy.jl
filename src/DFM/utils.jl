@@ -272,43 +272,40 @@ end
 
 function block_fracture_face_connections!(matrix_model::SimulationModel, faces)
 
-    thermal = model_is_thermal(matrix_model)
+    # Block flow and conduction across the matrix faces that are replaced by
+    # fracture-matrix connections through a zero face multiplier. The face
+    # transmissibilities and conductivities are computed from the data domain
+    # when the parameters are set up, so that they still depend on the cell
+    # permeabilities and conductivities (e.g. for gradients with respect to
+    # the data domain).
     matrix = matrix_model.data_domain
-
-    # Set zero transmissibility for fracture faces
-    if haskey(matrix, :transmissibilities)
-        T = copy(matrix[:transmissibilities, Faces()])
+    if haskey(matrix, :fracture_face_multiplier, Faces())
+        m = copy(matrix[:fracture_face_multiplier, Faces()])
     else
-        T = Jutul.default_parameter_values(
-            matrix, matrix_model, Transmissibilities(), :Transmissibilities)
+        m = ones(number_of_faces(matrix))
     end
-    T[faces] .= 0.0
-    matrix[:transmissibilities, Faces()] = T
-    
-    thermal || return
-
-    # Set zero rock thermal conductivity for fracture faces
-    if haskey(matrix, :rock_thermal_conductivities)
-        Λr = copy(matrix[:rock_thermal_conductivities, Faces()])
-    else
-        Λr = Jutul.default_parameter_values(
-            matrix, matrix_model, RockThermalConductivities(), :RockThermalConductivities)
-    end
-    Λr[faces] .= 0.0
-    matrix[:rock_thermal_conductivities, Faces()] = Λr
-
-    # Set zero fluid thermal conductivity for fracture faces
-    if haskey(matrix, :fluid_thermal_conductivities)
-        Λf = copy(matrix[:fluid_thermal_conductivities, Faces()])
-    else
-        Λf = Jutul.default_parameter_values(
-            matrix, matrix_model, FluidThermalConductivities(), :FluidThermalConductivities)
-    end
-    Λf[faces] .= 0.0
-    matrix[:fluid_thermal_conductivities, Faces()] = Λf
+    m[faces] .= 0.0
+    matrix[:fracture_face_multiplier, Faces()] = m
 
     return
 
+end
+
+"""
+    apply_fracture_face_multiplier(T, data_domain)
+
+Multiply the face values `T` (a vector over faces, or a matrix with one column
+per face) by the `:fracture_face_multiplier` of the data domain, if present. The
+multiplier is zero for matrix faces replaced by fracture-matrix connections.
+"""
+function apply_fracture_face_multiplier(T, data_domain)
+    haskey(data_domain, :fracture_face_multiplier, Faces()) || return T
+    m = data_domain[:fracture_face_multiplier, Faces()]
+    if T isa AbstractVector
+        return T .* m
+    else
+        return T .* reshape(m, 1, :)
+    end
 end
 
 function adjust_matrix_cell_volumes!(matrix_model::SimulationModel, fractures::DataDomain)

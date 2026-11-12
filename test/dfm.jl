@@ -442,25 +442,54 @@ end
 
     @testset "block_fracture_face_connections!" begin
         d = setup_simple_dfm()
-        sys = ImmiscibleSystem((AqueousPhase(), LiquidPhase()))
-
-        model = JutulDarcy.setup_fractured_reservoir_model(d.matrix, d.fractures, sys)
+        model = JutulDarcy.setup_fractured_reservoir_model(d.matrix, d.fractures, :geothermal;
+            thermal = true)
         matrix_model = model.models[:Reservoir]
         matrix_domain = matrix_model.data_domain
 
         fmc = JutulDarcy.FractureMatrixConnection()
         matrix_faces = unique(d.fractures[:matrix_faces, fmc])
-
-        # Transmissibilities on fracture faces should be zero
-        T = matrix_domain[:transmissibilities, Faces()]
-        for f in matrix_faces
-            @test T[f] == 0.0
-        end
-
-        # Non-fracture faces should retain positive transmissibilities
         all_faces = 1:number_of_faces(matrix_domain)
         non_frac = setdiff(all_faces, matrix_faces)
+
+        # The faces are blocked by a multiplier, not by stored face values
+        @test !haskey(matrix_domain, :transmissibilities, Faces())
+        @test !haskey(matrix_domain, :rock_thermal_conductivities, Faces())
+        m = matrix_domain[:fracture_face_multiplier, Faces()]
+        @test all(m[matrix_faces] .== 0.0)
+        @test all(m[non_frac] .== 1.0)
+
+        # Zero transmissibilities and conductivities on the fracture faces,
+        # the values from the cells elsewhere
+        prm = setup_parameters(matrix_model)
+        T = prm[:Transmissibilities]
+        Λr = prm[:RockThermalConductivities]
+        Λf = prm[:FluidThermalConductivities]
+        @test all(T[matrix_faces] .== 0.0)
+        @test all(Λr[matrix_faces] .== 0.0)
+        @test all(Λf[:, matrix_faces] .== 0.0)
+        @test T[non_frac] ≈ JutulDarcy.reservoir_transmissibility(matrix_domain)[non_frac]
+        @test Λr[non_frac] ≈ JutulDarcy.reservoir_conductivity(matrix_domain)[non_frac]
         @test any(T[non_frac] .> 0)
+    end
+
+    @testset "matrix gradients with respect to the data domain" begin
+        # The face transmissibilities and conductivities are homogeneous of
+        # degree one in the cell values, so sum(dT/dK .* K) = sum(T)
+        d = setup_simple_dfm()
+        model = JutulDarcy.setup_fractured_reservoir_model(d.matrix, d.fractures, :geothermal;
+            thermal = true)
+        matrix_model = model.models[:Reservoir]
+        matrix_domain = matrix_model.data_domain
+        prm = setup_parameters(matrix_model)
+        dp_dd = Jutul.parameters_jacobian_wrt_data_domain(matrix_model; copy = true)
+        for (pname, dname) in [(:Transmissibilities, :permeability),
+                               (:RockThermalConductivities, :rock_thermal_conductivity)]
+            g = Dict(k => k == pname ? ones(size(v)) : zeros(size(v)) for (k, v) in prm)
+            gd = Jutul.data_domain_to_parameters_gradient(matrix_model, g; dp_dd = dp_dd)
+            v = matrix_domain[dname]
+            @test sum(gd[dname] .* v) ≈ sum(prm[pname]) rtol = 1e-10
+        end
     end
 
     @testset "adjust_matrix_cell_volumes!" begin
