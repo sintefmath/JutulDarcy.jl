@@ -21,10 +21,11 @@ using Dates, GeoEnergyIO, Jutul, JutulDarcy, Test
         "WellBoreRadius" => [0.16, 0.18, 0.2],
     )
     indexed = welldef("Status" => [missing, missing, closed])
+    legacy_indexed = welldef("Status" => [open, open, open], "PiMultiplier" => [1.0, 1.0, 1.0])
     control = (keyword = "Well", value = Dict(
         "name" => "P", "Constraints" => ix.IXAssignmentRecord("Constraints", "BOTTOM_HOLE_PRESSURE", 1.0e7)))
     dates = DateTime(2026, 1, 1) .+ Hour.(0:3)
-    ix_steps = Jutul.OrderedDict(zip(dates, ([], [reordered], [indexed], [])))
+    ix_steps = Jutul.OrderedDict(zip(dates, ([], [reordered], [indexed, legacy_indexed], [])))
     fm_steps = Jutul.OrderedDict(zip(dates, ([control], [], [], [])))
     offset = (keyword = "StructuredInfo", value = Dict("FirstCellId" => 100))
     input = ix.AFIInputFile(Dict(

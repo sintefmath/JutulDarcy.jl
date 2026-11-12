@@ -107,8 +107,14 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel;
                     end
                     # Match this record's rows by identity, independent of ordering.
                     connection_ids = afi_connection_ids(rec["WellName"], w2c, completion_names)
+                    pi_updates = coalesce(get(w2c, "PiMultiplier", missing), ())
+                    status_updates = coalesce(get(w2c, "Status", missing), ())
                     if isnothing(connection_ids)
                         pmap = ws["InputPerforationMap"]
+                        # Older parsers padded indexed updates with defaults that overwrite other rows.
+                        preserves_gaps(values) = eltype(values) === Any ? any(ismissing, values) : Missing <: eltype(values)
+                        pi_updates = preserves_gaps(pi_updates) ? pi_updates : ()
+                        status_updates = preserves_gaps(status_updates) ? status_updates : ()
                     else
                         model_positions = ws["PerforationMap"]
                         pmap = Dict(i => get(model_positions, id, 0) for (i, id) in enumerate(connection_ids))
@@ -119,7 +125,7 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel;
                     status = ws["ConnectionStatus"]
                     # base_trans = model[wname].data_domain[:well_index]
 
-                    for (i, v) in enumerate(coalesce(get(w2c, "PiMultiplier", missing), ()))
+                    for (i, v) in enumerate(pi_updates)
                         i_mapped = get(pmap, i, 0)
                         if i_mapped == 0 || ismissing(v)
                             continue
@@ -127,7 +133,7 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel;
                         # Not sure what -1 means but we truncate to zero
                         mult[i_mapped] = max(v, 0.0)
                     end
-                    for (i, v) in enumerate(coalesce(get(w2c, "Status", missing), ()))
+                    for (i, v) in enumerate(status_updates)
                         i_mapped = get(pmap, i, 0)
                         if i_mapped == 0 || ismissing(v)
                             continue
