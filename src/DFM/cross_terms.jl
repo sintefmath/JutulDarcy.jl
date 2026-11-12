@@ -157,8 +157,6 @@ function update_cross_term_in_entity!(out, i,
     nph = number_of_phases(sys)
     qh = matrix_fracture_thermal_flux(conn, state_t, state_s, nph)
     if eq isa ConservationLaw{:TotalEnergy}
-        # Account for the upwinded potential energy of the mass crossing the
-        # matrix-fracture connection.
         qh += matrix_fracture_potential_energy_flux(conn, state_t, state_s, nph)
     end
     out[] = qh

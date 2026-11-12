@@ -315,8 +315,6 @@ function adjust_matrix_cell_volumes!(matrix_model::SimulationModel, fractures::D
 
     fracture_volumes = fractures[:volumes, Cells()]
     matrix_volumes = matrix[:volumes, Cells()]
-    # Fracture volumes may be of another type (e.g. dual numbers when
-    # differentiating with respect to the aperture)
     Tv = promote_type(eltype(matrix_volumes), eltype(fracture_volumes))
     matrix_volumes = collect(Tv, matrix_volumes)
     fmc = JutulDarcy.FractureMatrixConnection()
