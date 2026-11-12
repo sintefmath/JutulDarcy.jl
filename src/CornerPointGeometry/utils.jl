@@ -114,7 +114,13 @@ function cpgrid_geometry(domain, grid_section = missing)
             face_normals[direction, face] = logical_sign
             continue
         end
-        area_normal = cpgrid_area_normal(mesh.node_points[fnodes])
+        # Fault crossings add conforming nodes along a bilinear pillar surface.
+        # These nodes belong to lateral faces, but must not change the logical
+        # top/bottom face normal computed from its four original corners.
+        area_normal = cpgrid_area_normal(direction == 3 ? points : mesh.node_points[fnodes])
+        if direction == 3 && dot(area_normal, cell_centroids[:, right] - cell_centroids[:, left]) < 0
+            area_normal = -area_normal
+        end
         area = norm(area_normal)
         face_centroids[:, face] .= sum(points)/4
         face_areas[face] = area

@@ -342,7 +342,7 @@ function add_fractures_to_well(well::DataDomain{T}, fractures::DataDomain, matri
     end
 
     num_segments = size(neighborship, 2)
-    segment_models = [SegmentWellBoreFrictionHB() for _ in 1:num_segments]
+    segment_models = Any[SegmentWellBoreFrictionHB() for _ in 1:num_segments]
     for seg = 1:num_segments
         if old_ix[seg] != 0
             segment_models[seg] = well0.representation.segment_models[old_ix[seg]]

@@ -33,11 +33,6 @@ given as `parse_arg`. The optional input `include_data=true` will make the
 function return the parsed data in addition the case itself. Additional keyword
 arguments are passed on to [`setup_case_from_parsed_data`](@ref).
 
-Passive `TRACER` entries support custom unit labels such as `g`, keeping initial
-and injected concentrations on the same numeric scale. Tracers are transported
-through simple and multisegment wells. Tracer partitioning and adsorption are
-not supported.
-
 Surface-rate `GCONPROD` and `GCONINJE` controls are mapped to well groups,
 including individual well limits and `GRUPTREE` ancestor lookup. Production
 groups are named `<group>_PRODUCTION`, and injection groups `<group>_<phase>`.
@@ -344,6 +339,9 @@ function parse_well_from_compdat(domain, wname, cdat, wspecs, msdata, compord, s
         if has_ms_data
             has_welsegs = haskey(msdata, "WELSEGS")
             has_compsegs = haskey(msdata, "COMPSEGS")
+            if haskey(msdata, "WSEGVALV") && !(has_welsegs && has_compsegs)
+                throw(ArgumentError("WSEGVALV requires WELSEGS and COMPSEGS for well $wname."))
+            end
             if has_welsegs || has_compsegs
                 @assert has_welsegs && has_compsegs "Both COMPSEGS and WELSEGS must be defined"
                 @assert msdata["COMPSEGS"][1] == wname
@@ -368,7 +366,7 @@ function parse_well_from_compdat(domain, wname, cdat, wspecs, msdata, compord, s
                 top_y = header[9]
                 @assert segment_increment_type in ("ABS", "INC")
                 is_inc = segment_increment_type == "INC"
-                max_seg = maximum(x -> x[1], segments, init = 0)
+                max_seg = maximum(x -> x[2], segments, init = 0)
                 num_edges = max_seg-1
                 conn = Tuple{Int, Int}[]
 
@@ -376,6 +374,8 @@ function parse_well_from_compdat(domain, wname, cdat, wspecs, msdata, compord, s
                 centers = zeros(3, num_edges+1)
                 centers[:, 1] = top_node
                 diameter = fill(NaN, num_edges)
+                roughness = fill(NaN, num_edges)
+                cross_sections = fill(NaN, num_edges)
                 branches = zeros(Int, num_edges)
                 tubing_lengths = zeros(num_edges)
                 tubing_depths = zeros(num_edges)
@@ -388,7 +388,7 @@ function parse_well_from_compdat(domain, wname, cdat, wspecs, msdata, compord, s
                         depth_at_start = top_depth
                         tubing_at_start = top_tubing_delta
                     else
-                        depth_at_start = centers[3, start_conn-1]
+                        depth_at_start = centers[3, start_conn]
                         tubing_at_start = tubing_depths[start_conn-1]
                     end
                     if is_inc
@@ -405,16 +405,18 @@ function parse_well_from_compdat(domain, wname, cdat, wspecs, msdata, compord, s
                         vol = cross_sect*L
                     end
 
-                    push!(conn, (start, start_conn))
                     current_tubing = tubing_at_start
                     current_depth = depth_at_start
                     for (ix, seg_ix) in enumerate(start:stop)
+                        push!(conn, (seg_ix, ix == 1 ? start_conn : seg_ix - 1))
                         current_tubing += L
                         current_depth += Δz
 
                         edge_ix = seg_ix - 1
                         @assert isnan(diameter[edge_ix]) "Values are being overwritten in ms well - programming error?"
                         diameter[edge_ix] = D
+                        roughness[edge_ix] = rough
+                        cross_sections[edge_ix] = cross_sect
                         branches[edge_ix] = branch
                         tubing_lengths[edge_ix] = L
                         # TODO: Set better x, y
@@ -424,7 +426,6 @@ function parse_well_from_compdat(domain, wname, cdat, wspecs, msdata, compord, s
                         tubing_depths[edge_ix] = current_tubing
                     end
                 end
-                # segment_models = [i for i in segment_models]
                 N = zeros(Int, 2, length(conn))
                 for (i, t) in enumerate(conn)
                     N[:, i] .= t
@@ -437,6 +438,12 @@ function parse_well_from_compdat(domain, wname, cdat, wspecs, msdata, compord, s
                 extra_arg[:perforation_cells_well] = perforation_cells
                 extra_arg[:well_cell_centers] = centers
                 extra_arg[:use_top_node] = false
+                if haskey(msdata, "WSEGVALV")
+                    geometry = (neighbors = N, length = tubing_lengths,
+                        diameter = diameter, roughness = roughness, area = cross_sections)
+                    msdata["VALVE_GEOMETRY"] = geometry
+                    extra_arg[:segment_models] = data_file_segment_valve_models(msdata; first_only = true)
+                end
             end
         end
     end
@@ -465,6 +472,45 @@ function parse_well_from_compdat(domain, wname, cdat, wspecs, msdata, compord, s
     return (W, wc, WI, open)
 end
 
+function data_file_segment_valve_models(msdata; step = typemax(Int), first_only = false)
+    geometry = msdata["VALVE_GEOMETRY"]
+    N = geometry.neighbors
+    models = Any[SegmentWellBoreFrictionHB() for _ in axes(N, 2)]
+    seen = Set{Int}()
+    for update in msdata["WSEGVALV"]
+        update.step <= step || continue
+        rec = update.record
+        name, segment, coefficient, area, length, diameter, roughness, pipe_area, status, max_area = rec
+        face = findfirst(isequal(segment), view(N, 1, :))
+        isnothing(face) && throw(ArgumentError("WSEGVALV references unknown or top segment $segment in well $name."))
+        first_only && face in seen && continue
+        push!(seen, face)
+        status in ("OPEN", "SHUT") || throw(ArgumentError("Unknown WSEGVALV status $status."))
+        previous = models[face]
+        inherited_diameter = previous isa SegmentValve ? previous.pipe_diameter : geometry.diameter[segment-1]
+        inherited_roughness = previous isa SegmentValve ? previous.pipe_roughness : geometry.roughness[segment-1]
+        inherited_area = previous isa SegmentValve ? previous.pipe_area : geometry.area[segment-1]
+        diameter = diameter < 0 ? inherited_diameter : diameter
+        roughness = roughness < 0 ? inherited_roughness : roughness
+        pipe_area = pipe_area < 0 ? inherited_area : pipe_area
+        length = length < 0 ? geometry.length[segment-1] : length
+        max_area = max_area < 0 ? pipe_area : max_area
+        models[face] = SegmentValve(coefficient, area; pipe_length = length,
+            pipe_diameter = diameter, pipe_roughness = roughness, pipe_area = pipe_area,
+            maximum_area = max_area, is_open = status == "OPEN")
+    end
+    if !first_only
+        initial = data_file_segment_valve_models(msdata; first_only = true)
+        for i in eachindex(models)
+            if models[i] isa SegmentWellBoreFrictionHB && initial[i] isa SegmentValve
+                v = initial[i]
+                models[i] = SegmentValve(v.flow_coefficient, v.area; enabled = false)
+            end
+        end
+    end
+    return models
+end
+
 function map_compdat_to_multisegment_segments(compsegs, branches, tubing_lengths, tubing_depths, cdat)
     completions = keys(cdat)
     perforation_cells = zeros(Int, length(completions))
@@ -479,7 +525,11 @@ function map_compdat_to_multisegment_segments(compsegs, branches, tubing_lengths
         closest = -1
         for segment_index in segment_candidates
             I, J, K, branch, tube_start, tube_end, dir, dir_ijk, cdepth, = compsegs[segment_index]
-            for (i, b) in enumerate(branches)
+            explicit_segment = compsegs[segment_index][11]
+            candidates = explicit_segment > 0 ? (explicit_segment - 1,) : eachindex(branches)
+            for i in candidates
+                1 <= i <= length(branches) || throw(ArgumentError("Invalid COMPSEGS segment $explicit_segment."))
+                b = branches[i]
                 if b == branch
                     L = tubing_lengths[i]
                     seg_end = tubing_depths[i]
@@ -493,7 +543,8 @@ function map_compdat_to_multisegment_segments(compsegs, branches, tubing_lengths
                 end
             end
         end
-        perforation_cells[completion_index] = closest
+        closest > 0 || throw(ArgumentError("No well segment found for completion $completion."))
+        perforation_cells[completion_index] = closest + 1
     end
     return perforation_cells
 end
@@ -637,7 +688,12 @@ function parse_schedule(domain, runspec, props, schedule, sys; simple_well = tru
                 mask = PerforationMask(wi_mul)
             end
             # TODO: Make this use setup_forces properly
-            well_forces[i][Symbol(k)] = (mask = mask, )
+            if !isnothing(msdata_k) && haskey(msdata_k, "WSEGVALV")
+                segment_models = data_file_segment_valve_models(msdata_k; step = i)
+                well_forces[i][Symbol(k)] = (mask = mask, segment_models = segment_models)
+            else
+                well_forces[i][Symbol(k)] = (mask = mask, )
+            end
         end
         push!(wells, W)
     end
@@ -1868,6 +1924,11 @@ function parse_control_steps(runspec, props, schedule, sys)
     active_controls = sdict()
     shut_requests = sdict()
     limits = sdict()
+    # History pressure limits are well properties: another rate observation must
+    # not reset a WELTARG BHP. Track the keyword mode even while the well is shut.
+    history_bhp_limits = Dict{String, Float64}()
+    explicit_history_bhp = Set{String}()
+    previous_production = Dict{String, Tuple{String, String}}()
     streams = sdict()
     polymer = sdict()
     tracer_concentrations = sdict()
@@ -1931,6 +1992,26 @@ function parse_control_steps(runspec, props, schedule, sys)
     default_bhp = nothing
     function parse_control_record(wk, key, group_specs)
         name = wk[1]
+        flag_ix = ifelse(key in ("WCONPROD", "WCONHIST"), 2, 3)
+        mode = key == "WCONINJH" ? wk[12] : wk[flag_ix + 1]
+        history_bhp_limit = 1.01*si_unit(:atm)
+        if key == "WCONHIST"
+            previous_key, previous_mode = get(previous_production, name, ("", ""))
+            if previous_key != key || previous_mode == "BHP"
+                history_bhp_limits[name] = isnothing(default_bhp) ? history_bhp_limit : default_bhp[1]
+            end
+            history_bhp_limit = history_bhp_limits[name]
+        end
+        if key in ("WCONPROD", "WCONHIST")
+            if mode != "Default"
+                previous_production[name] = (key, mode)
+            end
+        elseif !(name in explicit_history_bhp)
+            # An injector has independent pressure limits. Keep an explicitly
+            # set producer history limit across injection; otherwise re-enter
+            # history with the current field default.
+            delete!(previous_production, name)
+        end
         spec = get(group_specs, name, nothing)
         group_target = nothing
         if !isnothing(spec)
@@ -1939,6 +2020,7 @@ function parse_control_steps(runspec, props, schedule, sys)
         return keyword_to_control(sys, streams, wk, key;
             group_target = group_target,
             default_bhp = default_bhp,
+            history_bhp_limit = history_bhp_limit,
             factor = well_factor[name],
             temperature = well_temp[name],
             polymer = polymer[name],
@@ -2063,7 +2145,7 @@ function parse_control_steps(runspec, props, schedule, sys)
                     name = wk[1]
                     flag_ix = ifelse(key in ("WCONPROD", "WCONHIST"), 2, 3)
                     flag = wk[flag_ix]
-                    mode = wk[flag_ix + 1]
+                    mode = key == "WCONINJH" ? wk[12] : wk[flag_ix + 1]
                     if key in ("WCONPROD", "WCONINJE") && mode == "GRUP"
                         push!(group_requested, name)
                     elseif mode != "Default"
@@ -2103,13 +2185,24 @@ function parse_control_steps(runspec, props, schedule, sys)
             elseif key == "WELTARG"
                 for wk in kword
                     controls, limits = apply_weltarg!(controls, limits, wk)
+                    name, mode, value = wk
+                    previous_key, _ = get(previous_production, name, ("", ""))
+                    if previous_key == "WCONHIST" && mode == "BHP" && controls[name] isa ProducerControl
+                        history_bhp_limits[name] = value
+                        push!(explicit_history_bhp, name)
+                    end
                 end
                 set_active_controls!(active_controls, controls)
             elseif key == "TUNING"
                 # Initial settings are applied in setup_reservoir_simulator.
             elseif key in skip || key in ("GRUPTREE", "GCONPROD", "GCONINJE", "WGRUPCON")
                 # Already handled
-            elseif key in ("WSEGVALV", "COMPSEGS", "WELSEGS")
+            elseif key == "WSEGVALV"
+                for rec in kword
+                    storage = get_and_create_mswell_kw(rec[1], key)
+                    push!(storage, (step = length(all_controls) + 1, record = copy(rec)))
+                end
+            elseif key in ("COMPSEGS", "WELSEGS")
                 for val in kword
                     wname = val[1]
                     ms_storage = get_and_create_mswell_kw(wname, key)
@@ -2299,10 +2392,12 @@ function refresh_injection_streams!(controls, sys, streams)
     return controls
 end
 
-function keyword_to_control(sys, streams, kw, k::String; default_bhp = nothing, kwarg...)
+function keyword_to_control(sys, streams, kw, k::String; default_bhp = nothing, history_bhp_limit = 1.01*si_unit(:atm), kwarg...)
     keyword = Val(Symbol(k))
     if k in ("WCONINJE", "WCONPROD")
         return keyword_to_control(sys, streams, kw, keyword; default_bhp, kwarg...)
+    elseif k == "WCONHIST"
+        return keyword_to_control(sys, streams, kw, keyword; history_bhp_limit, kwarg...)
     else
         return keyword_to_control(sys, streams, kw, keyword; kwarg...)
     end
@@ -2363,7 +2458,7 @@ function producer_limits(; bhp = Inf, lrat = Inf, orat = Inf, wrat = Inf, grat =
     return NamedTuple(pairs(lims))
 end
 
-function producer_control(sys, flag, ctrl, orat, wrat, grat, lrat, bhp; is_hist = false, temperature = NaN, resv = 0.0, tracers = String[], polymer = 0.0, tracer_concentrations = nothing, group_target = nothing, kwarg...)
+function producer_control(sys, flag, ctrl, orat, wrat, grat, lrat, bhp; is_hist = false, history_bhp_limit = 1.01*si_unit(:atm), temperature = NaN, resv = 0.0, tracers = String[], polymer = 0.0, tracer_concentrations = nothing, group_target = nothing, kwarg...)
     rho_s = reference_densities(sys)
     phases = get_phases(sys)
 
@@ -2424,11 +2519,12 @@ function producer_control(sys, flag, ctrl, orat, wrat, grat, lrat, bhp; is_hist 
         end
         ctrl = ProducerControl(t; kwarg...)
         if is_hist
-            # Put pressure slightly above 1 atm to avoid hard limit.
+            # Observed BHP is a target only in BHP mode. Rate history uses the
+            # persistent WELTARG/FBHPDEF limit, independently of observed BHP.
             if self_symbol == :resv_history
-                lims = (; :bhp => 1.01*si_unit(:atm))
+                lims = (; :bhp => history_bhp_limit)
             else
-                lims = (; :bhp => 1.01*si_unit(:atm), self_symbol => self_val)
+                lims = (; :bhp => history_bhp_limit, self_symbol => self_val)
             end
         else
             lims = producer_limits(bhp = bhp, orat = orat, wrat = wrat, grat = grat, lrat = lrat)

@@ -236,7 +236,7 @@ function merge_well_domains(domains, name)
         end
         neighbors = reduce(hcat, neighbor_blocks)
         end_nodes = reduce(vcat, end_node_blocks)
-        segment_models = reduce(vcat, segment_model_blocks)
+        segment_models = Any[model for block in segment_model_blocks for model in block]
         merged_well = MultiSegmentWell(first_well.type, sum(cell_counts),
             sum(face_counts), sum(perforation_counts), perforations, neighbors,
             end_nodes, first_well.surface, name, segment_models, inc_inertia, info)
@@ -382,6 +382,17 @@ function merge_case_forces(forces, model, replacements)
                 end
                 combined_values = reduce(vcat, mask_values)
                 merged_forces[key] = (mask = PerforationMask(combined_values),)
+            end
+            if any(name -> !isnothing(get(forces[name], :segment_models, nothing)), well.multiwell.names)
+                models = Any[well.segment_models...]
+                for (index, name) in enumerate(well.multiwell.names)
+                    updates = get(forces[name], :segment_models, nothing)
+                    if !isnothing(updates)
+                        faces = Jutul.indirection_range(well.multiwell.faces, index)
+                        models[faces] .= updates
+                    end
+                end
+                merged_forces[key] = merge(merged_forces[key], (segment_models = models,))
             end
         else
             merged_forces[key] = forces[key]

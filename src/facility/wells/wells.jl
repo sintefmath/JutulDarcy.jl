@@ -671,8 +671,14 @@ function mix_by_saturations(s::Real, values)
     return s*values[]
 end
 
-function setup_forces(model::SimulationModel{D, S}; mask = nothing) where {D <: DiscretizedDomain{G}, S<:MultiPhaseSystem} where G<:WellDomain
+function setup_forces(model::SimulationModel{D, S}; mask = nothing, segment_models = nothing) where {D <: DiscretizedDomain{G}, S<:MultiPhaseSystem} where G<:WellDomain
     mask::Union{Nothing, PerforationMask}
+    if !isnothing(segment_models)
+        well = physical_representation(model.domain)
+        well isa MultiSegmentWell || throw(ArgumentError("Segment model forces require a multisegment well."))
+        length(segment_models) == well.num_segments || throw(ArgumentError("Expected one model per well segment."))
+        return (mask = mask, segment_models = Any[segment_models...])
+    end
     return (mask = mask,)
 end
 

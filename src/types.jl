@@ -537,6 +537,15 @@ struct MultiSegmentWell{T, P, N, E, SC, Name, S, M} <: WellDomain
     "Whether to include transient inertia in the segment pressure balance"
     include_inertia::Bool
     multiwell::M
+    function MultiSegmentWell(type, num_nodes, num_segments, num_perforations,
+            perforations, neighborship, end_nodes, surface, name, segment_models,
+            include_inertia, multiwell)
+        models = concrete_segment_models(segment_models)
+        return new{typeof(type), typeof(perforations), typeof(neighborship),
+            typeof(end_nodes), typeof(surface), typeof(name), typeof(models), typeof(multiwell)}(
+            type, num_nodes, num_segments, num_perforations, perforations,
+            neighborship, end_nodes, surface, name, models, include_inertia, multiwell)
+    end
 end
 
 MultiSegmentWell(type, num_nodes, num_segments, num_perforations,
@@ -603,7 +612,9 @@ of the well. If not provided, these are automatically detected as nodes that are
 not "from" nodes in the connectivity matrix. The optional argument
 `segment_models` can be used to provide a vector of segment pressure drop
 models, one per segment. If not provided, a default `SegmentWellBoreFrictionHB`
-model is used for all segments. The `include_inertia` flag toggles the transient
+model is used for all segments. `SegmentValve` adds a subcritical valve pressure
+loss. The constructor narrows the array's element type to the types of the
+provided models. The `include_inertia` flag toggles the transient
 acceleration term in the segment pressure balance, which is useful for transient
 well effects when set to `true`.
 """
@@ -650,6 +661,12 @@ function MultiSegmentWell(neighbors::AbstractMatrix, perforation_cells_reservoir
         include_inertia,
         nothing
     )
+end
+
+function concrete_segment_models(models)
+    isempty(models) && return copy(models)
+    T = mapreduce(typeof, (A, B) -> Union{A, B}, models)
+    return T[model for model in models]
 end
 
 

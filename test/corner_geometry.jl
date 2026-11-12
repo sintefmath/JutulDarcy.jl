@@ -47,3 +47,42 @@ import JutulDarcy.CornerPointGeometry as CPGD
     @test coarse[:volumes] ≈ [200000,200000]
     @test only(JutulDarcy.reservoir_transmissibility(coarse)) > 0.0
 end
+
+@testset "Horizontal faces at skew fault crossings" begin
+    using LinearAlgebra
+    for rotation in (0.0, 40.0), handedness in (-1, 1)
+        coord = Float64[]
+        for j in 0:1, i in 0:2
+            for (x, y, z) in ((100.0i, 100.0j, 900.0),
+                    (100.0i+10.0+20.0i, 100.0j+20.0j, 1100.0))
+                x *= handedness
+                append!(coord, (cosd(rotation)*x-sind(rotation)*y,
+                    sind(rotation)*x+cosd(rotation)*y, z))
+            end
+        end
+        zcorn = [1000.0+10.0*(k-1+dk)+(3-2i)*4.0*(dj-0.5)
+            for di in 0:1, i in 1:2, dj in 0:1, j in 1:1, dk in 0:1, k in 1:2]
+        grid = Dict{String, Any}("cartDims" => (2, 1, 2), "COORD" => coord,
+            "ZCORN" => vec(zcorn), "ACTNUM" => trues(2, 1, 2))
+        mesh = mesh_from_grid_section(grid)
+        dom = reservoir_domain(mesh; permeability = 1e-13, porosity = 0.2)
+        CPGD.set_cpgrid_geometry!(dom, grid)
+        horizontal = findall(f -> Jutul.cell_ijk(mesh, dom[:neighbors][1, f])[1:2] ==
+            Jutul.cell_ijk(mesh, dom[:neighbors][2, f])[1:2], axes(dom[:neighbors], 2))
+        @test length(horizontal) == 2
+        @test all(f -> length(mesh.faces.faces_to_nodes[f]) > 4, horizontal)
+        for f in horizontal
+            l, r = dom[:neighbors][:, f]
+            points = dom[:cpgrid_corners][l][CPGD.cpgrid_face_corner_indices(3, 1)]
+            # The two diagonal cross products give the four-corner area normal,
+            # independently of how many conforming nodes the mesh has added.
+            normal = cross(points[3]-points[1], points[4]-points[2])/2
+            delta = dom[:cell_centroids][:, r]-dom[:cell_centroids][:, l]
+            normal *= sign(dot(normal, delta))
+            @test dom[:areas][f] ≈ norm(normal)
+            @test dom[:normals][:, f] ≈ normal/norm(normal)
+            @test dot(dom[:normals][:, f], delta) > 0
+        end
+        @test all(>(0), JutulDarcy.reservoir_transmissibility(dom))
+    end
+end

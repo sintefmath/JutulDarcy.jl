@@ -24,6 +24,7 @@ JutulDarcy.SimpleWell
 WellDomain
 MultiSegmentWell
 JutulDarcy.SegmentWellBoreFrictionHB
+JutulDarcy.SegmentValve
 JutulDarcy.PotentialDropBalanceWell
 MixedWellSegmentFlow
 ```
