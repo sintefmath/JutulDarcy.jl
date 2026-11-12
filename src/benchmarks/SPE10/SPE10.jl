@@ -37,6 +37,31 @@ module SPE10
         return JutulCase(model, dt, forces, state0 = state0)
     end
 
+    "Number of cells of the SPE10 model 2 in x, y and z (layers)."
+    const DIMS = (60, 220, 85)
+    "Size of an SPE10 model 2 cell in x, y and z [m] (20 × 10 × 2 ft)."
+    const CELL_DIMS = (20.0, 10.0, 2.0).*0.3048
+
+    """
+        JutulDarcy.SPE10.load_data(; source = spe10_artifact_path())
+
+    Read the permeabilities `kx`, `ky`, `kz` [m²] and the porosity `poro` of the
+    full SPE10 model 2 as `60 × 220 × 85` arrays (`SPE10.DIMS`, layer 1 at the
+    top), for use in setups other than `setup_reservoir` (e.g. a lateral subset
+    of the model or a coarsened version of it).
+    """
+    function load_data(; source = spe10_artifact_path())
+        nvals_data = prod(DIMS)
+        perm = readdlm(joinpath(source, "spe_perm.dat"))'
+        poro = readdlm(joinpath(source, "spe_phi.dat"))'
+        length(poro) == nvals_data || error("Porosity data must have $nvals_data values")
+        length(perm) == 3*nvals_data || error("Permeability data must have 3*$nvals_data values")
+        md = si_unit(:milli)*si_unit(:darcy)
+        offset = nvals_data ÷ 6
+        get_perm(i) = reshape(vec(perm[:, ((i-1)*offset + 1):(i*offset)]) .* md, DIMS)
+        return (kx = get_perm(1), ky = get_perm(2), kz = get_perm(3), poro = reshape(vec(poro), DIMS))
+    end
+
     function setup_reservoir(;
             layers = 1:85,
             anisotropy = true,
@@ -47,36 +72,12 @@ module SPE10
         )
         check_tiling(tiling)
         minporo > 0 || error("Minimum porosity must be positive.")
-        nx = 60
-        ny = 220
-        nz_data = 85
-        nvals_data = nx*ny*nz_data
-        perm = readdlm(joinpath(source, "spe_perm.dat"))'
-        poro = readdlm(joinpath(source, "spe_phi.dat"))'
-        length(poro) == nvals_data || error("Porosity data must have $nvals_data values")
-        length(perm) == 3*nvals_data || error("Permeability data must have 3*$nvals_data values")
-
-        function extract_layers_and_flatten(x)
-            x = vec(x)
-            x = reshape(x, (nx, ny, nz_data))
-            if layers != 1:85
-                x = x[:, :, layers]
-            end
-            return vec(repeat(x, tiling...))
-        end
-
-        function get_perm(i)
-            @assert size(perm) == (6, 561000)
-            md = si_unit(:milli)*si_unit(:darcy)
-            offset = nvals_data ÷ 6
-            vals = perm[:, ((i-1)*offset + 1):(i*offset)] .* md
-            vals = vec(vals)
-            return extract_layers_and_flatten(vals)
-        end
-        poro = extract_layers_and_flatten(poro)
-        permx = get_perm(1)
-        permy = get_perm(2)
-        permz = get_perm(3)
+        data = load_data(source = source)
+        extract_layers_and_flatten(x) = vec(repeat(x[:, :, layers], tiling...))
+        poro = extract_layers_and_flatten(data.poro)
+        permx = extract_layers_and_flatten(data.kx)
+        permy = extract_layers_and_flatten(data.ky)
+        permz = extract_layers_and_flatten(data.kz)
         if anisotropy isa Bool
             if anisotropy
                 perm = cat(permx', permy', permz'; dims = 1)
@@ -111,12 +112,8 @@ module SPE10
     function setup_mesh(layers = 1:85; tiling = (1, 1, 1))
         check_tiling(tiling)
         ft = si_unit(:feet)
-        nx = 60
-        ny = 220
-        nz = length(layers)
-        cell_dims = (20.0, 10.0, 2.0).*ft
-        dims = (nx, ny, nz).*tiling
-        mesh = reservoir_mesh(dims, dims.*cell_dims)
+        dims = (DIMS[1], DIMS[2], length(layers)).*tiling
+        mesh = reservoir_mesh(dims, dims.*CELL_DIMS)
         depth = 12000*ft
         offset = [0.0, 0.0, depth]
         for (i, n) in enumerate(mesh.node_points)
