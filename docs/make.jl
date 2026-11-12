@@ -219,18 +219,34 @@ function post_run_variables_gc()
     return s
 end
 
-function example_info_footer(subdir, exname)
-    return "\n\n# ## Example on GitHub\n"*
-    "# If you would like to run this example yourself, it can be downloaded from "*
-    "the JutulDarcy.jl GitHub repository [as a script](https://github.com/sintefmath/JutulDarcy.jl/blob/main/examples/$subdir/$exname.jl)"
-    # return "\n\n# ## Example on GitHub\n"*
-    # "# If you would like to run this example yourself, it can be downloaded from "*
-    # "the JutulDarcy.jl GitHub repository [as a script](https://github.com/sintefmath/JutulDarcy.jl/blob/main/examples/$subdir/$exname.jl), "*
-    # "or as a [Jupyter Notebook](https://github.com/sintefmath/JutulDarcy.jl/blob/gh-pages/dev/final_site/notebooks/$subdir/$exname.ipynb)"
+struct ExampleNotebookAssets <: Documenter.Plugin
+    directory::String
 end
 
-function update_footer(content, subdir, exname)
-    info_footer = example_info_footer(subdir, exname)
+DocumenterVitepress.vitepress_assets(assets::ExampleNotebookAssets) = [assets.directory]
+
+function example_info_footer(subdir, exname, revision; include_notebook = false, vitepress_notebooks = false)
+    script_link = "https://github.com/sintefmath/JutulDarcy.jl/blob/$revision/examples/$subdir/$exname.jl"
+    notebook_link = "../../notebooks/$subdir/$exname.ipynb"
+    footer = "\n\n# ## Download this example\n"
+    if include_notebook && vitepress_notebooks
+        # VitePress public assets are copied after Documenter checks Markdown links.
+        return footer * """
+        #
+        # ```@raw html
+        # <p>Download the <a href="$script_link">Julia script</a> or the <a href="$notebook_link" download>Jupyter notebook</a>.</p>
+        # ```
+        """
+    end
+    footer *= "# Download the [Julia script]($script_link)"
+    if include_notebook
+        footer *= " or the [Jupyter notebook]($notebook_link)"
+    end
+    return footer * "."
+end
+
+function update_footer(content, subdir, exname, revision; include_notebook = false, vitepress_notebooks = false)
+    info_footer = example_info_footer(subdir, exname, revision; include_notebook, vitepress_notebooks)
     gc_footer = post_run_variables_gc()
     start, stop = timer_str()
     new_content = string(start, content, info_footer, stop, gc_footer)
@@ -273,7 +289,38 @@ function build_jutul_darcy_docs(
     end
     DocMeta.setdocmeta!(JutulDarcy, :DocTestSetup, :(using JutulDarcy); recursive=true)
     DocMeta.setdocmeta!(Jutul, :DocTestSetup, :(using Jutul); recursive=true)
-    bib = CitationBibliography(joinpath(@__DIR__, "src", "refs.bib"))
+    plugins = Documenter.Plugin[CitationBibliography(joinpath(@__DIR__, "src", "refs.bib"))]
+
+    if isnothing(build_format)
+        if use_vitepress
+            build_format = DocumenterVitepress.MarkdownVitepress(
+                repo = "https://github.com/sintefmath/JutulDarcy.jl",
+            )
+        else
+            build_format = Documenter.HTML(;
+                prettyurls=get(ENV, "CI", "false") == "true",
+                canonical="https://sintefmath.github.io/JutulDarcy.jl",
+                edit_link="main",
+                size_threshold_ignore = [
+                    "ref/jutul.md",
+                    "docstrings.md",
+                    "man/first_ex.md"
+                ],
+                assets=String["assets/citations.css"],
+            )
+        end
+    end
+
+    # VitePress copies public assets into every version and preview it builds.
+    # Documenter's HTML renderer copies notebooks from the source tree directly.
+    source_notebooks = joinpath(@__DIR__, "src", "notebooks")
+    notebook_dir = source_notebooks
+    vitepress_notebooks = build_notebooks && build_docs && build_format isa DocumenterVitepress.MarkdownVitepress
+    if vitepress_notebooks
+        asset_dir = mktempdir()
+        notebook_dir = mkpath(joinpath(asset_dir, "notebooks"))
+        push!(plugins, ExampleNotebookAssets(asset_dir))
+    end
 
     ## Literate pass
     # Convert examples as .jl files to markdown
@@ -283,6 +330,7 @@ function build_jutul_darcy_docs(
     if clean
         for (category, example_set) in pairs(examples)
             for ex in example_set
+                rm(joinpath(source_notebooks, category, "$ex.ipynb"); force = true)
                 delpath = joinpath(@__DIR__, "src", "examples", category, "$ex.md")
                 if isfile(delpath)
                     println("Deleting generated example \"$ex\":\n\t$delpath")
@@ -294,7 +342,7 @@ function build_jutul_darcy_docs(
         end
     end
     out_dir = joinpath(@__DIR__, "src", "examples")
-    notebook_dir = joinpath(@__DIR__, "assets")
+    revision = readchomp(`git -C $(@__DIR__) rev-parse HEAD`)
     for (category, example_set) in pairs(examples)
         if category == "validation"
             ex_dest = validation_markdown
@@ -320,7 +368,11 @@ function build_jutul_darcy_docs(
             end
             in_pth = example_path_jl(category, exname)
             push!(ex_dest, joinpath("examples", category, "$exname.md"))
-            upd(content) = update_footer(content, category, exname)
+            if build_notebooks
+                Literate.notebook(in_pth, joinpath(notebook_dir, category); execute = false)
+            end
+            upd(content) = update_footer(content, category, exname, revision;
+                include_notebook = build_notebooks, vitepress_notebooks)
             fixt(content) = replace_tags(content, category, exname)
             Literate.markdown(in_pth, joinpath(out_dir, category), preprocess = upd, postprocess = fixt)
         end
@@ -331,25 +383,6 @@ function build_jutul_darcy_docs(
     end
 
     ## Docs
-    if isnothing(build_format)
-        if use_vitepress
-            build_format = DocumenterVitepress.MarkdownVitepress(
-                repo = "https://github.com/sintefmath/JutulDarcy.jl",
-            )
-        else
-            build_format = Documenter.HTML(;
-                prettyurls=get(ENV, "CI", "false") == "true",
-                canonical="https://sintefmath.github.io/JutulDarcy.jl",
-                edit_link="main",
-                size_threshold_ignore = [
-                    "ref/jutul.md",
-                    "docstrings.md",
-                    "man/first_ex.md"
-                ],
-                assets=String["assets/citations.css"],
-            )
-        end
-    end
     build_pages = [
         "Manual" => [
                 "Introduction" => [
@@ -406,25 +439,12 @@ function build_jutul_darcy_docs(
             warnonly = false,
             sitename = "JutulDarcy.jl",
             checkdocs = :exports,
-            plugins = [bib],
+            plugins = plugins,
             format = build_format,
             pages = build_pages,
             checkdocs_ignored_modules = [Jutul],
             draft = get(ENV, "JUTULDARCY_DOCS_DRAFT_MODE", "0") == "1"
         )
-    end
-    if build_notebooks
-        # Subfolder of final site build folder
-        notebook_dir = joinpath(@__DIR__, "build", "final_site", "notebooks")
-        mkpath(notebook_dir)
-        for (category, example_set) in pairs(examples)
-            for exname in example_set
-                in_pth = example_path_jl(category, exname)
-                ex_notebook_dir = joinpath(notebook_dir, category)
-                @info "$exname Writing notebook to $ex_notebook_dir"
-                Literate.notebook(in_pth, ex_notebook_dir, execute = false)
-            end
-        end
     end
     if deploy
         DocumenterVitepress.deploydocs(;

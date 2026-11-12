@@ -104,7 +104,7 @@ plot_summary(result, plots = ["FWPR,FOPR,FGPR", "PRODU2:WOPR,WWPR,WGPR", "PRODU4
 
 ### Python bindings
 
-Alternatively, the code has a [Python package](https://github.com/sintefmath/PyJutulDarcy) that can be installed using `pip`:
+You can also install the [PyJutulDarcy Python package](https://sintefmath.github.io/PyJutulDarcy/) using `pip`:
 ```sh
 pip install jutuldarcy
 ```

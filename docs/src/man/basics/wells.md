@@ -104,6 +104,12 @@ JutulDarcy.print_well_result_table
 
 ### Imposing limits on wells (multiple constraints)
 
+Set the requested target in `control` and the operating constraints in `limits`
+when calling [`setup_reservoir_forces`](@ref). For example, a rate-controlled
+producer can switch to bottom-hole pressure control when achieving its target
+would require a pressure below the `bhp` limit. See
+[Switching a producer from rate to pressure control](@ref) for a two-step example.
+
 ## Well forces
 
 ### Perforations and WI adjustments

@@ -293,8 +293,9 @@ end
 # simulating the model. The parameters we choose to define the model are the
 # porosity and permeability of each layer, the multiplier on the
 # transmissibilities of the fault faces, and the vertical/horizontal
-# permeability ratio (kv_ratio). We could also have used
-# [`setup_reservoir_dict_optimization`](@ref) to make a setup function
+# permeability ratio (`kv_ratio`). We could also have used
+# [`setup_reservoir_dict_optimization`](@ref JutulDarcy.setup_reservoir_dict_optimization)
+# to make a setup function
 # automatically that exposes "standard" parameters.
 truth_prm = Dict(
     "LAYER_PORO" => [0.15, 0.22, 0.10],

@@ -6,7 +6,7 @@ JutulDarcy is written in Julia. There is also a [Python interface](@ref) which h
 
 ### Prerequisites
 
-To get started with JutulDarcy, you must install [the Julia programming language](https://julialang.org/). We recommend the latest stable release, but at least version 1.9 is required. Julia uses environments to manage packages. If you are not familiar with this concept, we recommend the [Pkg documentation](https://pkgdocs.julialang.org/v1/environments/).
+To get started with JutulDarcy, install [Julia](https://julialang.org/) 1.10 or newer. We recommend the latest stable release. Julia uses environments to manage packages. If you are not familiar with this concept, we recommend the [Pkg documentation](https://pkgdocs.julialang.org/v1/environments/).
 
 ### Setting up an environment
 
