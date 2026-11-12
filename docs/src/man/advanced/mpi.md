@@ -4,7 +4,7 @@ There are a few adjustments needed before a script can be run in MPI.
 
 ## Setting up the environment
 
-Use Julia 1.10 or newer and install `PartitionedArrays`, `MPI`, and `JutulDarcy` in the same environment. `HYPRE` is automatically installed. This is generally the best performing solver setup available, even if you are working in a shared memory environment.
+Use Julia 1.10 or newer and install `PartitionedArrays`, `MPI`, and `JutulDarcy` in the same environment. `HYPRE` is automatically installed.
 
 ### Writing the script
 
