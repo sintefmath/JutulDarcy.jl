@@ -1,6 +1,6 @@
 # Python interface
 
-JutulDarcy has a Python interface that automatically manages the Julia installation. For more details, see the [PyJutulDarcy GitHub page](https://github.com/sintefmath/PyJutulDarcy).
+PyJutulDarcy provides a Python interface to JutulDarcy and manages the Julia installation. See the [PyJutulDarcy documentation](https://sintefmath.github.io/PyJutulDarcy/) for requirements and setup.
 
 ## Installation
 
@@ -12,7 +12,7 @@ pip install jutuldarcy
 
 ## Usage
 
-The package contains a high level interface that allows you to run simulations and convert the results to `numpy` arrays. In addition, the package uses [PythonCall](https://github.com/JuliaPy/PythonCall.jl) under the hood where it is possible to access functions that do not yet have a public API.
+You can run simulations and convert the results to NumPy arrays. The [PyJutulDarcy user guide](https://sintefmath.github.io/PyJutulDarcy/guide/) covers indexing, results, Julia interoperation, execution backends, and gradients. To set up a simulation in Python, follow the [worked model-building example](https://sintefmath.github.io/PyJutulDarcy/examples/standalone/). See [Input formats](@ref) and [Supported physical systems](@ref) for details on the simulator.
 
 ```python
 import jutuldarcy as jd

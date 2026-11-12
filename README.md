@@ -50,7 +50,7 @@ There is also a Python interface. You can install JutulDarcy using pip:
 pip install jutuldarcy
 ```
 
-See the repository [PyJutulDarcy](https://github.com/sintefmath/PyJutulDarcy) for more information.
+See the [PyJutulDarcy documentation](https://sintefmath.github.io/PyJutulDarcy/) for setup, examples, and the Python API reference.
 
 ### Compiled executable
 
@@ -81,7 +81,7 @@ All solvers can incorporate general multisegment wells with rigorous mass balanc
 
 - Support for reading in and running .DATA files with corner point grids, with support for non-conformal faults and inactive cells.
 - Unstructured grids and complex cases input from [the Matlab Reservoir Simulation Toolbox (MRST)](https://www.mrst.no) using the `jutul` module
-- 3D visualization of grids and wells by loading a [Makie.jl](https://docs.makie.org/stable/) backend (requires Julia 1.9, `GLMakie` for interactivity)
+- 3D visualization of grids and wells with a [Makie.jl](https://docs.makie.org/stable/) backend such as `GLMakie`
 - Interactive plotting of well curves
 
 The compositional simulator has been matched against commercial offerings, AD-GPRS and MRST. The blackoil simulator has been validated on the standard SPE benchmarks (SPE1, SPE9, ...).

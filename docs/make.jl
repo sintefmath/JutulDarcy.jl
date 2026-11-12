@@ -219,18 +219,14 @@ function post_run_variables_gc()
     return s
 end
 
-function example_info_footer(subdir, exname)
+function example_info_footer(subdir, exname, revision)
     return "\n\n# ## Example on GitHub\n"*
     "# If you would like to run this example yourself, it can be downloaded from "*
-    "the JutulDarcy.jl GitHub repository [as a script](https://github.com/sintefmath/JutulDarcy.jl/blob/main/examples/$subdir/$exname.jl)"
-    # return "\n\n# ## Example on GitHub\n"*
-    # "# If you would like to run this example yourself, it can be downloaded from "*
-    # "the JutulDarcy.jl GitHub repository [as a script](https://github.com/sintefmath/JutulDarcy.jl/blob/main/examples/$subdir/$exname.jl), "*
-    # "or as a [Jupyter Notebook](https://github.com/sintefmath/JutulDarcy.jl/blob/gh-pages/dev/final_site/notebooks/$subdir/$exname.ipynb)"
+    "the JutulDarcy.jl GitHub repository [as a script](https://github.com/sintefmath/JutulDarcy.jl/blob/$revision/examples/$subdir/$exname.jl)"
 end
 
-function update_footer(content, subdir, exname)
-    info_footer = example_info_footer(subdir, exname)
+function update_footer(content, subdir, exname, revision)
+    info_footer = example_info_footer(subdir, exname, revision)
     gc_footer = post_run_variables_gc()
     start, stop = timer_str()
     new_content = string(start, content, info_footer, stop, gc_footer)
@@ -295,6 +291,7 @@ function build_jutul_darcy_docs(
     end
     out_dir = joinpath(@__DIR__, "src", "examples")
     notebook_dir = joinpath(@__DIR__, "assets")
+    revision = readchomp(`git -C $(@__DIR__) rev-parse HEAD`)
     for (category, example_set) in pairs(examples)
         if category == "validation"
             ex_dest = validation_markdown
@@ -320,7 +317,7 @@ function build_jutul_darcy_docs(
             end
             in_pth = example_path_jl(category, exname)
             push!(ex_dest, joinpath("examples", category, "$exname.md"))
-            upd(content) = update_footer(content, category, exname)
+            upd(content) = update_footer(content, category, exname, revision)
             fixt(content) = replace_tags(content, category, exname)
             Literate.markdown(in_pth, joinpath(out_dir, category), preprocess = upd, postprocess = fixt)
         end

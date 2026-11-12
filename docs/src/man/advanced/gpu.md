@@ -17,7 +17,7 @@ Pkg.add("CUDA") # Requires a CUDA-capable GPU
 
 ```julia
 using Pkg
-Pkg.add("AMDGPU") # Requires a AMD ROC-capable GPU
+Pkg.add("AMDGPU") # Requires a ROCm-compatible AMD GPU
 ```
 
 ### Loading a model
@@ -43,14 +43,14 @@ result_cpu = simulate_reservoir(case, mode = :ka);
 
 ```julia
 using CUDA
-result_cpu = simulate_reservoir(case, mode = :ka_cuda);
+result_cuda = simulate_reservoir(case, mode = :ka_cuda);
 ```
 
-### Running on CUDA GPUs
+### Running on AMD GPUs
 
 ```julia
-using CUDA
-result_cpu = simulate_reservoir(case, mode = :ka_cuda);
+using AMDGPU
+result_amd = simulate_reservoir(case, mode = :ka_amd);
 ```
 
 ### Additional options
