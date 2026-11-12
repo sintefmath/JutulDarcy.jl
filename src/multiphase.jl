@@ -222,6 +222,7 @@ function Jutul.default_parameter_values(data_domain, model, param::Transmissibil
     else
         error(":permeability or :transmissibilities symbol must be present in DataDomain to initialize parameter $symb, had keys: $(keys(data_domain))")
     end
+    T = apply_fracture_face_multiplier(T, data_domain)
     replace_bad_trans!(T, symb)
     return T
 end

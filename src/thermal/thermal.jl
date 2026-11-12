@@ -366,6 +366,7 @@ function Jutul.default_parameter_values(data_domain, model, param::FluidThermalC
     else
         error(":fluid_thermal_conductivities or :fluid_thermal_conductivity symbol must be present in DataDomain to initialize parameter $symb, had keys: $(keys(data_domain))")
     end
+    T = apply_fracture_face_multiplier(T, data_domain)
     return ensure_non_negative_trans(T, "fluid_thermal_conductivities")
 end
 
@@ -385,6 +386,7 @@ function Jutul.default_parameter_values(data_domain, model, param::RockThermalCo
     else
         error(":rock_thermal_conductivities or :rock_thermal_conductivity symbol must be present in DataDomain to initialize parameter $symb, had keys: $(keys(data_domain))")
     end
+    T = apply_fracture_face_multiplier(T, data_domain)
     return ensure_non_negative_trans(T, "rock_thermal_conductivities")
 end
 

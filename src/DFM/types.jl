@@ -104,17 +104,18 @@ function matrix_fracture_connection_conductivity(fractures::DataDomain, field::S
     # Get matrix-fracture connection source cells
     fracture_cells = fractures[:connection_cells, FractureMatrixConnection()]
     matrix_conductivity = fractures[Symbol(:matrix_, field)]
-    fracture_conductivity = fractures[field]
+    fracture_conductivity = vec(fractures[field])
     if contains(String(field), "fluid")
-        matrix_conductivity .*= fractures[:matrix_porosity]
-        fracture_conductivity .*= fractures[:porosity]
+        matrix_conductivity = matrix_conductivity .* fractures[:matrix_porosity]
+        fracture_conductivity = fracture_conductivity .* fractures[:porosity]
     elseif contains(String(field), "rock")
-        matrix_conductivity .*= (1.0 .- fractures[:matrix_porosity])
-        fracture_conductivity .*= (1.0 .- fractures[:porosity])
+        matrix_conductivity = matrix_conductivity .* (1.0 .- fractures[:matrix_porosity])
+        fracture_conductivity = fracture_conductivity .* (1.0 .- fractures[:porosity])
     end
     # Compute transmissibilities and gravity potential differences for each
     # matrix-fracture connection
-    transmissibilities = Float64[]
+    T_type = promote_type(eltype(matrix_conductivity), eltype(fracture_conductivity), eltype(fractures[:aperture]))
+    transmissibilities = T_type[]
     for (mcell, fcell) in enumerate(fracture_cells)
         # Compute fracture-matrix transmissibility
         a = fractures[:aperture][fcell]
@@ -123,7 +124,11 @@ function matrix_fracture_connection_conductivity(fractures::DataDomain, field::S
         xf = fractures[:cell_centroids][:, fcell]
         xm = fractures[:matrix_cell_centroids][:, mcell]
         Kf = fracture_conductivity[fcell]
-        Km = matrix_conductivity[mcell]
+        if matrix_conductivity isa AbstractVector
+            Km = matrix_conductivity[mcell]
+        else
+            Km = Jutul.expand_perm(view(matrix_conductivity, :, mcell), Val(length(xm)))
+        end
         T = matrix_fracture_connection_conductivity(a, A, n, xf, xm, Kf, Km)
         push!(transmissibilities, T)
     end
@@ -214,7 +219,7 @@ function Jutul.default_parameter_values(data_domain, model, param::FluidThermalC
             size(Λ, 1) == nph || error("Expected size $(nph) x num_cells for \
                 :fluid_thermal_conductivity, got size $(size(Λ))")
             nf = number_of_faces(data_domain)
-            T = zeros(nph, nf)
+            T = zeros(promote_type(eltype(Λ), eltype(ϕ)), nph, nf)
             for ph in 1:nph
                 T[ph, :] = reservoir_conductivity_dfm(data_domain, Λ[ph, :].*ϕ)
             end
