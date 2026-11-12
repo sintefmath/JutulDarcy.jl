@@ -40,7 +40,7 @@ module SPE10
     "Number of cells of the SPE10 model 2 in x, y and z (layers)."
     const DIMS = (60, 220, 85)
     "Size of an SPE10 model 2 cell in x, y and z [m] (20 × 10 × 2 ft)."
-    const CELL_DIMS = (20.0, 10.0, 2.0).*0.3048
+    const CELL_DIMS = (20.0, 10.0, 2.0).*si_unit(:feet)
 
     """
         JutulDarcy.SPE10.load_data(; source = spe10_artifact_path())
