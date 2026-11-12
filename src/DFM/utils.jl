@@ -87,7 +87,8 @@ function fracture_domain(mesh::JutulMesh, matrix::DataDomain;
     fracture[:matrix_faces, fmc] = matrix_faces
     fracture[:matrix_cells, fmc] = matrix_cells
     fracture[:matrix_cell_centroids, fmc] = x[:, matrix_cells]
-    fracture[:matrix_permeability, fmc] = K[matrix_cells]
+    # (a permeability tensor has one column per cell)
+    fracture[:matrix_permeability, fmc] = K isa AbstractVector ? K[matrix_cells] : K[:, matrix_cells]
     fracture[:matrix_fluid_thermal_conductivity, fmc] = Λ_f[matrix_cells]
     fracture[:matrix_rock_thermal_conductivity, fmc] = Λ_r[matrix_cells]
     fracture[:matrix_porosity, fmc] = ϕ[matrix_cells]

@@ -105,7 +105,8 @@ function matrix_fracture_connection_conductivity(fractures::DataDomain, field::S
     fracture_cells = fractures[:connection_cells, FractureMatrixConnection()]
     # Scale copies of the conductivities: the domain arrays must not be
     # modified, as they are used for other parameters as well.
-    matrix_conductivity = vec(fractures[Symbol(:matrix_, field)])
+    # (the matrix permeability may be a tensor, with one column per connection)
+    matrix_conductivity = fractures[Symbol(:matrix_, field)]
     fracture_conductivity = vec(fractures[field])
     if contains(String(field), "fluid")
         matrix_conductivity = matrix_conductivity .* fractures[:matrix_porosity]
@@ -126,7 +127,11 @@ function matrix_fracture_connection_conductivity(fractures::DataDomain, field::S
         xf = fractures[:cell_centroids][:, fcell]
         xm = fractures[:matrix_cell_centroids][:, mcell]
         Kf = fracture_conductivity[fcell]
-        Km = matrix_conductivity[mcell]
+        if matrix_conductivity isa AbstractVector
+            Km = matrix_conductivity[mcell]
+        else
+            Km = Jutul.expand_perm(view(matrix_conductivity, :, mcell), Val(length(xm)))
+        end
         T = matrix_fracture_connection_conductivity(a, A, n, xf, xm, Kf, Km)
         push!(transmissibilities, T)
     end

@@ -387,6 +387,28 @@ end
         @test T_2a != T
     end
 
+    @testset "matrix_fracture_connection_conductivity (tensor permeability)" begin
+        # The fracture at x = L/2 has normal x and the matrix-fracture
+        # connections run along x, so only K_xx of a diagonal tensor enters
+        d = setup_simple_dfm()
+        nc = number_of_cells(d.cut)
+        kx, ky, kz = 1e-2Darcy, 5e-2Darcy, 2e-3Darcy
+        K = repeat([kx, ky, kz], 1, nc)
+        matrix = reservoir_domain(d.cut; permeability = K, porosity = 0.1)
+        fractures = JutulDarcy.fracture_domain(d.fracture_mesh, matrix;
+            aperture = 1e-3meter, porosity = 0.5)
+        fmc = JutulDarcy.FractureMatrixConnection()
+        mc = fractures[:matrix_cells, fmc]
+        @test fractures[:matrix_permeability, fmc] == K[:, mc]
+
+        matrix_iso = reservoir_domain(d.cut; permeability = kx, porosity = 0.1)
+        fractures_iso = JutulDarcy.fracture_domain(d.fracture_mesh, matrix_iso;
+            aperture = 1e-3meter, porosity = 0.5)
+        T = JutulDarcy.matrix_fracture_connection_conductivity(fractures, :permeability)
+        T_iso = JutulDarcy.matrix_fracture_connection_conductivity(fractures_iso, :permeability)
+        @test T ≈ T_iso
+    end
+
     @testset "setup_fractured_reservoir_model (immiscible, no wells)" begin
         d = setup_simple_dfm()
         sys = ImmiscibleSystem((AqueousPhase(), LiquidPhase()))
