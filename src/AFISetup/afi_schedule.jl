@@ -26,8 +26,9 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel;
         if haskey(w_dd, :well_index_multiplier)
             pimult = copy(w_dd[:well_index_multiplier, JutulDarcy.Perforations()])
         else
-            pimult = ones(length(nperf))
+            pimult = ones(nperf)
         end
+        input_indices = get(w_dd, :original_perforation_indices, ())
         well_setup[wname] = Dict{String, Any}(
             "Constraints" => OrderedDict{String, Float64}(),
             "HistoryDataControl" => missing,
@@ -39,6 +40,7 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel;
             "EffectivePiMultiplier" => ones(nperf),
             "Type" => "PRODUCER",
             "PerforationMap" => remap,
+            "InputPerforationMap" => Dict(row => i for (i, row) in enumerate(input_indices)),
             "Enthalpy" => missing,
             "injector_max_bhp_limit" => injector_max_bhp_limit,
             "producer_min_bhp_limit" => producer_min_bhp_limit
@@ -65,6 +67,8 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel;
     # WellToCellConnections status change
 
     ix_steps = afi["IX"]["STEPS"]
+    initial_welldefs = find_records(afi, "WellDef", "IX", steps = false)
+    completion_names = afi_completion_names(find_records(afi, "WellDef", "IX"))
     fm_steps = afi["FM"]["STEPS"]
     observation_data = get(afi["FM"], "OBSH", missing)
     dates = keys(ix_steps)
@@ -89,7 +93,8 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel;
     timesteps = Float64[]
     t_elapsed = 0.0
     for (dateno, date) in enumerate(dates)
-        for (i, recv) in enumerate(ix_steps[date])
+        records = dateno == 1 ? Iterators.flatten((initial_welldefs, ix_steps[date])) : ix_steps[date]
+        for (i, recv) in enumerate(records)
             kw = recv.keyword
             rec = recv.value
             if kw == "WellDef"
@@ -101,27 +106,36 @@ function setup_afi_schedule(afi::AFIInputFile, model::MultiModel;
                         continue
                     end
                     # Match this record's rows by identity, independent of ordering.
-                    cells = get(w2c, "Cell", [])
-                    completion = get(w2c, "Completion", map(i -> "Completion$i", 1:length(cells)))
-                    connection_ids = map(tuple, cells, completion)
-                    pmap = Dict(i => ws["PerforationMap"][uid] for (i, uid) in enumerate(connection_ids) if haskey(ws["PerforationMap"], uid))
+                    connection_ids = afi_connection_ids(rec["WellName"], w2c, completion_names)
+                    pi_updates = coalesce(get(w2c, "PiMultiplier", missing), ())
+                    status_updates = coalesce(get(w2c, "Status", missing), ())
+                    if isnothing(connection_ids)
+                        pmap = ws["InputPerforationMap"]
+                        # Older parsers padded indexed updates with defaults that overwrite other rows.
+                        preserves_gaps(values) = eltype(values) === Any ? any(ismissing, values) : Missing <: eltype(values)
+                        pi_updates = preserves_gaps(pi_updates) ? pi_updates : ()
+                        status_updates = preserves_gaps(status_updates) ? status_updates : ()
+                    else
+                        model_positions = ws["PerforationMap"]
+                        pmap = Dict(i => get(model_positions, id, 0) for (i, id) in enumerate(connection_ids))
+                    end
                     eff_mult = ws["EffectivePiMultiplier"]
                     mult = ws["PiMultiplier"]
                     base_mult = ws["BaseMultiplier"]
                     status = ws["ConnectionStatus"]
                     # base_trans = model[wname].data_domain[:well_index]
 
-                    for (i, v) in enumerate(get(w2c, "PiMultiplier", []))
-                        i_mapped = get(pmap, i, missing)
-                        if ismissing(i_mapped)
+                    for (i, v) in enumerate(pi_updates)
+                        i_mapped = get(pmap, i, 0)
+                        if i_mapped == 0 || ismissing(v)
                             continue
                         end
                         # Not sure what -1 means but we truncate to zero
                         mult[i_mapped] = max(v, 0.0)
                     end
-                    for (i, v) in enumerate(get(w2c, "Status", []))
-                        i_mapped = get(pmap, i, missing)
-                        if ismissing(i_mapped)
+                    for (i, v) in enumerate(status_updates)
+                        i_mapped = get(pmap, i, 0)
+                        if i_mapped == 0 || ismissing(v)
                             continue
                         end
                         status[i_mapped] = v

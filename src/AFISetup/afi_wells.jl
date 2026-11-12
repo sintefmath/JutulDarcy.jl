@@ -1,117 +1,89 @@
+# Use a name supplied elsewhere only when the cell has a single named completion.
+function afi_completion_names(welldefs)
+    names = Dict{Tuple{String, Any}, Union{String, Missing}}()
+    for record in welldefs
+        w2c = get(record.value, "WellToCellConnections", Dict())
+        cells = get(w2c, "Cell", missing)
+        completion = get(w2c, "Completion", missing)
+        (ismissing(cells) || ismissing(completion)) && continue
+        for (cell, name) in zip(cells, completion)
+            ismissing(name) && continue
+            key = (record.value["WellName"], cell)
+            name = String(name)
+            isequal(get!(names, key, name), name) || (names[key] = missing)
+        end
+    end
+    return names
+end
+
+function afi_connection_ids(wname, w2c, names)
+    cells = get(w2c, "Cell", missing)
+    ismissing(cells) && return nothing
+    completion = get(w2c, "Completion", missing)
+    return map(eachindex(cells)) do i
+        cell = cells[i]
+        name = ismissing(completion) ? missing : get(completion, i, missing)
+        return (cell, ismissing(name) ? get(names, (wname, cell), nothing) : String(name))
+    end
+end
+
 function setup_wells(d::AFIInputFile, reservoir; perf_sort = Dict())
     welldefs = find_records(d, "WellDef", "IX", steps = true, model = true)
+    names = afi_completion_names(welldefs)
     well_dict = OrderedDict{String, Any}()
     for welldef in welldefs
         w2c = get(welldef.value, "WellToCellConnections", Dict())
-        if !haskey(w2c, "Cell")
-            continue
-        end
         wname = welldef.value["WellName"]
-        w2c = copy(w2c)
-
-        cells = w2c["Cell"]
-        if haskey(w2c, "Completion")
-            completion = w2c["Completion"]
-        else
-            @warn "WellTocellConnections entry $wname has no Completion information. Generating default completion names."
-            completion = map(d -> "Completion$d", 1:length(cells))
+        ids = afi_connection_ids(wname, w2c, names)
+        (isnothing(ids) || isempty(ids)) && continue
+        first_record = !haskey(well_dict, wname)
+        well = get!(well_dict, wname) do
+            Dict{String, Any}("w2c" => Dict{String, Any}("UniqueID" => Tuple[]), "ref_depth" => nothing)
         end
-        w2c["UniqueID"] = map(tuple, cells, completion)
-        if haskey(well_dict, wname)
-            current_w2c = well_dict[wname]["w2c"]
-            current_uids = current_w2c["UniqueID"]
-            uid_pos_in_current = Int[]
-            n_added = 0
-            is_new = Bool[]
-            for uid in w2c["UniqueID"]
-                pos = findfirst(x -> x == uid, current_uids)
-                if isnothing(pos)
-                    push!(current_uids, uid)
-                    n_added += 1
-                    new_idx = length(current_uids)
-                    push!(is_new, true)
-                else
-                    new_idx = pos
-                    push!(is_new, false)
-                end
-                push!(uid_pos_in_current, new_idx)
+        current_w2c = well["w2c"]
+        current_uids = current_w2c["UniqueID"]
+        uid_pos = map(ids) do id
+            pos = findfirst(isequal(id), current_uids)
+            if isnothing(pos)
+                push!(current_uids, id)
+                pos = length(current_uids)
             end
-            if n_added > 0
-                missing_fields = setdiff(keys(current_w2c), keys(w2c))
-                if length(missing_fields) > 0
-                    @warn "New WellDef entry for well $wname has new cells but is missing fields $(missing_fields). These will be filled with UNINITIALIZED values and may lead to a crash if used. Please check the AFI file for consistency."
-                end
-                nuid = length(current_uids)
-                for (k, v) in pairs(current_w2c)
-                    if k == "UniqueID"
-                        continue
-                    end
-                    function get_value(i)
-                        # Pad with missing
-                        if i <= length(v)
-                            out = v[i]
-                        else
-                            out = missing
-                        end
-                        return out
-                    end
-                    current_w2c[k] = map(get_value, 1:nuid)
-                end
+            return pos
+        end
+
+        for k in union(keys(current_w2c), keys(w2c))
+            k in ("UniqueID", "Cell", "Completion", "Status") && continue
+            old = get(current_w2c, k, [])
+            new = get(w2c, k, [])
+            # Keep the initial values for fields that can change in the schedule.
+            time_varying = k in ("PiMultiplier", "Transmissibility")
+            if time_varying && !first_record
+                new = []
             end
-            @assert length(uid_pos_in_current) == length(w2c["UniqueID"])
-            for (k, v) in pairs(w2c)
-                if k in ("Transmissibility", "Status", "PiMultiplier")
-                    # These can vary over time - we skip these
-                    continue
-                end
-                if haskey(current_w2c, k)
-                    old_value = current_w2c[k]
-                    new_value = v
-                    if old_value != new_value
-                        # Sometimes these get set to zero, which we allow
-                        if k == "WellBoreRadius" && length(old_value) == length(new_value)
-                            ok = true
-                            for i in eachindex(old_value, new_value)
-                                ov = old_value[i]
-                                nv = new_value[i]
-                                if !isapprox(ov, nv, atol = 1e-3) && nv > 0.0
-                                    ok = false
-                                    break
-                                end
-                            end
-                            if ok
-                                continue
-                            end
-                        end
-                        msg = ""
-                        for (i, v) in enumerate(new_value)
-                            current_i = uid_pos_in_current[i]
-                            if is_new[i]
-                                # This is a new cell - we take the new value
-                                old_value[current_i] = v
-                                continue
-                            end
-                            ov = old_value[current_i]
-                            uid = current_uids[current_i]
-                            if ov isa Real && ov ≈ 0.0 && !(v ≈ 0.0)
-                                # Old value was set to zero - we accept the new value
-                                old_value[current_i] = v
-                            elseif (v isa Real && !isapprox(v, ov, rtol = 1e-6) && !(k == "WellBoreRadius" && v ≈ 0.0)) || (v isa String && v != ov)
-                                msg *= " Index $i cell-completion $uid: old=$(ov) vs new=$v\n"
-                            end
-                        end
-                        if msg != ""
-                            @warn "Duplicate WellDef WellToCellConnections entry for well $wname entry in AFI file with different values. Keyword: $k. Using initially provided entry. Details:\n$msg"
-                        end
+            old = ismissing(old) ? [] : old
+            new = ismissing(new) ? [] : new
+            isempty(old) && isempty(new) && continue
+            aligned = Any[get(old, i, missing) for i in eachindex(current_uids)]
+            for (i, value) in enumerate(new)
+                (i > length(uid_pos) || ismissing(value)) && continue
+                pos = uid_pos[i]
+                previous = aligned[pos]
+                if ismissing(previous) || (!time_varying && previous isa Real && previous ≈ 0.0)
+                    aligned[pos] = value
+                elseif !time_varying
+                    if previous isa Real && value isa Real
+                        matches = k == "WellBoreRadius" ?
+                            (value ≈ 0.0 || isapprox(previous, value; atol = 1e-3)) :
+                            isapprox(previous, value; rtol = 1e-6)
+                    else
+                        matches = isequal(previous, value)
                     end
-                else
-                    current_w2c[k] = v
+                    if !matches
+                        @warn "Conflicting $k for well $wname, connection $(ids[i]). Using the first value ($previous)."
+                    end
                 end
             end
-        else
-            well_dict[wname] = Dict()
-            well_dict[wname]["w2c"] = deepcopy(w2c)
-            well_dict[wname]["ref_depth"] = nothing
+            current_w2c[k] = aligned
         end
     end
     if perf_sort isa Symbol
@@ -170,12 +142,16 @@ function setup_wells(d::AFIInputFile, reservoir; perf_sort = Dict())
     wells = []
     for (k, v) in pairs(well_dict)
         w2c = v["w2c"]
-        cells = get(w2c, "Cell", Int[])
+        ids = w2c["UniqueID"]
+        cells = first.(ids)
         active = Bool[]
         cells_mapped = Int[]
         head = missing
-        for c in cells
-            if c isa Int
+        for (c, completion) in ids
+            if ismissing(completion)
+                # An unnamed row cannot identify one of several completions in this cell.
+                next = missing
+            elseif c isa Int
                 # TODO: Not clear to me if these include the cell index offset or not
                 # next = c
                 next = get(global_to_local, c, missing)
@@ -187,18 +163,19 @@ function setup_wells(d::AFIInputFile, reservoir; perf_sort = Dict())
                 push!(active, false)
             else
                 if ismissing(head)
-                    head = cell_ijk(mesh, c)
+                    head = cell_ijk(mesh, next)
                 end
                 push!(active, true)
                 push!(cells_mapped, next)
             end
         end
-        tvd = get(w2c, "TrueVerticalDepth", missing)
+        isempty(cells_mapped) && continue
+        tvd = get_if_active(w2c, "TrueVerticalDepth", active)
         if !ismissing(tvd)
-            if isnothing(v["ref_depth"]) && length(cells) > 0
-                v["ref_depth"] = w2c["TrueVerticalDepth"][1]
+            first_depth = w2c["TrueVerticalDepth"][1]
+            if isnothing(v["ref_depth"]) && !ismissing(first_depth)
+                v["ref_depth"] = first_depth
             end
-            tvd = tvd[active]
         end
         nperf = length(cells)
         skin = get(w2c, "Skin", zeros(nperf))[active]
@@ -207,20 +184,23 @@ function setup_wells(d::AFIInputFile, reservoir; perf_sort = Dict())
         if ismissing(dir)
             dir = fill(:z, nperf)
         else
-            dir = map(x -> dir_to_symbol[x], dir)
+            dir = map(x -> dir_to_symbol[coalesce(x, GeoEnergyIO.IXParser.IX_K)], dir)
         end
         dir = dir[active]
         WI = get_if_active(w2c, "Transmissibility", active)
         Kh = get_if_active(w2c, "PermeabilityThickness", active)
         drainage_radius = get_if_active(w2c, "PressureEquivalentRadius", active)
         r = get(w2c, "WellBoreRadius", fill(0.1, nperf))[active]
-        compnames = get(w2c, "Completion", missing)
-        if ismissing(compnames)
-            compnames = map(i -> "COMPLETION_$i", cells)
+        compnames = map(ids[active]) do (cell, name)
+            return isnothing(name) ? "COMPLETION_$cell" : name
         end
-        compnames = compnames[active]
-        worder = get(perf_sort, k, :track)
-        sorted_ix = JutulDarcy.well_completion_sortperm(reservoir, head, worder, cells_mapped, dir)
+        worder = get(perf_sort, k, :depth)
+        if lowercase(String(worder)) == "depth" && !ismissing(tvd)
+            depths = coalesce.(tvd, reservoir[:cell_centroids][3, cells_mapped])
+            sorted_ix = sortperm(depths)
+        else
+            sorted_ix = JutulDarcy.well_completion_sortperm(reservoir, head, worder, cells_mapped, dir)
+        end
         function reorder_and_typecheck(::Missing, T = missing, default = missing)
             return missing
         end
@@ -240,10 +220,10 @@ function setup_wells(d::AFIInputFile, reservoir; perf_sort = Dict())
         end
 
         cells_mapped = cells_mapped[sorted_ix]
-        skin = reorder_and_typecheck(skin, Float64)
+        skin = reorder_and_typecheck(skin, Float64, 0.0)
         WI = reorder_and_typecheck(WI, Float64, NaN)
-        Kh = reorder_and_typecheck(Kh, Float64)
-        r = reorder_and_typecheck(r, Float64)
+        Kh = reorder_and_typecheck(Kh, Float64, NaN)
+        r = reorder_and_typecheck(r, Float64, 0.1)
         pi_mult = reorder_and_typecheck(pi_mult, Float64, 1.0)
         # Not necessarily Float64
         dir = reorder_and_typecheck(dir)
@@ -263,9 +243,10 @@ function setup_wells(d::AFIInputFile, reservoir; perf_sort = Dict())
         w[:well_index_multiplier, JutulDarcy.Perforations()] = pi_mult
         w[:perforation_names, JutulDarcy.Perforations()] = compnames
         w[:original_perforation_indices, JutulDarcy.Perforations()] = findall(active)[sorted_ix]
-        w[:perforation_connection_ids, JutulDarcy.Perforations()] = w2c["UniqueID"][active][sorted_ix]
+        w[:perforation_connection_ids, JutulDarcy.Perforations()] = ids[active][sorted_ix]
         if !ismissing(tvd)
-            w[:perforation_centroids, JutulDarcy.Perforations()][3, :] .= tvd
+            depths = view(w[:perforation_centroids, JutulDarcy.Perforations()], 3, :)
+            depths .= coalesce.(tvd, depths)
         end
         push!(wells, w)
     end
