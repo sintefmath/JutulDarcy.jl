@@ -38,6 +38,7 @@ module JutulDarcy
     export PhaseRelativePermeability
     export FlowBoundaryCondition
     export ReservoirSimResult
+    export write_standard_output, write_standard_summary, write_standard_restart, write_standard_egrid
     export reservoir_domain
     export reservoir_model
     export setup_reservoir_model
@@ -196,6 +197,8 @@ module JutulDarcy
 
     # Various input tricks
     include("io.jl")
+    include("StandardOutput/StandardOutput.jl")
+    using .StandardOutput: write_standard_output, write_standard_summary, write_standard_restart, write_standard_egrid
     include("linsolve.jl")
     include("cpr.jl")
     include("deck_support.jl")

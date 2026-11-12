@@ -929,7 +929,9 @@ function parse_state0_direct_assignment(model, datafile)
                 end
             end
             init[:OverallMoleFractions] = z
-            if haskey(sol, "RTEMP") || haskey(props, "RTEMP")
+            if haskey(sol, "TEMPI")
+                init[:Temperature] = convert_to_si.(sol["TEMPI"][ix], :Celsius)
+            elseif haskey(sol, "RTEMP") || haskey(props, "RTEMP")
                 if haskey(props, "RTEMP")
                     rtmp = props["RTEMP"][1]
                 else

@@ -3388,21 +3388,23 @@ function reservoir_measurables(model, wellresult, states = missing;
         bhp .= ws[only(wells)][:bhp]
     end
 
+    dt_for_cumsum = dt
     if units != :si
         # TODO: These should be exported + documented.
         usys_from = GeoEnergyIO.InputParser.DeckUnitSystem(:si)
         usys_to = GeoEnergyIO.InputParser.DeckUnitSystem(units)
         systems = (to = usys_to, from = usys_from)
-        d = si_unit(:day)
+        time_unit = usys_to.time
         for (k, x) in pairs(out)
             if x isa Vector
                 continue
             end
             GeoEnergyIO.InputParser.swap_unit_system!(x.values, systems, x.unit_type)
             if x.is_rate
-                @. x.values *= d
+                @. x.values *= time_unit
             end
         end
+        dt_for_cumsum = dt/time_unit
     end
 
     # Derived quantities - done at the end to avoid double unit conversion
@@ -3416,10 +3418,6 @@ function reservoir_measurables(model, wellresult, states = missing;
     @. fglr = abs(fgpr)/max.(abs(flpr), 1e-12)
 
     flpt = add_entry(:lpt)
-    dt_for_cumsum = dt
-    if units != :si
-        dt_for_cumsum = dt/si_unit(:day)
-    end
     if prefix == 'w'
         dt_for_cumsum = dt_for_cumsum .* get(ws[only(wells)], :factor, 1.0)
     end
