@@ -1471,7 +1471,9 @@ function setup_reservoir_simulator(case::JutulCase;
         end
         sim = transfer_to_backend(sim_cpu, ka_context;
             group_execution = group_execution,
-            mixed_cross_terms_on_host = mixed_cross_terms_on_host)
+            mixed_cross_terms_on_host = mixed_cross_terms_on_host,
+            do_copy = false
+        )
     elseif mode == :default
         # Single-process solve
         if method == :newton
