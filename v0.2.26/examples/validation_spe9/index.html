@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Validation: SPE9 · JutulDarcy.jl</title><meta name="title" content="Validation: SPE9 · JutulDarcy.jl"/><meta property="og:title" content="Validation: SPE9 · JutulDarcy.jl"/><meta property="twitter:title" content="Validation: SPE9 · JutulDarcy.jl"/><meta name="description" content="Documentation for JutulDarcy.jl."/><meta property="og:description" content="Documentation for JutulDarcy.jl."/><meta property="twitter:description" content="Documentation for JutulDarcy.jl."/><meta property="og:url" content="https://sintefmath.github.io/JutulDarcy.jl/examples/validation_spe9/"/><meta property="twitter:url" content="https://sintefmath.github.io/JutulDarcy.jl/examples/validation_spe9/"/><link rel="canonical" href="https://sintefmath.github.io/JutulDarcy.jl/examples/validation_spe9/"/><script data-outdated-warner src="../../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../search_index.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script><link href="../../assets/citations.css" rel="stylesheet" type="text/css"/></head><body><div id="documenter"><nav class="docs-sidebar"><a class="docs-logo" href="../../"><img src="../../assets/logo.png" alt="JutulDarcy.jl logo"/></a><div class="docs-package-name"><span class="docs-autofit"><a href="../../">JutulDarcy.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><span class="tocitem">Introduction</span><ul><li><a class="tocitem" href="../../">JutulDarcy.jl</a></li><li><a class="tocitem" href="../../man/intro/">Getting started</a></li></ul></li><li><span class="tocitem">Examples</span><ul><li><a class="tocitem" href="../two_phase_gravity_segregation/">Gravity segregation</a></li><li><a class="tocitem" href="../two_phase_buckley_leverett/">Two-phase Buckley-Leverett</a></li><li><a class="tocitem" href="../two_phase_unstable_gravity/">Gravity circulation with CPR preconditioner</a></li><li><a class="tocitem" href="../wells_intro/">Intro to wells</a></li><li><a class="tocitem" href="../co2_sloped/">CO2 injection in saline aquifer</a></li><li><a class="tocitem" href="../data_input_file/">Simulating Eclipse/DATA input files</a></li><li><a class="tocitem" href="../five_spot_ensemble/">Quarter-five-spot with variation</a></li><li><a class="tocitem" href="../co2_brine_2d_vertical/">Intro to compositional flow</a></li><li><a class="tocitem" href="../compositional_5components/">Compositional with five components</a></li><li><a class="tocitem" href="../optimize_simple_bl/">Parameter optimization of Buckley-Leverett</a></li><li><a class="tocitem" href="../validation_spe1/">Validation: SPE1</a></li><li class="is-active"><a class="tocitem" href>Validation: SPE9</a><ul class="internal"><li><a class="tocitem" href="#Producer-BHP"><span>Producer BHP</span></a></li><li><a class="tocitem" href="#Producer-water-rate"><span>Producer water rate</span></a></li><li><a class="tocitem" href="#Injector-water-rate"><span>Injector water rate</span></a></li><li><a class="tocitem" href="#Oil-produciton-rate"><span>Oil produciton rate</span></a></li><li><a class="tocitem" href="#Example-on-GitHub"><span>Example on GitHub</span></a></li></ul></li><li><a class="tocitem" href="../validation_egg/">Validation: Egg</a></li><li><a class="tocitem" href="../validation_olympus_1/">Validation: OLYMPUS 1</a></li><li><a class="tocitem" href="../validation_norne_nohyst/">Validation: Norne</a></li><li><a class="tocitem" href="../validation_mrst/">Validation: MRST input files</a></li></ul></li><li><span class="tocitem">Manual</span><ul><li><a class="tocitem" href="../../man/highlevel/">High-level API</a></li><li><a class="tocitem" href="../../man/basics/input_files/">Input formats</a></li><li><a class="tocitem" href="../../man/basics/forces/">Driving forces</a></li><li><a class="tocitem" href="../../man/basics/systems/">Supported physical systems</a></li><li><a class="tocitem" href="../../man/basics/wells/">Wells and controls</a></li><li><a class="tocitem" href="../../man/basics/solution/">Solving the equations</a></li><li><a class="tocitem" href="../../man/basics/primary/">Primary variables</a></li><li><a class="tocitem" href="../../man/basics/secondary/">Secondary variables (properties)</a></li><li><a class="tocitem" href="../../man/basics/parameters/">Parameters</a></li><li><a class="tocitem" href="../../man/basics/plotting/">Plotting and visualization</a></li></ul></li><li><span class="tocitem">Advanced usage</span><ul><li><a class="tocitem" href="../../man/advanced/mpi/">Multi-threading and MPI support</a></li><li><a class="tocitem" href="../../man/advanced/compiled/">Standalone reservoir simulator</a></li></ul></li><li><span class="tocitem">Reference</span><ul><li><a class="tocitem" href="../../ref/jutul/">Jutul functions</a></li></ul></li><li><span class="tocitem">Additional information </span><ul><li><a class="tocitem" href="../../extras/refs/">References</a></li><li><a class="tocitem" href="../../extras/faq/">FAQ</a></li></ul></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Examples</a></li><li class="is-active"><a href>Validation: SPE9</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Validation: SPE9</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/sintefmath/JutulDarcy.jl/blob/main/examples/validation_spe9.jl#" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="The-SPE9-model"><a class="docs-heading-anchor" href="#The-SPE9-model">The SPE9 model</a><a id="The-SPE9-model-1"></a><a class="docs-heading-anchor-permalink" href="#The-SPE9-model" title="Permalink"></a></h1><p><a href="http://dx.doi.org/10.2118/29110-MS">Killough, J. E. 1995. Ninth SPE comparative solution project: A reexamination of black-oil simulation. In SPE Reservoir Simulation Symposium,  12-15 February 1995, San Antonio, Texas. SPE 29110-MS</a></p><pre><code class="language-julia hljs">using Jutul, JutulDarcy, GLMakie, DelimitedFiles
+spe9_dir = JutulDarcy.GeoEnergyIO.test_input_file_path(&quot;SPE9&quot;)
+case = setup_case_from_data_file(joinpath(spe9_dir, &quot;SPE9.DATA&quot;))
+ws, states = simulate_reservoir(case, output_substates = true)
+#
+csv_path = joinpath(spe9_dir, &quot;REFERENCE.CSV&quot;)
+data, header = readdlm(csv_path, &#39;,&#39;, header = true)
+#
+time_ref = data[:, 1]
+time_jutul = deepcopy(ws.time)
+wells = deepcopy(ws.wells)
+wnames = collect(keys(wells))
+nw = length(wnames)
+day = si_unit(:day)
+cmap = :tableau_hue_circle
+
+inj = Symbol[]
+prod = Symbol[]
+for (wellname, well) in pairs(wells)
+    qts = well[:wrat] + well[:orat] + well[:grat]
+    if sum(qts) &gt; 0
+        push!(inj, wellname)
+    else
+        push!(prod, wellname)
+    end
+end
+
+function plot_well_comparison(response, well_names, reponse_name = &quot;$response&quot;)
+    fig = Figure(size = (1000, 400))
+    if response == :bhp
+        ys = 1/si_unit(:bar)
+        yl = &quot;Bottom hole pressure / Bar&quot;
+    elseif response == :wrat
+        ys = si_unit(:day)
+        yl = &quot;Surface water rate / m³/day&quot;
+    elseif response == :grat
+        ys = si_unit(:day)/1e6
+        yl = &quot;Surface gas rate / 10⁶ m³/day&quot;
+    elseif response == :orat
+        ys = si_unit(:day)/(1000*si_unit(:stb))
+        yl = &quot;Surface oil rate / 10³ stb/day&quot;
+    else
+        error(&quot;$response not ready.&quot;)
+    end
+    welltypes = []
+    ax = Axis(fig[1:4, 1], xlabel = &quot;Time / days&quot;, ylabel = yl)
+    i = 1
+    linehandles = []
+    linelabels = []
+    for well_name in well_names
+        well = wells[well_name]
+        label_in_csv = &quot;$well_name:$response&quot;
+        ref_pos = findfirst(x -&gt; x == label_in_csv, vec(header))
+        qoi = copy(well[response]).*ys
+        qoi_ref = data[:, ref_pos].*ys
+        tot_rate = copy(well[:rate])
+        @. qoi[tot_rate == 0] = NaN
+        grat_ref = data[:, findfirst(x -&gt; x == &quot;$well_name:grat&quot;, vec(header))]
+        orat_ref = data[:, findfirst(x -&gt; x == &quot;$well_name:orat&quot;, vec(header))]
+        wrat_ref = data[:, findfirst(x -&gt; x == &quot;$well_name:wrat&quot;, vec(header))]
+        tot_rate_ref = grat_ref + orat_ref + wrat_ref
+        @. qoi_ref[tot_rate_ref == 0] = NaN
+        crange = (1, max(length(well_names), 2))
+        lh = lines!(ax, time_jutul./day, abs.(qoi),
+            color = i,
+            colorrange = crange,
+            label = &quot;$well_name&quot;, colormap = cmap
+        )
+        push!(linehandles, lh)
+        push!(linelabels, &quot;$well_name&quot;)
+        lines!(ax, time_ref./day, abs.(qoi_ref),
+            color = i,
+            colorrange = crange,
+            linestyle = :dash,
+            colormap = cmap
+        )
+        i += 1
+    end
+    l1 = LineElement(color = :black, linestyle = nothing)
+    l2 = LineElement(color = :black, linestyle = :dash)
+
+    Legend(fig[1:3, 2], linehandles, linelabels, nbanks = 3)
+    Legend(fig[4, 2], [l1, l2], [&quot;JutulDarcy.jl&quot;, &quot;E100&quot;])
+    fig
+end</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">plot_well_comparison (generic function with 2 methods)</code></pre><h2 id="Producer-BHP"><a class="docs-heading-anchor" href="#Producer-BHP">Producer BHP</a><a id="Producer-BHP-1"></a><a class="docs-heading-anchor-permalink" href="#Producer-BHP" title="Permalink"></a></h2><pre><code class="language-julia hljs">plot_well_comparison(:bhp, prod, &quot;Bottom hole pressure&quot;)</code></pre><img src="9c822b40.png" alt="Example block output"/><h2 id="Producer-water-rate"><a class="docs-heading-anchor" href="#Producer-water-rate">Producer water rate</a><a id="Producer-water-rate-1"></a><a class="docs-heading-anchor-permalink" href="#Producer-water-rate" title="Permalink"></a></h2><pre><code class="language-julia hljs">plot_well_comparison(:wrat, prod, &quot;Water surface rate&quot;)</code></pre><img src="c3a6db57.png" alt="Example block output"/><h2 id="Injector-water-rate"><a class="docs-heading-anchor" href="#Injector-water-rate">Injector water rate</a><a id="Injector-water-rate-1"></a><a class="docs-heading-anchor-permalink" href="#Injector-water-rate" title="Permalink"></a></h2><pre><code class="language-julia hljs">plot_well_comparison(:wrat, inj, &quot;Water surface rate&quot;)</code></pre><img src="2263e3f3.png" alt="Example block output"/><h2 id="Oil-produciton-rate"><a class="docs-heading-anchor" href="#Oil-produciton-rate">Oil produciton rate</a><a id="Oil-produciton-rate-1"></a><a class="docs-heading-anchor-permalink" href="#Oil-produciton-rate" title="Permalink"></a></h2><pre><code class="language-julia hljs">plot_well_comparison(:orat, prod, &quot;Oil surface rate&quot;)</code></pre><img src="93bbce9c.png" alt="Example block output"/><h2 id="Example-on-GitHub"><a class="docs-heading-anchor" href="#Example-on-GitHub">Example on GitHub</a><a id="Example-on-GitHub-1"></a><a class="docs-heading-anchor-permalink" href="#Example-on-GitHub" title="Permalink"></a></h2><p>If you would like to run this example yourself, it can be downloaded from the JutulDarcy.jl GitHub repository <a href="https://github.com/sintefmath/JutulDarcy.jl/blob/main/examples/validation_spe9.jl">as a script</a>, or as a <a href="https://github.com/sintefmath/JutulDarcy.jl/blob/gh-pages/dev/examples/validation_spe9.ipynb">Notebook</a></p><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../validation_spe1/">« Validation: SPE1</a><a class="docs-footer-nextpage" href="../validation_egg/">Validation: Egg »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.5.0 on <span class="colophon-date" title="Thursday 27 June 2024 21:25">Thursday 27 June 2024</span>. Using Julia version 1.10.4.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
