@@ -1,4 +1,4 @@
-# Overview
+# Validation overview
 
 JutulDarcy.jl uses industry standard discretizations and will match other simulators when the parameters and driving forces are identical. Setting up identical parameters can be challenging, however, as there are many subtleties in exactly how input is interpreted. In this section, we go over some things to keep in mind when doing a direct comparison to other simulators.
 

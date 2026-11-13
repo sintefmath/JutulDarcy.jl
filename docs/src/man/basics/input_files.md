@@ -3,20 +3,7 @@
 
 It is also possible to read cases that have been set up in MRST (see [`setup_case_from_mrst`](@ref) and [`simulate_mrst_case`](@ref)) or from .DATA files (see [`setup_case_from_data_file`](@ref) and [`simulate_data_file`](@ref))
 
-## MAT-files from the Matlab Reservoir Simulation Toolbox (MRST)
-
-### Simulation of .MAT files
-
-```@docs
-setup_case_from_mrst
-simulate_mrst_case
-```
-
-### MRST-specific types
-
-```@docs
-Jutul.MRSTWrapMesh
-```
+setup_case_from_afi
 
 ## DATA-files from commercial reservoir modelling software
 
@@ -44,6 +31,21 @@ If you can share your input file or the missing keywords [in the issues
 section](https://github.com/sintefmath/JutulDarcy.jl/issues) it may be easier to
 figure out if a case can be supported.
 
+## MAT-files from the Matlab Reservoir Simulation Toolbox (MRST)
+
+### Simulation of .MAT files
+
+```@docs
+setup_case_from_mrst
+simulate_mrst_case
+```
+
+### MRST-specific types
+
+```@docs
+Jutul.MRSTWrapMesh
+```
+
 ## Premade models
 
 ### SPE10, model 2
@@ -51,3 +53,5 @@ figure out if a case can be supported.
 ```@docs
 JutulDarcy.SPE10.setup_case
 ```
+
+There are also a number of examples (SPE1, SPE9, EGG, OLYMPUS, Norne, ...) with input files included in the validation suite, starting at [Validation overview](@ref).
