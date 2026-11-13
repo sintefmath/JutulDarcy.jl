@@ -24,7 +24,7 @@ plot_reservoir(case_a, key = :satnum, fancy = false)
 # ### Simulate Case A
 # We use ILU(0) and a slightly looser tolerance for this model, as CPR can
 # produce failures near 1 atmosphere pressure.
-ws_a, states_a = simulate_reservoir(case, tol_cnv = 0.01, precond = :ilu0)
+ws_a, states_a = simulate_reservoir(case_a, tol_cnv = 0.01, precond = :ilu0)
 plot_reservoir(case_a, states_a, key = :Saturations, step = length(case_a.dt), fancy = false)
 # ## Case B
 # Case B is a 2D version at reservoir conditions that also incorporates thermal effects.
@@ -33,13 +33,13 @@ ws_b, states_b = simulate_reservoir(case_b, tol_cnv = 0.01)
 plot_reservoir(case_b, states_b, key = :Saturations, step = length(case_b.dt), fancy = false)
 # ## Case C
 # Case C is a 3D version at reservoir conditions.
-case = JutulDarcy.CSP11.setup_case_c((30, 30, 30), thermal = true, dz_max = 0.1, nstep_initialization = 0)
-ws_c, states_c = simulate_reservoir(case, tol_cnv = 0.01)
+case_c = JutulDarcy.CSP11.setup_case_c((30, 30, 30), thermal = true, dz_max = 0.1, nstep_initialization = 0)
+ws_c, states_c = simulate_reservoir(case_c, tol_cnv = 0.01)
 ##
-msh = reservoir_mesh(case)
+msh = reservoir_mesh(case_c)
 z_co2 = states_c[end][:OverallMoleFractions][2, :]
 fig, ax, plt = plot_cell_data(msh, z_co2, cells = z_co2 .> 0.01)
-for (k, w) in get_model_wells(case)
+for (k, w) in get_model_wells(case_c)
     plot_well!(ax, msh, w)
 end
 plot_mesh_edges!(ax, msh)
