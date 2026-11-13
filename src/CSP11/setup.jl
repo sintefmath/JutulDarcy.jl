@@ -125,7 +125,7 @@ Construct a complete Cartesian SPE11 reservoir domain directly from the
 published geometry. `dims` is `(nx, nz)` for A/B and `(nx, ny, nz)` for C. The
 case-C mesh is warped into physical space according to the benchmark mapping.
 """
-function setup_spe11_domain(dims::Tuple; case = :b, kwarg...)
+function setup_spe11_domain(dims::Tuple; case = :b, transform_perm = false, kwarg...)
     check_spe11_case(case)
     all(x -> x isa Integer, dims) || throw(ArgumentError("Cartesian dimensions must be integers"))
     dims = Tuple(Int.(dims))
@@ -158,7 +158,7 @@ function setup_spe11_domain(dims::Tuple; case = :b, kwarg...)
         satnum[i] = spe11_facies(cc[1, i], cc[2, i], cc[3, i]; case = case)
     end
     permeability, porosity = rock_props_from_satnum(satnum, case)
-    if case == :c
+    if case == :c && transform_perm
         permeability = transform_spe11c_permeability(permeability, cc[2, :])
     end
     domain = reservoir_domain_csp11(mesh, case;

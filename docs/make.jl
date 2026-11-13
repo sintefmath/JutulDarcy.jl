@@ -436,7 +436,7 @@ function build_jutul_darcy_docs(
             modules = [JutulDarcy, Jutul],
             authors = "Olav Møyner <olav.moyner@sintef.no> and contributors",
             repo = "https://github.com/sintefmath/JutulDarcy.jl/blob/{commit}{path}#{line}",
-            warnonly = false,
+            warnonly = get(ENV, "JUTULDARCY_DOCS_EXAMPLES_SKIP", "0") == "1",
             sitename = "JutulDarcy.jl",
             checkdocs = :exports,
             plugins = plugins,

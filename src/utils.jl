@@ -3933,7 +3933,7 @@ function convert_for_plotting(s::Union{AbstractDict, JutulStorage};
                 s = 'z'
             end
         else
-            error("Invalid dimension: $d")
+            s = "$d"
         end
         return "$(k)_$(s)"
     end
