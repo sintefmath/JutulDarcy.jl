@@ -483,7 +483,9 @@ function equil_temperature_function(datafile, ereg)
             end
             depths = table[:, 1]
             temperatures = convert_to_si.(table[:, 2], :Celsius)
-            T_z = get_1d_interpolator(depths, temperatures)
+            # TEMPVD extrapolates the temperature gradient outside the tabulated
+            # depths (including during hydrostatic initialization).
+            T_z = get_1d_interpolator(depths, temperatures; cap_endpoints = false)
         end
     end
     return T_z

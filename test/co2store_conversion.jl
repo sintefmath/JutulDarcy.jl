@@ -1,5 +1,21 @@
 using Test, Jutul, JutulDarcy
 
+@testset "Deck temperature-depth extrapolation" begin
+    for keyword in ("RTEMPVD", "TEMPVD")
+        table = [800.0 32.7134; 1000.0 41.0]
+        data = Dict("PROPS" => Dict(), "SOLUTION" => Dict(keyword => [table]))
+        temperature = JutulDarcy.equil_temperature_function(data, 1)
+        for depth in (750.0, 800.0, 900.0, 1000.0, 1050.0)
+            expected = 273.15 + 32.7134 + (depth - 800.0)*(41.0 - 32.7134)/200.0
+            @test temperature(depth) ≈ expected
+        end
+        data["SOLUTION"][keyword] = [reshape([800.0, 32.7134], 1, 2)]
+        temperature = JutulDarcy.equil_temperature_function(data, 1)
+        @test temperature(750.0) ≈ 305.8634
+        @test temperature(1050.0) ≈ 305.8634
+    end
+end
+
 function co2store_column_deck()
     return """
 RUNSPEC

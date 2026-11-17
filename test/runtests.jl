@@ -32,6 +32,7 @@ end
 
 @testitem "KernelAbstractions single model" tags = [:ci_backends, :backends, :kernel_abstractions, :gpu, :flow] begin
     include("kernel_abstractions.jl")
+    include("well_presolve_ka.jl")
 end
 
 @testitem "CPRW BHP controls" tags = [:ci_solvers, :solvers, :cpr, :wells] begin
