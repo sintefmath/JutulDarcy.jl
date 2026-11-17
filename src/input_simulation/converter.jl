@@ -1,9 +1,8 @@
 """
     convert_co2store_to_co2_brine(data; verbose = true)
 
-Converts a CO2STORE data file to a co2-brine model. The conversion should be
-close to equivialent for models without salt. The data will be copied if
-modifications are necessary.
+Converts a CO2STORE data file to a co2-brine model. The PVT correlations can
+differ from those used by the original simulator.
 """
 function convert_co2store_to_co2_brine(data; verbose = true, kwarg...)
     rs = get(data, "RUNSPEC", Dict())
@@ -48,6 +47,19 @@ function convert_co2store_to_co2_brine!(data; verbose = true)
     has_co2stor = haskey(rs, "CO2STOR")
     if !(has_co2store || has_co2stor)
         throw(ArgumentError("Cannot convert if RUNSPEC is missing CO2STORE/CO2STOR keyword."))
+    end
+    is_bo_style = !haskey(rs, "COMPS")
+    if is_bo_style
+        # OPM can use the black-oil style CO2STORE keyword.
+        mixing = any(kw -> get(rs, kw, false), ("DISGAS", "DISGASW", "VAPOIL", "VAPWAT"))
+        rs["JUTUL_CO2BRINE_PHYSICS"] = ifelse(mixing, :kvalue, :immiscible)
+        if haskey(rs, "OIL") && haskey(rs, "GAS") && !haskey(rs, "WATER")
+            # OPM oil/gas decks use the gas-oil EQUIL contact for CO2/brine.
+            # JUTUL_CO2BRINE initialization reads the water-oil contact instead.
+            for eq in get(get(data, "SOLUTION", Dict()), "EQUIL", [])
+                eq[3:4] .= eq[5:6]
+            end
+        end
     end
     delete!(rs, "CO2STORE")
     delete!(rs, "CO2STOR")
@@ -105,8 +117,8 @@ function convert_co2store_to_co2_brine!(data; verbose = true)
         else
             local_msg("Converting SALINITY to NaCL salt.")
             salt_mf = CO2Properties.convert_salinity_to_mole_fractions(salinity)
-            data["PROPS"]["SALTS"] = ["NaCl"]
-            data["PROPS"]["SALT_MOLE_FRACTIONS"] = salt_mf
+            rs["SALTS"] = ["NaCl"]
+            rs["SALT_MOLE_FRACTIONS"] = [salt_mf]
         end
     end
     # ZMFVD (convert)

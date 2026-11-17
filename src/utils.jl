@@ -679,6 +679,12 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
                 wsys = system
             else
                 wsys = wells_systems[well_no]
+                if wsys isa Symbol
+                    # Could be a magic symbol (e.g. :co2brine), then we will
+                    # have to take whatever is initialized in the reservoir
+                    # model.
+                    wsys = system
+                end
             end
             if wells_as_cells && w isa SimpleWell
                 well_context = reservoir_context

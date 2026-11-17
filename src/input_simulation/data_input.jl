@@ -33,6 +33,10 @@ given as `parse_arg`. The optional input `include_data=true` will make the
 function return the parsed data in addition the case itself. Additional keyword
 arguments are passed on to [`setup_case_from_parsed_data`](@ref).
 
+OPM CO2STORE/CO2STOR decks without dissolution or vaporization keywords default
+to immiscible CO2-brine physics. Set `co2_physics=:kvalue` to override this and
+allow both dissolution and vaporization.
+
 Surface-rate `GCONPROD` and `GCONINJE` controls are mapped to well groups,
 including individual well limits and `GRUPTREE` ancestor lookup. Production
 groups are named `<group>_PRODUCTION`, and injection groups `<group>_<phase>`.
@@ -168,6 +172,9 @@ function setup_case_from_parsed_data(datafile;
     end
 
     extra_arg = Dict{Symbol, Any}()
+    if sys == :co2brine && !haskey(kwarg, :co2_physics)
+        extra_arg[:co2_physics] = get(rs, "JUTUL_CO2BRINE_PHYSICS", :kvalue)
+    end
     if !skip_wells && !isempty(deck_groups) && !haskey(kwarg, :well_groups)
         extra_arg[:well_groups] = deck_groups
     end

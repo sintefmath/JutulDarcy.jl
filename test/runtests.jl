@@ -171,6 +171,10 @@ end
     include("co2props.jl")
 end
 
+@testitem "CO2STORE conversion" tags = [:ci_compositional, :co2, :input, :initialization] begin
+    include("co2store_conversion.jl")
+end
+
 @testitem "Discretizations" tags = [:ci_flow, :discretization, :input, :blackoil] begin
     include("discretizations.jl")
 end

@@ -14,9 +14,11 @@ Set up iterative linear solver for a reservoir model from [`setup_reservoir_mode
 - `v=0`: verbosity (can lead to a large amount of output)
 - `solver=:bicgstab`: the symbol of a Krylov.jl solver (typically :gmres or :bicgstab)
 - `max_coarse`: max size of coarse level if using AMG
-- `amg_type`: pressure AMG variant. For the KernelAbstractions backend this is
-  the coarsening method (`:hmis`, `:ruge_stuben`, or `:aggregation`),
-  with `:hmis` as the default. CPU uses `:hypre` by default and the legacy CUDA
+- `amg_type`: pressure AMG variant. The KernelAbstractions backend defaults
+  to `:hmis` and also supports `:ruge_stuben`, `:aggregation`, and experimental
+  `:pmis`. For device setup and full rebuilds of the pressure hierarchy, use
+  `amg_type=:pmis, amg_arg=(reuse=:memory, coarse_solver=:spai0)`.
+  CPU uses `:hypre` by default and the legacy CUDA
   backend uses `:amgx`. An initialized Jutul preconditioner can also be passed.
 - `smoother_type`: full-system smoother. The default is `:ilu0` on CPU and
   `:dilu` on accelerator KA backends. The `:ka_*` choices use the new
@@ -24,7 +26,8 @@ Set up iterative linear solver for a reservoir model from [`setup_reservoir_mode
 - `amg_arg`, `smoother_arg`, `cpr_arg`: keyword arguments forwarded to the
   pressure AMG, full-system smoother, and CPR constructors, respectively.
   KA pressure AMG defaults to Gauss-Seidel on CPU with one default-pool
-  thread, and SPAI0 otherwise. `amg_arg.smoother_type` overrides this choice.
+  thread, and SPAI0 otherwise. PMIS always uses SPAI0.
+  `amg_arg.smoother_type` overrides the default for other methods.
 - `cpr_type=nothing`: type of CPR (`:true_impes`, `:quasi_impes` or `nothing` for automatic)
 - `partial_update=true`: perform partial update of CPR preconditioner outside of AMG update (see above)
 - `rtol=1e-3`: relative tolerance for the linear solver
@@ -176,7 +179,7 @@ function select_reservoir_linear_solver(model, precond = :cpr;
         end
         # Interactive/GC threads do not make the numerical worker pool parallel.
         is_serial = Threads.nthreads(:default) == 1
-        if is_serial && is_ka_backend && is_ka_cpu
+        if is_serial && is_ka_backend && is_ka_cpu && amg_type != :pmis
             default_pressure_smoother_type = :gauss_seidel
         else
             default_pressure_smoother_type = :spai0
