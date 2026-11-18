@@ -274,7 +274,7 @@ module SPE10
             datum_depth = 12000*si_unit(:feet)
             reservoir = reservoir_domain(model)
             woc = maximum(reservoir[:cell_centroids][3, :]) + 100*si_unit(:feet)
-            equil = EquilibriumRegion(model, p_datum, datum_depth, woc = woc)
+            equil = EquilibriumRegion(model, p_datum, datum_depth, woc = woc, temperature_vs_depth = z -> 300.0)
         elseif equil isa Function
             equil = equil(model)
         end
