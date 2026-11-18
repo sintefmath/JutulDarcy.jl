@@ -133,7 +133,7 @@ module SPE10
         return ImmiscibleSystem(:wo, reference_densities = [rhoWS, rhoOS])
     end
 
-    function setup_wells(domain::Jutul.DataDomain; well_triplets = missing)
+    function setup_wells(domain::Jutul.DataDomain; well_triplets = missing, kwarg...)
         mesh = physical_representation(domain)
         nx, ny, nz = grid_dims_ijk(mesh)
         nx > 0 && nx % 60 == 0 || error("Expected nx to be a positive multiple of 60, got $nx")
@@ -166,10 +166,15 @@ module SPE10
                 push!(well_triplets, (max(1, 60*i), max(1, 220*j), Symbol(:P, nprod)))
             end
         end
-        addw(I, J, name) = setup_vertical_well(domain, I, J, name = name, verbose = false, radius = 5*si_unit(:inch))
         wells = []
         for (I, J, name) in well_triplets
-            push!(wells, addw(I, J, name))
+            next = setup_vertical_well(domain, I, J;
+                name = name,
+                verbose = false,
+                radius = 5*si_unit(:inch),
+                kwarg...
+            )
+            push!(wells, next)
         end
         return [w for w in wells]
     end
@@ -224,6 +229,7 @@ module SPE10
     function setup_model(;
             layers = 1:85,
             model_arg = NamedTuple(),
+            well_arg = NamedTuple(),
             well_triplets = missing,
             domain = missing,
             system = missing,
@@ -236,7 +242,7 @@ module SPE10
         if use_spe10_fluid
             system = setup_system()
         end
-        wells = setup_wells(domain; well_triplets = well_triplets)
+        wells = setup_wells(domain; well_triplets = well_triplets, well_arg...)
         model = setup_reservoir_model(domain, system; ds_max = 0.1, wells = wells, model_arg...)
         if use_spe10_fluid
             kr = setup_relperm()
