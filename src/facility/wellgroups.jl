@@ -151,6 +151,11 @@ function Jutul.update_equation_in_entity!(v, i, state, state0, eq::ControlEquati
             eq_val += 0*state.BottomHolePressure[w_idx] + 0*state.SurfacePhaseRates[1, w_idx]
         end
     end
+    # ReinjectionTarget injects what its source wells produce - include all
+    # wells' mass rates to capture sparsity.
+    for w_idx in eachindex(wcontroller.well_symbols)
+        eq_val += 0*state.TotalSurfaceMassRate[w_idx]
+    end
     v[1] = eq_val
 end
 
