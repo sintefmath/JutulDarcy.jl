@@ -52,6 +52,8 @@ Jutul.MRSTWrapMesh
 
 ```@docs
 JutulDarcy.SPE10.setup_case
+JutulDarcy.SPE10.load_data
+JutulDarcy.SPE10.load_block
 ```
 
 There are also a number of examples (SPE1, SPE9, EGG, OLYMPUS, Norne, ...) with input files included in the validation suite, starting at [Validation overview](@ref).
