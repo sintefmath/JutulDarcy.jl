@@ -62,6 +62,61 @@ module SPE10
         return (kx = get_perm(1), ky = get_perm(2), kz = get_perm(3), poro = reshape(vec(poro), DIMS))
     end
 
+    """
+        JutulDarcy.SPE10.load_block(layers = 1:85; ix = 1:60, iy = 1:220, coarsen = (1, 1, 1), minporo = 0.01)
+
+    Extract a block of the SPE10 model 2: the given `layers` and, optionally, a
+    lateral subset `ix × iy` of the columns. Returns the permeabilities `kx`,
+    `ky`, `kz` [m²] and the porosity `poro` as `nx × ny × nz` arrays (layer 1 at
+    the top), and the cell sizes `dx`, `dy`, `dz` [m]. The porosity is bounded
+    below by `minporo`.
+
+    With `coarsen = (cx, cy, cz)`, blocks of `cx × cy × cz` cells are merged into
+    one cell, and the factors must divide the size of the block. The porosity is
+    the arithmetic mean over the merged cells. For each direction, the
+    permeability is the harmonic mean along that direction of the arithmetic
+    means over the cross sections normal to it.
+
+    The data is read with [`JutulDarcy.SPE10.load_data`](@ref) unless it is
+    passed as `data`, which avoids reading the files again when extracting
+    several blocks.
+    """
+    function load_block(layers = 1:DIMS[3];
+            ix = 1:DIMS[1],
+            iy = 1:DIMS[2],
+            coarsen = (1, 1, 1),
+            minporo = 0.01,
+            data = missing,
+            source = spe10_artifact_path()
+        )
+        if ismissing(data)
+            data = load_data(source = source)
+        end
+        phi = max.(data.poro[ix, iy, layers], minporo)
+        n = size(phi)
+        all(n .% coarsen .== 0) || throw(ArgumentError("coarsen = $coarsen must divide the block size $n"))
+        m = n .÷ coarsen
+        blocks(I) = ntuple(a -> ((I[a] - 1) * coarsen[a] + 1):(I[a] * coarsen[a]), 3)
+        average(x) = sum(x) / length(x)
+        # Avoid division by zero for (nearly) impermeable cells
+        harmonic(x) = length(x) / sum(1 ./ max.(x, 1.0e-11 * si_unit(:darcy)))
+        function upscale(k, dir)
+            others = filter(!=(dir), (1, 2, 3))
+            out = zeros(m)
+            for I in CartesianIndices(m)
+                b = k[blocks(Tuple(I))...]
+                out[I] = harmonic(vec(sum(b, dims = others) ./ prod(size(b, d) for d in others)))
+            end
+            return out
+        end
+        kx = upscale(data.kx[ix, iy, layers], 1)
+        ky = upscale(data.ky[ix, iy, layers], 2)
+        kz = upscale(data.kz[ix, iy, layers], 3)
+        poro = [average(phi[blocks(Tuple(I))...]) for I in CartesianIndices(m)]
+        h = CELL_DIMS .* coarsen
+        return (kx = kx, ky = ky, kz = kz, poro = poro, dx = h[1], dy = h[2], dz = h[3])
+    end
+
     function setup_reservoir(;
             layers = 1:85,
             anisotropy = true,
