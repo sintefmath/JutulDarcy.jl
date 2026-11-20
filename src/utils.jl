@@ -1381,6 +1381,7 @@ function setup_reservoir_simulator(case::JutulCase;
         group_execution = missing,
         ka_workgroupsize = 256,
         wells_on_device::Bool = false,
+        merge_wells::Bool = wells_on_device,
         mixed_cross_terms_on_host::Bool = wells_on_device,
         float_type = Float64,
         index_type = Int,
@@ -1390,6 +1391,9 @@ function setup_reservoir_simulator(case::JutulCase;
         reduce_memory = true,
         kwarg...
     )
+    if merge_wells
+        case = merge_similar_wells(case)
+    end
     if ismissing(precond)
         rmodel = reservoir_model(case)
         is_csr = rmodel.context isa ParallelCSRContext
