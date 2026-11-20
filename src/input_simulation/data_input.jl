@@ -32,6 +32,8 @@ Additional arguments to the parser can be passed as key/values in a `NamedTuple`
 given as `parse_arg`. The optional input `include_data=true` will make the
 function return the parsed data in addition the case itself. Additional keyword
 arguments are passed on to [`setup_case_from_parsed_data`](@ref).
+Use `well_type = :multisegment` or `well_type = :simple` to override the well
+representations specified by the deck.
 
 OPM CO2STORE/CO2STOR decks without dissolution or vaporization keywords default
 to immiscible CO2-brine physics. Set `co2_physics=:kvalue` to override this and
@@ -68,15 +70,55 @@ function setup_case_from_data_file(
 end
 
 """
-    setup_case_from_parsed_data(datafile; skip_wells = false, simple_well = true, use_ijk_trans = true, verbose = false, kwarg...)
+    setup_case_from_parsed_data(datafile; kwarg...)
 
-Set up a case from a parsed input file (in `Dict` format). Internal function,
-not exported. Use [`setup_case_from_data_file`](@ref).
+Set up a case from a parsed input file in `Dict` format. The public entry point
+is [`setup_case_from_data_file`](@ref).
+
+# Keyword arguments
+
+- `skip_wells = false` omits wells from the model when set to `true`.
+- `skip_forces = skip_wells` bypasses the deck schedule and forces when set to
+  `true`. The case then has no wells and uses default forces and a single
+  one-second time step. Can be useful for testing the initial equilibrium.
+- `well_type = :data` selects the well representation.
+    - `:data` uses the deck's keywords to define what well types to use. The
+      result can be a mixture of regular and multisegement wells.
+    - `:multisegment` builds multisegment wells throughout, using the ordered
+      completions to construct paths for wells without deck-defined segments.
+    - `:simple` builds simple wells throughout, preserving completions and well
+      controls while discarding segment geometry and valve controls.
+- `simple_well = true` is the legacy option for `well_type`. Set it to `false`
+  to select `:multisegment` when `well_type` is omitted.
+- `use_ijk_trans = true` computes reservoir transmissibilities using logical
+  I/J/K directions. Set it to `false` to use the model's normal parameter setup.
+- `verbose = false` prints setup progress and timing when set to `true`.
+- `zcorn_depths = true` selects `ZCORN`-derived cell depths only when
+  `reservoir_domain` uses `cpgrid_geometry = false`. This setup uses
+  `cpgrid_geometry = true`.
+- `normalize = true` controls the `COMPVD` and `ZMFVD` mole fractions used for
+  compositional `EQUIL` initialization. Use `true` or `:sum` to divide each row
+  by its sum, `:clampsum` to clamp fractions to `[0, 1]` first, or `false` to use
+  the supplied fractions as-is, subject to validation.
+- `convert_co2store = true` converts `CO2STORE` and `CO2STOR` decks to a CO₂-brine
+  model before setup.
+- `repair_zcorn = true` repairs nonmonotone corner depths before building the
+  mesh. Repairs can modify the input `ZCORN` array in place.
+- `process_pinch = true` applies `PINCH` to corner-point grids, processing thin
+  cells and their vertical connections according to the deck settings.
+- `include_tracers = true` adds passive tracers defined by `TRACER` to the
+  model. The `POLYMER` keyword activates polymer independently.
+- `cell_nz = 1` sets the number of depth samples per cell for `EQUIL`
+  initialization. Use `1` or `missing` for one sample at the cell depth, or an
+  integer greater than one to average over several depths.
+- `kwarg...` forwards additional keyword arguments to
+  [`setup_reservoir_model`](@ref).
 """
 function setup_case_from_parsed_data(datafile;
         skip_wells = false,
         skip_forces = skip_wells,
         simple_well = true,
+        well_type = simple_well ? :data : :multisegment,
         use_ijk_trans = true,
         verbose = false,
         zcorn_depths = true,
@@ -88,6 +130,9 @@ function setup_case_from_parsed_data(datafile;
         cell_nz = 1,
         kwarg...
     )
+    if !(well_type isa Symbol && well_type in (:data, :multisegment, :simple))
+        throw(ArgumentError("Invalid well_type $(repr(well_type)). Expected :data, :multisegment or :simple."))
+    end
     function msg(s)
         if verbose
             jutul_message("Setup", s)
@@ -145,7 +190,7 @@ function setup_case_from_parsed_data(datafile;
         controls = limits = cstep = well_forces = missing
         dt = [1.0]
     else
-        wells, controls, limits, cstep, dt, well_forces, deck_groups = parse_schedule(domain, sys_facility, datafile; simple_well = simple_well, include_groups = true)
+        wells, controls, limits, cstep, dt, well_forces, deck_groups = parse_schedule(domain, sys_facility, datafile; well_type, include_groups = true)
         if skip_wells
             empty!(wells)
         end
@@ -335,11 +380,14 @@ end
 
 function parse_well_from_compdat(domain, wname, cdat, wspecs, msdata, compord, step; simple_well = isnothing(msdata))
     wc, WI, open, _, _, data = compdat_to_connection_factors(domain, wspecs, cdat, step, sort = true, order = compord)
+    has_ms_data = !isnothing(msdata)
     ref_depth = wspecs.ref_depth
+    if isnan(ref_depth) && has_ms_data && haskey(msdata, "WELSEGS")
+        ref_depth = msdata["WELSEGS"][2].header[2]
+    end
     if isnan(ref_depth)
         ref_depth = nothing
     end
-    has_ms_data = !isnothing(msdata)
     extra_arg = Dict{Symbol, Any}()
     if !simple_well
         # Set up multi-segment well
@@ -361,9 +409,7 @@ function parse_well_from_compdat(domain, wname, cdat, wspecs, msdata, compord, s
                 compsegs = msdata["COMPSEGS"][2]
 
                 top_depth = header[2]
-                if isnothing(ref_depth)
-                    ref_depth = top_depth
-                elseif !(ref_depth ≈ top_depth)
+                if !isnan(wspecs.ref_depth) && !(ref_depth ≈ top_depth)
                     @warn "Reference depths for ms well should coincide with top depth: ref depth $ref_depth != top depth $top_depth"
                 end
                 top_tubing_delta = header[3]
@@ -634,7 +680,7 @@ function compdat_to_connection_factors(domain, wspec, v, step; sort = true, orde
     return (wc[ix], WI[ix], open[ix], mul[ix], fresh[ix], data)
 end
 
-function parse_schedule(domain, runspec, props, schedule, sys; simple_well = true, include_groups = false)
+function parse_schedule(domain, runspec, props, schedule, sys; well_type = :data, include_groups = false)
     G = physical_representation(domain)
     ijk_lookup = ijk_lookup_dict(G)
     parsed = parse_control_steps(runspec, props, schedule, sys)
@@ -654,14 +700,10 @@ function parse_schedule(domain, runspec, props, schedule, sys; simple_well = tru
         for i in eachindex(completions)
             well_forces[i][Symbol(k)] = (mask = nothing, )
         end
-        if haskey(msdata, k)
-            msdata_k = msdata[k]
-            k_is_simple_well = false
-        else
-            msdata_k = nothing
-            k_is_simple_well = simple_well
-        end
+        msdata_k = get(msdata, k, nothing)
+        k_is_simple_well = well_type == :simple || (well_type == :data && isnothing(msdata_k))
         W, wc_base, WI_base, open = parse_well_from_compdat(domain, k, v, wspec, msdata_k, compord, length(completions); simple_well = k_is_simple_well)
+        has_segment_valves = !k_is_simple_well && !isnothing(msdata_k) && haskey(msdata_k, "WSEGVALV")
         n_wi = length(WI_base)
         T = eltype(WI_base)
         for (i, c) in enumerate(completions)
@@ -695,7 +737,7 @@ function parse_schedule(domain, runspec, props, schedule, sys; simple_well = tru
                 mask = PerforationMask(wi_mul)
             end
             # TODO: Make this use setup_forces properly
-            if !isnothing(msdata_k) && haskey(msdata_k, "WSEGVALV")
+            if has_segment_valves
                 segment_models = data_file_segment_valve_models(msdata_k; step = i)
                 well_forces[i][Symbol(k)] = (mask = mask, segment_models = segment_models)
             else
