@@ -239,4 +239,16 @@ end
         end
 
     end
+
+    @testset "Partition keeps wells in a single block" begin
+        f = JutulDarcy.GeoEnergyIO.test_input_file_path("SPE9", "SPE9.DATA")
+        case = setup_case_from_data_file(f, split_wells = true)
+        well_groups = JutulDarcy.partitioner_well_groups(case.model)
+        for coarsedim in [32, 64, (4, 4, 2)]
+            p = JutulDarcy.partition_reservoir(case, coarsedim; wells_in_single_block = true)
+            for cells in well_groups
+                @test length(unique(p[cells])) == 1
+            end
+        end
+    end
 end

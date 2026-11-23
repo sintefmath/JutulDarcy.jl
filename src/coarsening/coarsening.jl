@@ -235,7 +235,12 @@ function partition_reservoir(model::JutulModel, coarsedim::Union{Tuple, Int}, me
     else
         well_groups = missing
     end
-    return partition_reservoir(domain, coarsedim, method; parameters = parameters, well_groups = well_groups, kwarg...)
+    return partition_reservoir(domain, coarsedim, method;
+        parameters = parameters,
+        wells_in_single_block = wells_in_single_block,
+        well_groups = well_groups,
+        kwarg...
+    )
 end
 
 function partition_reservoir(domain::DataDomain, coarsedim::Union{Tuple, Int}, method = missing;
@@ -274,10 +279,13 @@ function partition_reservoir(domain::DataDomain, coarsedim::Union{Tuple, Int}, m
             partitioner = method
         end
         partitioner::Jutul.JutulPartitioner
-        N, T, well_groups = partitioner_input(domain, parameters,
+        N, T, domain_well_groups = partitioner_input(domain, parameters,
             conn = partitioner_conn_type,
             preserve_faults = preserve_faults
         )
+        if ismissing(well_groups)
+            well_groups = domain_well_groups
+        end
         if !ismissing(compartments)
             l = N[1, :]
             r = N[2, :]
@@ -310,7 +318,7 @@ function partition_reservoir(domain::DataDomain, coarsedim::Union{Tuple, Int}, m
         end
     end
     p = Jutul.process_partition(mesh, p, weights = weights)
-    if !ismissing(well_groups)
+    if wells_in_single_block && !ismissing(well_groups)
         # Could have split up things that are actually connected by wells.
         for group in well_groups
             group_t = unique!(p[group])
