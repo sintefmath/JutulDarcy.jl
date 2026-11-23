@@ -43,7 +43,7 @@ function simulator_config(sim::NLDDSimulator;
     # Extra options
     add_option!(cfg, :nldd_threads, false, "Use threads for local solves. Not compatible with Gauss-Seidel.", types = Bool)
     add_option!(cfg, :nldd_thread_type, :default, "Type of threads to use", types = Symbol)
-    add_option!(cfg, :gauss_seidel, method == :nldd, "Use Gauss-Seidel/multiplicative for local solves. Not compatible with nldd_threads = true", types = Bool)
+    add_option!(cfg, :gauss_seidel, method == :nldd, "Use Gauss-Seidel/multiplicative for local solves. Not compatible with nldd_threads = true. Always used for method = :mspen.", types = Bool)
     add_option!(cfg,
         :gauss_seidel_order,
         :pressure,
@@ -52,11 +52,11 @@ function simulator_config(sim::NLDDSimulator;
         values = [:linear, :pressure, :potential, :adaptive]
     )
     add_option!(cfg, :nldd_max_sweeps, 1, "Maximum number of NLDD sweeps", types = Int)
-    add_option!(cfg, :method, method, "Method to use", values = [:nldd, :aspen], types = Symbol)
+    add_option!(cfg, :method, method, "Method to use", values = [:nldd, :aspen, :mspen], types = Symbol)
     add_option!(cfg, :debug_checks, false, "Enable extra expensive checks", types = Bool)
     add_option!(cfg, :solve_subdomains, true, "Solve subdomains", types = Bool)
     add_option!(cfg, :aspen_full_increment, false, "Solve full ASPEN update", types = Bool)
-    add_option!(cfg, :aspen_newton_rows_switched_halo, false, "ASPEN: Use Newton rows at the local solution (as in NLDD) for subdomains where a halo cell changed phase state (black-oil variable switching) in the local solve of its owner.", types = Bool)
+    add_option!(cfg, :aspen_newton_rows_switched_halo, false, "ASPEN/MSPEN: Use Newton rows at the local solution (as in NLDD) for subdomains where a halo cell changed phase state (black-oil variable switching) in the local solve of its owner.", types = Bool)
     add_option!(cfg, :aspen_increment_limits, true, "Apply the maximum relative/absolute changes of primary variables to the global ASPEN update. Bounds on the values (e.g. saturations in [0, 1]) are always applied.", types = Bool)
     add_option!(cfg, :strategy, DefaultNLDDStrategy(), "Strategy to use for applying NLDD/ASPEN")
     add_option!(cfg, :inner_tol_mul, inner_tol_mul, "Factor applied to the convergence tolerances of the subdomains relative to the global tolerances.", types = Real)
@@ -482,7 +482,7 @@ function bench_dd(name, method = :fi;
     if method == :fi
         sim = Simulator(model, state0 = state0, parameters = deepcopy(parameters))
         cfg = local_config(sim; kwarg...)
-    elseif method == :nldd || method == :aspen || method == :local_only
+    elseif method == :nldd || method == :aspen || method == :mspen || method == :local_only
         nc = number_of_cells(model[:Reservoir].domain)
         if isnothing(p)
             p_name = "partition_$name.txt"

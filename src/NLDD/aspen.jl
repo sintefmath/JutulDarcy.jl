@@ -102,6 +102,11 @@ function global_aspen!(
             # linearized around the current state and must use the same
             # unknown as the ASPEN rows.
             @tic "aspen global preprocess" remove_local_update_from_aspen_residual!(simulator, s)
+            if config[:method] == :mspen
+                # Multiplicative version: Add the lower (already solved in
+                # the sweep) coupling to the right hand side.
+                @tic "mspen lower coupling" add_mspen_lower_coupling!(simulator, s, report[:solve_order][end], check = check)
+            end
             for i in 1:n
                 sub_sim = sub_sims[i]
                 if !subdomain_solved_in_single_timestep(i)
@@ -553,7 +558,7 @@ end
 
 
 # Storage of primary variables in ASPEN
-function store_subdomain_primary_variables!(simulator, config; kwarg...)
+function store_subdomain_primary_variables!(simulator, config, subdomains = eachindex(simulator.storage.primary_variable_buffers); kwarg...)
     s = simulator.storage
     buffers = s.primary_variable_buffers
     if haskey(s, :black_oil_primary_buffers)
@@ -561,7 +566,7 @@ function store_subdomain_primary_variables!(simulator, config; kwarg...)
     else
         extra = nothing
     end
-    for i in eachindex(buffers)
+    for i in subdomains
         if isnothing(extra)
             e = nothing
         else

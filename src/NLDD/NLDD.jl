@@ -35,6 +35,7 @@ module NLDD
     include("partial_update.jl")
     include("aspen.jl")
     include("aspen_assembly.jl")
+    include("mspen.jl")
     # Tests etc
     include("test_functions.jl")
 end

@@ -1183,10 +1183,12 @@ these settings. Later TUNING changes in the schedule are ignored.
 
 # Keyword arguments
 
-- `method=:newton`: Can be `:newton`, `:nldd` or `:aspen`. Newton is the most
-  tested approach and `:nldd` can speed up difficult models. The `:nldd` option
-  enables a host of additional options (look at the simulator config for more
-  details).
+- `method=:newton`: Can be `:newton`, `:nldd`, `:aspen` or `:mspen`. Newton is
+  the most tested approach and `:nldd` can speed up difficult models. `:aspen`
+  is additive nonlinear preconditioning (Jacobi local solves) and `:mspen` its
+  multiplicative variant (Gauss-Seidel local solves). The domain decomposition
+  options enable a host of additional options (look at the simulator config for
+  more details).
 - `presolve_wells=false`: Solve wells before each linearization. Can improve
   convergence for models with multisegment wells.
 

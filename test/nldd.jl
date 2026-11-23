@@ -11,6 +11,7 @@ using Jutul, JutulDarcy, Test, MPI, PartitionedArrays
     ws[:nldd_4], = simulate_reservoir(case, method = :nldd, info_level = il, nldd_arg = Dict(:no_blocks => 4));
 
     ws[:aspen], = simulate_reservoir(case, method = :aspen, info_level = il);
+    ws[:mspen], = simulate_reservoir(case, method = :mspen, info_level = il);
     ws[:mpi], = simulate_reservoir(case, method = :newton, mode = :mpi, info_level = il);
     ws[:nldd_mpi], = simulate_reservoir(case, method = :nldd, mode = :mpi, info_level = il);
 
@@ -123,7 +124,7 @@ end
             case = setup_bc_case(thermal = thermal)
             results_newton = simulate_reservoir(case;
             method = :newton, args...)
-            for method = [:nldd, :aspen], nb = [1,4]
+            for method = [:nldd, :aspen, :mspen], nb = [1,4]
                 results_nldd = simulate_reservoir(case;
                     method = method, nldd_arg = (no_blocks = nb, ), args...)
                 if nb == 1

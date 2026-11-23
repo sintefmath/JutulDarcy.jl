@@ -233,7 +233,9 @@ end
 
 function local_stage(simulator, dt, forces, config, iteration, sweep_no)
     is_aspen = config[:method] == :aspen
-    is_gauss_seidel = config[:gauss_seidel] && !is_aspen
+    # MSPEN is the multiplicative (Gauss-Seidel) version of ASPEN
+    is_mspen = config[:method] == :mspen
+    is_gauss_seidel = is_mspen || (config[:gauss_seidel] && !is_aspen)
     # Perform DD pass (nonlinear solves)
     sim_global = simulator.simulator
     sub_sims = simulator.subdomain_simulators
@@ -302,6 +304,11 @@ function local_stage(simulator, dt, forces, config, iteration, sweep_no)
         # Gauss-seidel (non-deterministic if threads are on)
         function gs_solve(i)
             pre(i)
+            if is_mspen
+                # Store the primary variables of the subdomain before it is
+                # solved (previous subdomains in the sweep are already updated)
+                store_subdomain_primary_variables!(simulator, config, i, do_delta = false)
+            end
             return solve_and_transfer(i)
         end
         @tic "local solves [GS]" sim_order = gauss_seidel_for_each_subdomain_do(
@@ -708,7 +715,7 @@ function global_stage(
                 end
             end
             out = solve_fi()
-        elseif m == :aspen
+        elseif m == :aspen || m == :mspen
             if newton_fallback
                 out = solve_fi()
             else
@@ -717,7 +724,7 @@ function global_stage(
         elseif m == :local_only
             out = solve_fi(false)
         else
-            error("Method must be either :aspen or :nldd. Method was: :$m")
+            error("Method must be either :aspen, :mspen or :nldd. Method was: :$m")
         end
     end
     report[:secondary_time] += t_secondary

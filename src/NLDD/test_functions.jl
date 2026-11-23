@@ -101,7 +101,7 @@ function test_aspen_physics(physics::Vector)
     @testset "ASPEN/NLDD all physics" begin
         for p in physics
             for m in meshes
-                for method in [:aspen, :nldd]
+                for method in [:aspen, :mspen, :nldd]
                     @testset "$method - $m $p" begin
                         test_aspen_simple(method, m, false, p)
                         # test_aspen_simple(method, m, true, p)
