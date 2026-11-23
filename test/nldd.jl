@@ -10,7 +10,7 @@ using Jutul, JutulDarcy, Test, MPI, PartitionedArrays
     ws[:nldd], = simulate_reservoir(case, method = :nldd, info_level = il);
     ws[:nldd_4], = simulate_reservoir(case, method = :nldd, info_level = il, nldd_arg = Dict(:no_blocks => 4));
 
-    # ws[:aspen], = simulate_reservoir(case, method = :aspen, info_level = il);
+    ws[:aspen], = simulate_reservoir(case, method = :aspen, info_level = il);
     ws[:mpi], = simulate_reservoir(case, method = :newton, mode = :mpi, info_level = il);
     ws[:nldd_mpi], = simulate_reservoir(case, method = :nldd, mode = :mpi, info_level = il);
 
