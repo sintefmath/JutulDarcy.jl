@@ -322,7 +322,7 @@ function handle_subdomain_boundary_variable_switching!(state, substorage, model:
                     state.Rs[c] = new_rs
                 end
                 @inbounds if vapoil
-                    rvtab = table_by_region(model.system.rs_max, reg_i)
+                    rvtab = JutulDarcy.table_by_region(model.system.rv_max, reg_i)
                     rv = rvtab(p)
                     rv0 = value(state.Rv[c])
                     # new_rv = min(rv0/value(rv), 1.0)*rv
