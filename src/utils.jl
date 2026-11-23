@@ -1287,7 +1287,7 @@ values for pressure models.
   conservation laws without face-variable fluxes instead of storing cell
   half-face AD flux values on the backend. This typically gives some speedup on
   CPU, and substantial speedup on GPU.
-- `ka_workgroupsize=256`: Workgroup size used for KA execution. This controls the
+- `ka_workgroupsize=nothing`: Workgroup size used for KA execution. This controls the
   number of threads per workgroup on the selected backend.
 - `single_precision_linear_solver = false`: Use single precision for the linear
   solver if set to `true`, otherwise use the explicit options passed in
@@ -1379,7 +1379,7 @@ function setup_reservoir_simulator(case::JutulCase;
         parray_arg = Dict{Symbol, Any}(),
         nldd_arg = Dict{Symbol, Any}(),
         group_execution = missing,
-        ka_workgroupsize = 256,
+        ka_workgroupsize = nothing,
         wells_on_device::Bool = false,
         merge_wells::Bool = wells_on_device,
         mixed_cross_terms_on_host::Bool = wells_on_device,
