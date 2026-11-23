@@ -123,16 +123,16 @@ end
             case = setup_bc_case(thermal = thermal)
             results_newton = simulate_reservoir(case;
             method = :newton, args...)
-            for nb = [1,4]
+            for method = [:nldd, :aspen], nb = [1,4]
                 results_nldd = simulate_reservoir(case;
-                    method = :nldd, nldd_arg = (no_blocks = nb, ), args...)
+                    method = method, nldd_arg = (no_blocks = nb, ), args...)
                 if nb == 1
                     # Simulation should converge in a single global iteration
                     # with a single NLDD partition
                     @test get_its(results_nldd) == 1
                 end
                 for k = [:Pressure, :Temperature]
-                    # Compare NLDD to Newton
+                    # Compare NLDD/ASPEN to Newton
                     v_newton = results_newton.states[end][k]
                     v_nldd = results_nldd.states[end][k]
                     @test all(isapprox.(v_nldd, v_newton, rtol=1e-3))
