@@ -119,7 +119,13 @@ function global_aspen!(
             t_solve = @elapsed begin
                 @tic "linear solve" (lsolve_ok, n_iter, rep_lsolve) = Jutul.linear_solve!(lsys, lsolve, m, s, dt, rec)
             end
-            t_update = @elapsed @tic "primary variables" report[:update] = Jutul.update_primary_variables!(s, m, check = check; relaxation = relaxation)
+            t_update = @elapsed @tic "primary variables" begin
+                if config[:aspen_increment_limits]
+                    report[:update] = Jutul.update_primary_variables!(s, m, check = check; relaxation = relaxation)
+                else
+                    report[:update] = update_primary_variables_without_increment_limits!(s, m, check = check; relaxation = relaxation)
+                end
+            end
 
             report[:linear_solver] = rep_lsolve
             report[:linear_iterations] = n_iter
@@ -908,3 +914,30 @@ function check_aspen_assembly(storage, sub_sims, p)
         @assert length(nonzeros(d)) == 0
     end
 end
+
+# Global ASPEN update without the increment limits meant to damp Newton
+function update_primary_variables_without_increment_limits!(storage, model::MultiModel; kwarg...)
+    report = Dict{Symbol, AbstractDict}()
+    for key in Jutul.submodels_symbols(model)
+        report[key] = update_primary_variables_without_increment_limits!(storage[key], model[key]; kwarg...)
+    end
+    return report
+end
+
+function update_primary_variables_without_increment_limits!(storage, model; kwarg...)
+    dx = storage.views.primary_variables
+    pdef = map(without_increment_limits, storage.variable_definitions.primary_variables)
+    return Jutul.update_primary_variables!(storage.state, dx, model, pdef; state = storage.state, kwarg...)
+end
+
+without_increment_limits(p) = p
+without_increment_limits(p::JutulDarcy.Pressure) = JutulDarcy.Pressure(nothing, nothing, p.minimum_pressure, p.maximum_pressure, p.scale)
+without_increment_limits(p::JutulDarcy.Saturations) = JutulDarcy.Saturations(Inf)
+without_increment_limits(p::JutulDarcy.ImmiscibleSaturation) = JutulDarcy.ImmiscibleSaturation(ds_max = Inf)
+without_increment_limits(p::JutulDarcy.OverallMoleFractions) = JutulDarcy.OverallMoleFractions(Inf, p.z_min)
+without_increment_limits(p::JutulDarcy.BlackOilUnknown) = JutulDarcy.BlackOilUnknown(dr_max = Inf, ds_max = Inf)
+without_increment_limits(p::JutulDarcy.GasMassFraction) = JutulDarcy.GasMassFraction(dz_max = Inf, sat_chop = p.sat_chop)
+without_increment_limits(p::JutulDarcy.Temperature) = JutulDarcy.Temperature(min = p.min, max = p.max, max_rel = nothing, max_abs = nothing)
+without_increment_limits(p::JutulDarcy.TotalMassFlux) = JutulDarcy.TotalMassFlux(scale = p.scale)
+without_increment_limits(p::JutulDarcy.BottomHolePressure) = JutulDarcy.BottomHolePressure(scale = p.scale)
+without_increment_limits(p::JutulDarcy.TotalSurfaceMassRate) = JutulDarcy.TotalSurfaceMassRate()
