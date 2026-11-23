@@ -266,7 +266,7 @@ function handle_subdomain_boundary_variable_switching!(state, substorage, submod
 end
 
 import Jutul: replace_value
-function handle_subdomain_boundary_variable_switching!(state, substorage, model::JutulDarcy.StandardBlackOilModel, cells)
+function handle_subdomain_boundary_variable_switching!(state, substorage, model::JutulDarcy.BlackOilModelVariableSwitching, cells)
     outer_state = substorage.state
     m = model.domain.global_map
     sys = model.system
