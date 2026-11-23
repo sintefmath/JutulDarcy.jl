@@ -29,6 +29,10 @@ end
 function partial_update_linearized_system!(sim_dd, storage, model::MultiModel)
     p = sim_dd.partition
     targets, sources, all_models = submodel_keys_asymmetric(p, model)
+    # Cross terms are added to the Jacobian (not assigned), so the entries must
+    # be zeroed first. The reservoir block is filled in afterwards by the ASPEN
+    # assembly.
+    Jutul.zero_jacobian_entries!(storage.LinearizedSystem)
     update_diagonal_blocks!(storage, model, targets)
     update_offdiagonal_blocks!(storage, model, all_models, sources)
 end
