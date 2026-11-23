@@ -60,6 +60,11 @@ function global_aspen!(
                 sub_sim = sub_sims[i]
                 if subdomain_solved_in_single_timestep(i)
                     update_aspen_residual_local!(sub_sim, buffers[i], i, p)
+                elseif solve_status[i] == local_solved_in_multiple_steps
+                    # The local solution has been transferred to the global
+                    # state. Keep the local update in the buffer so that the
+                    # ASPEN rows of the neighbors see the change.
+                    reassemble_newton_locally!(s, outer_sim, sub_sim, all_forces, dt, i)
                 else
                     reassemble_newton_locally!(s, outer_sim, sub_sim, all_forces, dt, i, buffers[i], pos[i])
                 end
