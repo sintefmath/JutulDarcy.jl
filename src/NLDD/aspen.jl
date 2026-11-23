@@ -81,11 +81,12 @@ function global_aspen!(
                     update_aspen_residual_global!(s, sub_sim.storage.LinearizedSystem, pos[i], i, p)
                 end
             end
-            # Subtract A*(p^k - p^{k+1/2}) from r to solve for only p^{k+1/2} to p^k
-            @tic "aspen global preprocess" if !solve_for_full_increment
-                # TODO: Check that this doesn't mess up stuff when FI fallback is used
-                remove_local_update_from_aspen_residual!(simulator, s)
-            end
+            # Subtract A*(p^k - p^{k+1/2}) from r to solve for only p^{k+1/2} to p^k.
+            # This is also done when the full increment is checked: Rows for
+            # subdomains that were not solved in a single step are Newton rows
+            # linearized around the current state and must use the same
+            # unknown as the ASPEN rows.
+            @tic "aspen global preprocess" remove_local_update_from_aspen_residual!(simulator, s)
             for i in 1:n
                 sub_sim = sub_sims[i]
                 if !subdomain_solved_in_single_timestep(i)
@@ -112,13 +113,6 @@ function global_aspen!(
             lsys = s.LinearizedSystem
             t_solve = @elapsed begin
                 @tic "linear solve" (lsolve_ok, n_iter, rep_lsolve) = Jutul.linear_solve!(lsys, lsolve, m, s, dt, rec)
-            end
-            if solve_for_full_increment
-                t_aspen_lres = @elapsed @batch minbatch=10 for i in 1:n
-                    if subdomain_solved_in_single_timestep(i)
-                        subtract_primary_deltas!(simulator.simulator, buffers[i], pos[i])
-                    end
-                end
             end
             t_update = @elapsed @tic "primary variables" report[:update] = Jutul.update_primary_variables!(s, m, check = check; relaxation = relaxation)
 
