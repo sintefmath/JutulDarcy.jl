@@ -59,7 +59,10 @@ function simulator_config(sim::NLDDSimulator;
     add_option!(cfg, :aspen_increment_limits, true, "Apply the maximum relative/absolute changes of primary variables to the global ASPEN update. Bounds on the values (e.g. saturations in [0, 1]) are always applied.", types = Bool)
     add_option!(cfg, :strategy, DefaultNLDDStrategy(), "Strategy to use for applying NLDD/ASPEN")
     add_option!(cfg, :inner_tol_mul, inner_tol_mul, "Factor applied to the convergence tolerances of the subdomains relative to the global tolerances.", types = Real)
-    same_tol = inner_tol_final <= 1.0 && inner_tol_mul <= 1.0
+    # Only subdomains that converge without iterating count towards global
+    # convergence, so inner_tol_final (only used at the last iteration) does not
+    # matter here.
+    same_tol = inner_tol_mul <= 1.0
     add_option!(cfg, :subdomain_tol_sufficient, same_tol && !is_mpi, "Tolerances in subdomains are at least tight enough to be able to conclude global convergence.", types = Bool)
 
     # Subdomain tolerances for when to solve a local subdomain
