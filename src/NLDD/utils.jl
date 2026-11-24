@@ -127,6 +127,28 @@ function simulator_config(sim::NLDDSimulator;
             tol_mb_well = inner_tol_mul*tol_mb_well
         )
         subconfigs[i][:id] = "Ω_$i"
+        inner = sim.storage[:subdomain_nldd_simulators][i]
+        if !isnothing(inner)
+            # NLDD as solver for this subdomain. Global convergence must be
+            # checked on the assembled system so that the subdomain Jacobian is
+            # up to date for ASPEN.
+            inner_cfg = simulator_config(inner;
+                method = :nldd,
+                info_level = -1,
+                linear_solver = linear_solver,
+                tol_cnv = inner_tol_mul*tol_cnv,
+                tol_mb = inner_tol_mul*tol_mb,
+                tol_cnv_well = inner_tol_mul*tol_cnv_well,
+                tol_mb_well = inner_tol_mul*tol_mb_well,
+                tol_dp_well = inner_tol_mul*tol_dp_well,
+                inc_tol_dp_abs = inner_tol_mul*inc_tol_dp_abs,
+                inc_tol_dp_rel = inner_tol_mul*inc_tol_dp_rel,
+                inc_tol_dz = inner_tol_mul*inc_tol_dz,
+                subdomain_tol_sufficient = false
+            )
+            inner_cfg[:max_nonlinear_iterations] = subconfigs[i][:max_nonlinear_iterations]
+            add_option!(subconfigs[i], :subdomain_nldd, (inner, inner_cfg), "NLDD simulator and config used to solve this subdomain")
+        end
     end
     add_option!(cfg, :config_subdomains, subconfigs, "Configs for subdomains")
     Jutul.overwrite_by_kwargs(cfg; check_before_solve = check_before_solve, kwarg...)
@@ -671,7 +693,212 @@ function set_default_cnv_mb!(config::JutulConfig, sim::NLDDSimulator; kwarg...)
         cfg = config[:config_subdomains][i]
         m = sim.subdomain_simulators[i].model
         set_default_cnv_mb!(cfg, m; sub_kwarg...)
+        if haskey(cfg, :subdomain_nldd)
+            inner_sim, inner_cfg = cfg[:subdomain_nldd]
+            set_default_cnv_mb!(inner_cfg, inner_sim; sub_kwarg...)
+        end
     end
+end
+
+"""
+    local_well_reservoir_cells(model)
+
+Reservoir cells perforated by each well, in the cell numbering of `model` (which
+may be the model of a subdomain or an MPI process), taken from the well cross
+terms.
+"""
+function local_well_reservoir_cells(model::MultiModel)
+    out = OrderedDict{Symbol, Vector{Int}}()
+    for ctp in model.cross_terms
+        ct = ctp.cross_term
+        if ct isa JutulDarcy.ReservoirFromWellFlowCT
+            if ctp.target == :Reservoir
+                w = ctp.source
+            else
+                w = ctp.target
+            end
+            out[w] = unique(vcat(get(out, w, Int[]), collect(ct.reservoir_cells)))
+        end
+    end
+    return out
+end
+
+local_well_reservoir_cells(model) = OrderedDict{Symbol, Vector{Int}}()
+
+"""
+    local_reservoir_partition(model, nblocks; active = missing)
+
+Partition the reservoir of `model` into `nblocks` blocks with Metis, using the
+connections in the cell numbering of the model itself. This works for the
+models of subdomains and MPI processes, where `partition_reservoir` (which uses
+the connections of the global mesh) does not. Cells that are not unknowns
+(`active[c] = false`, e.g. ghost or boundary cells) are left out of the graph
+and assigned to the block of a neighbor. All cells perforated by a well end up
+in the same block.
+"""
+function local_reservoir_partition(model, nblocks::Int; active = missing)
+    rmodel = JutulDarcy.reservoir_model(model)
+    D = rmodel.domain
+    nc = number_of_cells(D)
+    if ismissing(active)
+        active = trues(nc)
+    end
+    wells = local_well_reservoir_cells(model)
+    if nblocks <= 1
+        p = ones(Int, nc)
+    else
+        N = get_neighborship(physical_representation(D))
+        ia = findall(active)
+        local_index = zeros(Int, nc)
+        local_index[ia] = eachindex(ia)
+        keep = [active[N[1, f]] && active[N[2, f]] for f in axes(N, 2)]
+        N_a = local_index[N[:, keep]]
+        groups = Vector{Vector{Int}}()
+        for cells in values(wells)
+            g = unique(local_index[filter(c -> active[c], cells)])
+            length(g) > 1 && push!(groups, g)
+        end
+        p_a = Jutul.partition_hypergraph(N_a, nblocks, Jutul.MetisPartitioner(); num_nodes = length(ia), groups = groups)
+        p = zeros(Int, nc)
+        p[ia] = p_a
+        # Inactive cells get the block of a neighbor
+        for f in axes(N, 2)
+            l, r = N[1, f], N[2, f]
+            if p[l] == 0 && p[r] > 0
+                p[l] = p[r]
+            elseif p[r] == 0 && p[l] > 0
+                p[r] = p[l]
+            end
+        end
+        p[p .== 0] .= 1
+        # Keep the cells of each well in a single block
+        for cells in values(wells)
+            blocks = unique(p[cells])
+            for b in blocks[2:end]
+                p[p .== b] .= blocks[1]
+            end
+        end
+        p = Jutul.compress_partition(p)
+    end
+    return local_multimodel_partition(model, p, wells)
+end
+
+function local_multimodel_partition(model::MultiModel, p, wells)
+    part = Dict{Symbol, Any}()
+    for key in keys(model.models)
+        if key == :Reservoir
+            part[key] = Jutul.SimplePartition(p)
+        elseif haskey(wells, key)
+            blocks = unique(p[wells[key]])
+            @assert length(blocks) == 1 "All cells of well $key must be in the same block, found $blocks."
+            part[key] = only(blocks)
+        else
+            # Well controller of a split well
+            w = Symbol(string(key)[1:end-5])
+            part[key] = part_for_well(p, wells, w, key)
+        end
+    end
+    return Jutul.SimpleMultiModelPartition(part, :Reservoir)
+end
+
+function part_for_well(p, wells, w, key)
+    haskey(wells, w) || error("Could not find the well of model $key for partitioning.")
+    return only(unique(p[wells[w]]))
+end
+
+local_multimodel_partition(model, p, wells) = Jutul.SimplePartition(p)
+
+"""
+    subdomain_nldd_simulator(subsim, sub_model, state0, parameters, nblocks, parent_model)
+
+NLDD simulator with `nblocks` blocks that solves the subdomain of `subsim`. The
+boundary cells of the subdomain are kept fixed, and the NLDD simulator shares
+`subsim` (state, linear system) as its outer simulator. `parent_model` is the
+model the subdomain was taken from.
+"""
+function subdomain_nldd_simulator(subsim, sub_model, state0, parameters, nblocks, parent_model)
+    gmap = JutulDarcy.reservoir_model(sub_model).domain.global_map
+    active = .!gmap.cell_is_boundary
+    partition = local_reservoir_partition(sub_model, nblocks; active = active)
+    blocks = inner_block_submodels(parent_model, sub_model, partition)
+    case = JutulCase(sub_model, parameters = parameters, state0 = state0)
+    return NLDDSimulator(case, partition;
+        submodels = blocks,
+        outer_simulator = subsim,
+        setup_aspen = false
+    )
+end
+
+"""
+    inner_block_submodels(parent_model, sub_model, partition)
+
+Models of the blocks in `partition` (given in the cell numbering of `sub_model`).
+Submodels of a subdomain model cannot be built directly, so the blocks are
+taken from `parent_model` (which `sub_model` is a subdomain of), and the
+reservoir global map is then changed to point to the cells of `sub_model`.
+"""
+function inner_block_submodels(parent_model, sub_model, partition)
+    gmap = JutulDarcy.reservoir_model(sub_model).domain.global_map
+    active = .!gmap.cell_is_boundary
+    p_sub = Jutul.main_partition(partition).partition
+    K = maximum(p_sub)
+    rparent = JutulDarcy.reservoir_model(parent_model)
+    nc_parent = number_of_cells(rparent.domain)
+    # Cells outside the subdomain (and models not in it) go to an extra block
+    # that is never built.
+    p_parent = fill(K + 1, nc_parent)
+    for c in eachindex(p_sub)
+        if active[c]
+            p_parent[gmap.cells[c]] = p_sub[c]
+        end
+    end
+    active_parent = p_parent .<= K
+    if parent_model isa MultiModel
+        part = Dict{Symbol, Any}()
+        for key in keys(parent_model.models)
+            if key == :Reservoir
+                part[key] = Jutul.SimplePartition(p_parent)
+            elseif haskey(partition.partition, key)
+                part[key] = partition.partition[key]
+            else
+                part[key] = K + 1
+            end
+        end
+        parent_partition = Jutul.SimpleMultiModelPartition(part, :Reservoir)
+    else
+        parent_partition = Jutul.SimplePartition(p_parent)
+    end
+    N = get_neighborship(physical_representation(rparent.domain))
+    fpos = get_facepos(N)
+    cell_index = Dict(c => i for (i, c) in enumerate(gmap.cells))
+    face_index = Dict(f => i for (i, f) in enumerate(gmap.faces))
+    blocks = Vector{Any}(undef, K)
+    for j in 1:K
+        sm = submodel(parent_model, parent_partition, j, buffer = 1, minbatch = 1_000_000_000,
+            active_global = active_parent, facepos = fpos)
+        blocks[j] = reservoir_global_map_to_local(sm, cell_index, face_index)
+    end
+    return blocks
+end
+
+function reservoir_global_map_to_local(model::MultiModel, cell_index, face_index)
+    model.models[:Reservoir] = reservoir_global_map_to_local(model.models[:Reservoir], cell_index, face_index)
+    return model
+end
+
+function reservoir_global_map_to_local(model::SimulationModel, cell_index, face_index)
+    D = model.domain
+    M = D.global_map
+    cells = [cell_index[c] for c in M.cells]
+    faces = [get(face_index, f, 0) for f in M.faces]
+    M_new = Jutul.FiniteVolumeGlobalMap(cells, faces, M.cell_is_boundary, variables_always_active = M.variables_always_active)
+    D_new = Jutul.DiscretizedDomain(D.representation, D.discretizations, D.entities, M_new)
+    T = typeof(model)
+    params = collect(T.parameters)
+    params[1] = typeof(D_new)
+    fields = Any[getfield(model, f) for f in fieldnames(T)]
+    fields[1] = D_new
+    return SimulationModel{params...}(fields...)
 end
 
 """

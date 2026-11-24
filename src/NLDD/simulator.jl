@@ -17,6 +17,10 @@ function NLDDSimulator(case::JutulCase, partition = missing;
         partitioner_type = :metis,
         partitioner_arg = (partitioner_conn_type = :unit,),
         specialize_submodels = false,
+        subdomain_solver_blocks = missing,
+        active_cells = missing,
+        outer_simulator = nothing,
+        setup_aspen = true,
         kwarg...
     )
     (; model, state0, parameters) = case
@@ -35,23 +39,33 @@ function NLDDSimulator(case::JutulCase, partition = missing;
             @assert ismissing(no_blocks)
             N = Int64(clamp(ceil(nc/cells_per_block), 1, nc))
         end
-        if executor isa Jutul.PArrayExecutor
-            # The model of each process has local cell numbering, while
-            # partition_reservoir uses the connections of the global mesh.
-            # Only one subdomain per process is supported for now.
-            N == 1 || error("NLDD/ASPEN with MPI supports one subdomain per process (pass nldd_arg = Dict(:no_blocks => 1)), got $N.")
-            p = ones(Int, nc)
+        if executor isa Jutul.PArrayExecutor || !ismissing(active_cells)
+            # The model has local cell numbering (model of an MPI process or of
+            # a subdomain), while partition_reservoir uses the connections of
+            # the global mesh. Partition with the local connections, leaving
+            # out cells that are not unknowns (ghost or boundary cells).
+            if ismissing(active_cells)
+                n_self = executor.data[:n_self]
+                active_cells = [i <= n_self for i in 1:nc]
+            end
+            partition = local_reservoir_partition(model, N; active = active_cells)
         else
             jutul_message("Partition", "Generating $N coarse blocks using $partitioner_type.")
             p = JutulDarcy.partition_reservoir(case, N, partitioner_type; partitioner_arg..., wells_in_single_block = true)
+            partition = reservoir_partition(model, p);
         end
-        partition = reservoir_partition(model, p);
     elseif partition isa Vector{Int}
         # Convert it.
         partition = reservoir_partition(model, partition)
     end
     partition::Jutul.AbstractDomainPartition
-    outer_sim = Simulator(model; state0 = state0, parameters = deepcopy(parameters), executor = executor, kwarg...)
+    if isnothing(outer_simulator)
+        outer_sim = Simulator(model; state0 = state0, parameters = deepcopy(parameters), executor = executor, kwarg...)
+    else
+        # Share the simulator (and thereby state and linear system) with the
+        # caller. Used when NLDD is the solver of a subdomain.
+        outer_sim = outer_simulator
+    end
     np = number_of_subdomains(partition)
     is_distributed_solve = executor isa Jutul.PArrayExecutor
     if is_distributed_solve
@@ -65,7 +79,9 @@ function NLDDSimulator(case::JutulCase, partition = missing;
         maximum_np = np
     end
     if isnothing(submodels)
-        if is_distributed_solve
+        if !ismissing(active_cells)
+            active_global = active_cells
+        elseif is_distributed_solve
             n_self = executor.data[:n_self]
             nc = length(executor.data[:partition])
             active_global = [i <= n_self for i in 1:nc]
@@ -104,12 +120,18 @@ function NLDDSimulator(case::JutulCase, partition = missing;
     end
     state0 = setup_state(model, state0)
     subsim = Vector{Simulator}(undef, np)
+    subdomain_nldd = Vector{Any}(nothing, np)
     coarse_neighbors = Vector{Vector{Int}}()
     @showprogress "Building $np simulators " for i = 1:np
         sm = submodels[i]
         substate0 = substate(state0, model, sm, :variables)
         subparam = substate(parameters, model, sm, :parameters)
         subsim[i] = Simulator(sm, state0 = substate0, parameters = subparam)
+        if !ismissing(subdomain_solver_blocks)
+            # Solve the subdomain with NLDD on smaller blocks. The NLDD
+            # simulator shares the subdomain simulator.
+            subdomain_nldd[i] = subdomain_nldd_simulator(subsim[i], sm, substate0, subparam, subdomain_solver_blocks, model)
+        end
 
         neigh_c = Jutul.coarse_neighborhood(partition, sm)
         filter!(!isequal(i), neigh_c)
@@ -135,12 +157,18 @@ function NLDDSimulator(case::JutulCase, partition = missing;
         state_mirror = state_mirror[:Reservoir]
     end
     storage[:state_mirror] = deepcopy(state_mirror)
-    storage[:boundary_discretizations] = map((s) -> boundary_discretization(outer_sim.storage, outer_sim.model, s.model, s.storage), subsim)
+    if setup_aspen
+        storage[:boundary_discretizations] = map((s) -> boundary_discretization(outer_sim.storage, outer_sim.model, s.model, s.storage), subsim)
+    else
+        # Only NLDD (not ASPEN) can be used with this simulator
+        storage[:boundary_discretizations] = fill(missing, length(subsim))
+    end
     storage[:solve_log] = NLDDSolveLog()
     storage[:coarse_neighbors] = coarse_neighbors
     storage[:maximum_number_of_subdomains_globally] = maximum_np
     storage[:is_mpi] = is_mpi
     storage[:mpi_sync_after_solve] = mpi_sync_after_solve
+    storage[:subdomain_nldd_simulators] = subdomain_nldd
 
     # storage = convert_to_immutable_storage(storage)
     return NLDDSimulator(outer_sim, executor, partition, nothing, subsim, storage)
@@ -773,8 +801,16 @@ function solve_subdomain(sim, i, dt, forces, cfg)
     ok = false
 
     try
-        ok, report = Jutul.solve_timestep!(sim, dt, f, max_iter, cfg,
-            finalize = true, prepare = true, update_explicit = false)
+        if haskey(cfg, :subdomain_nldd)
+            # Solve the subdomain with NLDD (shares the subdomain simulator)
+            inner_sim, inner_cfg = cfg[:subdomain_nldd]
+            f_inner = Jutul.preprocess_forces(inner_sim, f)[:forces]
+            ok, report = Jutul.solve_timestep!(inner_sim, dt, f_inner, inner_cfg[:max_nonlinear_iterations], inner_cfg,
+                finalize = true, prepare = true, update_explicit = false)
+        else
+            ok, report = Jutul.solve_timestep!(sim, dt, f, max_iter, cfg,
+                finalize = true, prepare = true, update_explicit = false)
+        end
     catch e
         if e isa InterruptException
             # Don't leave the user trapped...
