@@ -61,6 +61,7 @@ function simulator_config(sim::NLDDSimulator;
     add_option!(cfg, :debug_checks, false, "Enable extra expensive checks", types = Bool)
     add_option!(cfg, :solve_subdomains, true, "Solve subdomains", types = Bool)
     add_option!(cfg, :aspen_full_increment, false, "Solve full ASPEN update", types = Bool)
+    add_option!(cfg, :aspen_newton_rows_switched_halo, false, "ASPEN/MSPEN: Use Newton rows at the local solution (as in NLDD) for subdomains where a halo cell changed phase state (black-oil variable switching) in the local solve of its owner.", types = Bool)
     add_option!(cfg, :aspen_increment_limits, true, "Apply the maximum relative/absolute changes of primary variables to the global ASPEN update. Bounds on the values (e.g. saturations in [0, 1]) are always applied.", types = Bool)
     add_option!(cfg, :strategy, DefaultNLDDStrategy(), "Strategy to use for applying NLDD/ASPEN")
     add_option!(cfg, :inner_tol_mul, inner_tol_mul, "Factor applied to the convergence tolerances of the subdomains relative to the global tolerances. Either a number (applied to all tolerances) or a NamedTuple with tolerance names as keys (e.g. (tol_mb = 100.0, tol_cnv = 0.1)), where tolerances that are not given keep the global value.", types = Union{Real, NamedTuple})

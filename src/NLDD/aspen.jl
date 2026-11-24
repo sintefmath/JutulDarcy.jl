@@ -26,8 +26,18 @@ function global_aspen!(
     check = config[:debug_checks]
     sub_sims = simulator.subdomain_simulators
     n = length(sub_sims)
+    # Subdomains whose halo contains cells that changed phase state in the
+    # local solve of their owner get Newton rows instead of ASPEN rows, since
+    # the ASPEN rows are then only approximate.
+    if config[:aspen_newton_rows_switched_halo]
+        halo_switched = map(i -> solve_status[i] == local_solved_in_single_step &&
+            aspen_halo_phase_state_changed(storage, outer_sim.storage, sub_sims[i], i), 1:n)
+    else
+        halo_switched = falses(n)
+    end
+    report[:aspen_newton_rows_switched_halo] = count(halo_switched)
     function subdomain_solved_in_single_timestep(i)
-        return solve_status[i] == local_solved_in_single_step
+        return solve_status[i] == local_solved_in_single_step && !halo_switched[i]
     end
     if false
         @info "FI fallback."
@@ -61,7 +71,7 @@ function global_aspen!(
                 sub_sim = sub_sims[i]
                 if subdomain_solved_in_single_timestep(i)
                     update_aspen_residual_local!(sub_sim, buffers[i], i, p)
-                elseif solve_status[i] == local_solved_in_multiple_steps
+                elseif solve_status[i] == local_solved_in_multiple_steps || halo_switched[i]
                     # The local solution has been transferred to the global
                     # state. Keep the local update in the buffer so that the
                     # ASPEN rows of the neighbors see the change.

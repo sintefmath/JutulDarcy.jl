@@ -265,6 +265,37 @@ function handle_subdomain_boundary_variable_switching!(state, substorage, submod
     return state
 end
 
+"""
+    aspen_halo_phase_state_changed(storage, storage_g, sub_sim, p_i)
+
+Check if any halo cell of subdomain `p_i` has a different phase state in the
+local state than in the global state (i.e. the cell switched phase state in
+the local solve of the subdomain that owns it).
+"""
+function aspen_halo_phase_state_changed(storage, storage_g, sub_sim, p_i)
+    return aspen_halo_phase_state_changed(storage, storage_g, sub_sim.model, sub_sim.storage.state, p_i)
+end
+
+function aspen_halo_phase_state_changed(storage, storage_g, submodel::MultiModel, state, p_i)
+    return aspen_halo_phase_state_changed(storage, storage_g.Reservoir, submodel.models.Reservoir, state.Reservoir, p_i)
+end
+
+function aspen_halo_phase_state_changed(storage, storage_g, submodel, state, p_i)
+    return false
+end
+
+function aspen_halo_phase_state_changed(storage, storage_g, submodel::JutulDarcy.BlackOilModelVariableSwitching, state, p_i)
+    M = submodel.domain.global_map
+    phases = state.PhaseState
+    phases_g = storage_g.state.PhaseState
+    for c in storage.boundary_discretizations[p_i].cells
+        if phases[c] != phases_g[Jutul.global_cell(c, M)]
+            return true
+        end
+    end
+    return false
+end
+
 import Jutul: replace_value
 function handle_subdomain_boundary_variable_switching!(state, substorage, model::JutulDarcy.BlackOilModelVariableSwitching, cells)
     outer_state = substorage.state
