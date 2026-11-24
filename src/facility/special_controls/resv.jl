@@ -116,10 +116,12 @@ function compute_total_resv_rate(state_avg; qw = 0.0, qo = 0.0, qg = 0.0, is_obs
     else
         sgn = 1.0
     end
-    # Surface rates
-    qw = abs(qw)
-    qo = abs(qo)
-    qg = abs(qg)
+    # Surface rates in the direction of the total rate. Multiplying by the sign
+    # instead of taking abs keeps the derivatives correct when a rate is zero
+    # (e.g. a well that is reopened), where abs would give the wrong sign.
+    qw = sgn*qw
+    qo = sgn*qo
+    qg = sgn*qg
 
     rs = clamp(qg/(qo + 1e-12), 0.0, state_avg.rs)
     rv = clamp(qo/(qg + 1e-12), 0.0, state_avg.rv)

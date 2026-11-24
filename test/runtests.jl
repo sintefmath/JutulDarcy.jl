@@ -7,6 +7,7 @@ using JutulDarcy, TestItems, Test, TestItemRunner
     include("afi_well_order.jl")
     include("history_bhp_limits.jl")
     include("zero_rate_deck_controls.jl")
+    include("resv_rate.jl")
 end
 
 @testitem "Utilities" tags = [:ci_core, :utilities, :input, :wells] begin
