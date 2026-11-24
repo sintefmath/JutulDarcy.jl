@@ -8,6 +8,7 @@ function global_aspen!(
         subreports;
         relaxation = 1.0,
         report = Jutul.setup_ministep_report(),
+        solve = true,
         sim_kwarg...
     )
     outer_sim = simulator.simulator
@@ -98,6 +99,8 @@ function global_aspen!(
                     set_global_residual_to_newton_residual_for_subdomain!(s.LinearizedSystem, sub_sim, storage, i)
                 end
             end
+            # With MPI: rows of ghost cells belong to other processes
+            finalize_distributed_aspen_system!(outer_sim)
             t_conv = @elapsed if !check_fi
                 @tic "convergence" converged, e, errors = check_global_convergence(s, m, config, iteration, dt)
                 Jutul.extra_debug_output!(report, s, m, config, iteration, dt)
@@ -111,7 +114,12 @@ function global_aspen!(
         report[:converged] = converged
         report[:errors] = errors
         report[:convergence_time] = t_conv
-        if !converged
+        if !converged && !solve
+            # The linear solve and update are done outside (e.g. by the
+            # distributed solver when running with MPI)
+            update_for_global_preconditioner!(simulator, config[:linear_solver], dt)
+            report[:solved] = false
+        elseif !converged
             lsolve = config[:linear_solver]
             check = config[:safe_mode]
             update_for_global_preconditioner!(simulator, lsolve, dt)

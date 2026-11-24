@@ -35,8 +35,16 @@ function NLDDSimulator(case::JutulCase, partition = missing;
             @assert ismissing(no_blocks)
             N = Int64(clamp(ceil(nc/cells_per_block), 1, nc))
         end
-        jutul_message("Partition", "Generating $N coarse blocks using $partitioner_type.")
-        p = JutulDarcy.partition_reservoir(case, N, partitioner_type; partitioner_arg..., wells_in_single_block = true)
+        if executor isa Jutul.PArrayExecutor
+            # The model of each process has local cell numbering, while
+            # partition_reservoir uses the connections of the global mesh.
+            # Only one subdomain per process is supported for now.
+            N == 1 || error("NLDD/ASPEN with MPI supports one subdomain per process (pass nldd_arg = Dict(:no_blocks => 1)), got $N.")
+            p = ones(Int, nc)
+        else
+            jutul_message("Partition", "Generating $N coarse blocks using $partitioner_type.")
+            p = JutulDarcy.partition_reservoir(case, N, partitioner_type; partitioner_arg..., wells_in_single_block = true)
+        end
         partition = reservoir_partition(model, p);
     elseif partition isa Vector{Int}
         # Convert it.
@@ -712,7 +720,7 @@ function global_stage(
             if newton_fallback
                 out = solve_fi()
             else
-                out = global_aspen!(simulator, dt, forces, g_forces, config, iteration, solve_status, subreports; report = report, sim_kwarg...)
+                out = global_aspen!(simulator, dt, forces, g_forces, config, iteration, solve_status, subreports; report = report, solve = solve, sim_kwarg...)
             end
         elseif m == :local_only
             out = solve_fi(false)

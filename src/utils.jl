@@ -1499,6 +1499,8 @@ function setup_reservoir_simulator(case::JutulCase;
             make_sim = (m; kwarg...) -> Simulator(m; sim_kwarg..., kwarg...)
             pbuffer = false
         else
+            # The method (e.g. :aspen) is an option of the NLDD config on each process
+            extra_kwarg[:method] = method
             make_sim = (m; kwarg...) -> NLDD.NLDDSimulator(m; nldd_arg..., sim_kwarg..., kwarg...)
             pbuffer = true
         end

@@ -39,7 +39,48 @@ module JutulDarcyPartitionedArraysExt
         nc = number_of_cells(rmodel.domain)
         p_num = partition_distributed(N, T, nc = nc, np = np, groups = groups)
         p = reservoir_partition(case.model, p_num)
-        return PArraySimulator(case, p; backend = backend, kwarg...)
+        psim = PArraySimulator(case, p; backend = backend, kwarg...)
+        setup_distributed_increment_exchange!(psim)
+        return psim
+    end
+
+    """
+        setup_distributed_increment_exchange!(psim)
+
+    Give each process a function that fills the ghost entries of the increment
+    vector (`dx_buffer` of the reservoir block) with the values of the process
+    that owns them. Used by ASPEN with MPI, where each process computes the
+    local update of its own cells.
+    """
+    function setup_distributed_increment_exchange!(psim)
+        buf = pzeros(psim.storage[:dof_partition])
+        psim.storage[:distributed_increment_buffer] = buf
+        exchange = () -> exchange_distributed_increments!(psim, buf)
+        map(psim.storage[:simulators]) do sim
+            sim.executor.data[:distributed_increment_exchange] = exchange
+            if hasproperty(sim, :simulator)
+                sim.simulator.executor.data[:distributed_increment_exchange] = exchange
+            end
+            nothing
+        end
+        return psim
+    end
+
+    function exchange_distributed_increments!(psim, buf)
+        simulators = psim.storage[:simulators]
+        increment(sim) = vec(Jutul.get_simulator_storage(sim).LinearizedSystem[1, 1].dx_buffer)
+        map(simulators, local_values(buf)) do sim, x
+            dx = increment(sim)
+            @assert length(x) == length(dx) "Increment has $(length(dx)) entries, distributed buffer $(length(x))."
+            copyto!(x, dx)
+            nothing
+        end
+        consistent!(buf) |> wait
+        map(simulators, local_values(buf)) do sim, x
+            copyto!(increment(sim), x)
+            nothing
+        end
+        return psim
     end
 
     function set_default_cnv_mb!(config::JutulConfig, sim::PArraySimulator; kwarg...)

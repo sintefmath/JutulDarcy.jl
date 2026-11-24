@@ -68,3 +68,21 @@ end
         end
     end
 end
+
+@testset "MPI ASPEN with one subdomain per process" begin
+    case = setup_mpi_case()
+    options = (info_level = -1, timesteps = :none, failure_cuts_timestep = false,
+        error_on_incomplete = true, precond = :cpr, rtol = 1e-8,
+        linear_solver_arg = (amg_type = :hypre,))
+    result = simulate_reservoir(case; mode = :mpi, method = :aspen,
+        nldd_arg = Dict(:no_blocks => 1), output_path = joinpath(only(ARGS), "aspen"), options...)
+    if MPI.Comm_rank(MPI.COMM_WORLD) == 0
+        reference = simulate_reservoir(setup_mpi_case(); options...,
+            tol_cnv = 1e-7, tol_mb = 1e-10)
+        @test length(result.states) == length(reference.states) == length(case.dt)
+        for (state, ref) in zip(result.states, reference.states)
+            @test state[:Pressure] ≈ ref[:Pressure] rtol = 1e-3
+            @test maximum(abs, state[:Saturations] - ref[:Saturations]) < 1e-2
+        end
+    end
+end

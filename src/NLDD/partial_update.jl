@@ -44,7 +44,44 @@ function remove_local_update_from_aspen_residual!(sim_dd, storage)
     op = linear_operator(sys, skip_red = true)
     dvar = vec(sys.dx_buffer)
     update_dx_with_full_update!(sim_dd, storage)
+    # With MPI: get the local updates of the ghost cells from their owners
+    exchange_ghost_increments!(sim_dd)
     mul!(r, op, dvar, -1, true)
+end
+
+"""
+    exchange_ghost_increments!(sim_dd)
+
+When running with MPI, fill the increments (`dx_buffer`) of the ghost cells with
+the local updates computed by the processes that own them. Each process then
+has the full increment needed for the coupling term of the ASPEN rows. Does
+nothing for a serial simulation.
+"""
+function exchange_ghost_increments!(sim_dd)
+    executor = sim_dd.simulator.executor
+    if executor isa Jutul.PArrayExecutor
+        exchange = get(executor.data, :distributed_increment_exchange, nothing)
+        if isnothing(exchange)
+            error("ASPEN with MPI needs the increment exchange set up by setup_reservoir_simulator_parray.")
+        end
+        exchange()
+    end
+    return sim_dd
+end
+
+"""
+    finalize_distributed_aspen_system!(outer_sim)
+
+When running with MPI, replace the rows of ghost cells by unit rows, as is done
+after a regular Newton assembly. Does nothing for a serial simulation.
+"""
+function finalize_distributed_aspen_system!(outer_sim)
+    executor = outer_sim.executor
+    if executor isa Jutul.PArrayExecutor
+        s = outer_sim.storage
+        Jutul.post_update_linearized_system!(s.LinearizedSystem, executor, s, outer_sim.model)
+    end
+    return outer_sim
 end
 
 function update_dx_with_full_update!(sim_dd, storage)
