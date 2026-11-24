@@ -11,77 +11,81 @@ function boundary_discretization(storage_g, model_g, submodel, storage, tag = no
         return missing
     end
     mf = reverse_bnd(mass_flow, M)
-
-    # Deal with storage for the reversed fluxes
     nf = mf.conn_pos[end]-1
-    mc = storage.equations.mass_conservation
-    base_flux = Jutul.get_entries(mc.half_face_flux_cells)
-    nph = size(base_flux, 1)
-    T = eltype(base_flux)
-    flux = zeros(T, nph, nf)
-    # tagof(v::ForwardDiff.Dual{T}) where T = T
-    # flux = JutulAutoDiffCache()
-    eq = submodel.equations[:mass_conservation]
-    ne = Jutul.number_of_equations_per_entity(submodel, eq)
-    flux = CompactAutoDiffCache(ne, nf, submodel, entity = Cells(), tag = tag)
 
     lsys = storage_g.LinearizedSystem[1, 1]
     jac = lsys.jac
     context = submodel.context
     @assert matrix_layout(context) == matrix_layout(model_g.context)
-    nu, ne, np = Jutul.ad_dims(flux)
     nu = number_of_cells(model_g.domain)
 
     cells = zeros(Int64, 0)
     for f_ix in 1:nf
-        cd_f = mf.conn_data[f_ix]
-        # f = cd_f.face
-        # Cell outside active domain - corresponds to col ix
-        self = cd_f.self
+        self = mf.conn_data[f_ix].self
+        # Cell outside active domain - corresponds to column
         @assert Jutul.cell_is_boundary(self, M)
-        # Cell inside active domain - corresponds to row ix
-        other = cd_f.other
-        # Note: Might be wrong.
-        # target = Jutul.global_cell(self, M)
-        #source = Jutul.global_cell(other, M)
-        source = Jutul.global_cell(self, M)
-        target = Jutul.global_cell(other, M)
-        # target = row
-        # source = column
         push!(cells, self)
-        # @info "$target -> $source"
-        for e in 1:ne
-            for d = 1:np
-                # pos = Jutul.find_jac_position(jac, other_i, active_cell_i, e, d, nu, nu, ne, np, context)
-                pos = Jutul.find_jac_position(jac, target, source, 0, 0, 0, 0, e, d, nu, nu, ne, np, context)
-                Jutul.set_jacobian_pos!(flux, f_ix, e, d, pos)
+    end
+    # One flux cache per conservation law (mass and possibly energy)
+    function law_flux(key, equation_offset)
+        eq = submodel.equations[key]
+        ne = Jutul.number_of_equations_per_entity(submodel, eq)
+        flux = CompactAutoDiffCache(ne, nf, submodel, entity = Cells(), tag = tag)
+        _, ne, np = Jutul.ad_dims(flux)
+        for f_ix in 1:nf
+            cd_f = mf.conn_data[f_ix]
+            # Row: cell inside the active domain, column: cell outside
+            target = Jutul.global_cell(cd_f.other, M)
+            source = Jutul.global_cell(cd_f.self, M)
+            for e in 1:ne
+                for d = 1:np
+                    pos = Jutul.find_jac_position(jac, target, source, 0, 0, equation_offset, 0, e, d, nu, nu, ne, np, context)
+                    Jutul.set_jacobian_pos!(flux, f_ix, e, d, pos)
+                end
             end
         end
+        return flux
     end
+    laws = aspen_conservation_laws(model_g)
+    fluxes = NamedTuple(key => law_flux(key, offset) for (key, offset) in pairs(laws))
     @assert nf == length(mf.conn_data)
-    return (flux = flux, mass_flow = mf, cells = cells)
+    return (flux = fluxes, mass_flow = mf, cells = cells)
+end
+
+"""
+Conservation laws of the reservoir model treated by ASPEN, as pairs of
+equation key and equation offset in the (global) Jacobian.
+"""
+function aspen_conservation_laws(model)
+    out = Pair{Symbol, Int}[]
+    offset = 0
+    for (key, eq) in pairs(model.equations)
+        if eq isa ConservationLaw
+            push!(out, key => offset)
+        end
+        offset += Jutul.number_of_equations(model, eq)
+    end
+    return NamedTuple(k => v for (k, v) in out)
 end
 
 update_aspen_coupling!(storage, substorage, submodel::MultiModel, state, p_i) = update_aspen_coupling!(storage, substorage.Reservoir, submodel.models.Reservoir, state.Reservoir, p_i)
 
 function update_aspen_coupling!(storage, substorage, submodel, state, p_i)
-    outer_state = substorage.state
     bnd = storage.boundary_discretizations[p_i]
-
     flow_disc = bnd.mass_flow
-    flux = bnd.flux
     cells = bnd.cells
-
     state = handle_subdomain_boundary_variable_switching!(state, substorage, submodel, cells)
-    eq = submodel.equations[:mass_conservation]
-    # Put flux into right form and localize AD
-    flux_c = Jutul.get_entries(flux)
-    N = size(flux_c, 1)
-    T = eltype(flux_c)
-    flux_static = reinterpret(SVector{N, T}, flux_c)
-    dt = NaN
-    state_c = local_ad(state, 1, T)
-    aspen_update_half_face_flux_tpfa!(flux_static, eq, state_c, submodel, dt, flow_disc, Cells())
+    for (key, flux) in pairs(bnd.flux)
+        eq = submodel.equations[key]
+        # Put flux into right form and localize AD
+        flux_c = Jutul.get_entries(flux)
+        N = size(flux_c, 1)
+        T = eltype(flux_c)
+        flux_static = reinterpret(SVector{N, T}, flux_c)
+        dt = NaN
+        state_c = local_ad(state, 1, T)
+        aspen_update_half_face_flux_tpfa!(flux_static, eq, state_c, submodel, dt, flow_disc, Cells())
+    end
 end
 
 function check_aspen_coupling!(storage, model, bnd, block_no)
@@ -92,15 +96,20 @@ function check_aspen_coupling!(storage, model, bnd, block_no)
         rmodel = model
         rstorage = storage
     end
+    for (key, bflux) in pairs(bnd.flux)
+        check_aspen_coupling!(rstorage.equations[key], rmodel, bnd, bflux, block_no)
+    end
+end
+
+function check_aspen_coupling!(inner, rmodel, bnd, bflux, block_no)
     disc = rmodel.domain.discretizations.mass_flow
-    inner = rstorage.equations.mass_conservation
 
     conn_pos_outer = disc.conn_pos
     conn_data_outer = disc.conn_data
     flux_outer = inner.half_face_flux_cells.entries
 
     flow_disc = bnd.mass_flow
-    flux = bnd.flux.entries
+    flux = bflux.entries
     cells = bnd.cells
     conn_data = flow_disc.conn_data
     conn_pos = flow_disc.conn_pos
@@ -257,7 +266,7 @@ function handle_subdomain_boundary_variable_switching!(state, substorage, submod
 end
 
 import Jutul: replace_value
-function handle_subdomain_boundary_variable_switching!(state, substorage, model::JutulDarcy.StandardBlackOilModel, cells)
+function handle_subdomain_boundary_variable_switching!(state, substorage, model::JutulDarcy.BlackOilModelVariableSwitching, cells)
     outer_state = substorage.state
     m = model.domain.global_map
     sys = model.system
@@ -313,7 +322,7 @@ function handle_subdomain_boundary_variable_switching!(state, substorage, model:
                     state.Rs[c] = new_rs
                 end
                 @inbounds if vapoil
-                    rvtab = table_by_region(model.system.rs_max, reg_i)
+                    rvtab = JutulDarcy.table_by_region(model.system.rv_max, reg_i)
                     rv = rvtab(p)
                     rv0 = value(state.Rv[c])
                     # new_rv = min(rv0/value(rv), 1.0)*rv

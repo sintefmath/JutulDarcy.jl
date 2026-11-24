@@ -25,24 +25,24 @@ function update_aspen_jacobian_global!(bflux, model_g, storage_g, model, storage
 end
 
 function update_aspen_jacobian_global_reservoir!(lsys_g, lsys, bflux, model_g, storage_g, model, storage, block_no)
-    # If the global Jacobian has already been assembled, we can skip most of this. Thus, if the outer code
-    # is ever made smarter, the following must be set to false.
     nz_g = lsys_g.jac_buffer
     nz = lsys.jac_buffer
-    # Global version
-    law_g = model_g.equations[:mass_conservation]
-    law_storage_g = storage_g.equations.mass_conservation
-    # Local version
-    law = model.equations[:mass_conservation]
-    law_storage = storage.equations.mass_conservation
-    acc_g = law_storage_g.accumulation
-    acc = law_storage.accumulation
-
-    _, ne, np = Jutul.ad_dims(acc_g)
     D = model.domain
     M = global_map(D)
     active_cells = Jutul.active_entities(D, M, Cells())
+    # Mass and energy (if thermal) conservation laws
+    for (key, bflux_cache) in pairs(bflux.flux)
+        update_aspen_jacobian_global_law!(nz_g, nz, bflux.mass_flow, bflux_cache,
+            model_g.equations[key], storage_g.equations[key],
+            model.equations[key], storage.equations[key],
+            active_cells, M)
+    end
+end
 
+function update_aspen_jacobian_global_law!(nz_g, nz, bdisc, bflux_cache, law_g, law_storage_g, law, law_storage, active_cells, M)
+    acc_g = law_storage_g.accumulation
+    acc = law_storage.accumulation
+    _, ne, np = Jutul.ad_dims(acc_g)
     fill_diagonals!(nz_g, nz, active_cells, M, acc_g, acc, np, ne)
 
     # Fill in the partials of fluxes in the interior
@@ -61,8 +61,6 @@ function update_aspen_jacobian_global_reservoir!(lsys_g, lsys, bflux, model_g, s
 
     fill_interior_fluxes(nz_g, flux, fentries, active_cells, fpos, flux_g, fpos_g, M, conn_pos, conn_data, conn_pos_g, conn_data_g, ne, np)
     # Finally, add the lagged fluxes on the boundary of the interior
-    bdisc = bflux.mass_flow
-    bflux_cache = bflux.flux
     ∂v = Jutul.get_entries(bflux_cache)
     ∂pos = bflux_cache.jacobian_positions
     nb = size(∂v, 2)

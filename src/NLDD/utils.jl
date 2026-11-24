@@ -56,8 +56,13 @@ function simulator_config(sim::NLDDSimulator;
     add_option!(cfg, :debug_checks, false, "Enable extra expensive checks", types = Bool)
     add_option!(cfg, :solve_subdomains, true, "Solve subdomains", types = Bool)
     add_option!(cfg, :aspen_full_increment, false, "Solve full ASPEN update", types = Bool)
+    add_option!(cfg, :aspen_increment_limits, true, "Apply the maximum relative/absolute changes of primary variables to the global ASPEN update. Bounds on the values (e.g. saturations in [0, 1]) are always applied.", types = Bool)
     add_option!(cfg, :strategy, DefaultNLDDStrategy(), "Strategy to use for applying NLDD/ASPEN")
-    same_tol = inner_tol_final <= 1.0 && inner_tol_mul <= 1.0
+    add_option!(cfg, :inner_tol_mul, inner_tol_mul, "Factor applied to the convergence tolerances of the subdomains relative to the global tolerances.", types = Real)
+    # Only subdomains that converge without iterating count towards global
+    # convergence, so inner_tol_final (only used at the last iteration) does not
+    # matter here.
+    same_tol = inner_tol_mul <= 1.0
     add_option!(cfg, :subdomain_tol_sufficient, same_tol && !is_mpi, "Tolerances in subdomains are at least tight enough to be able to conclude global convergence.", types = Bool)
 
     # Subdomain tolerances for when to solve a local subdomain
@@ -661,11 +666,30 @@ end
 
 function set_default_cnv_mb!(config::JutulConfig, sim::NLDDSimulator; kwarg...)
     set_default_cnv_mb!(config, sim.simulator.model; kwarg...)
+    sub_kwarg = scale_subdomain_tolerances(config[:inner_tol_mul]; kwarg...)
     for i in eachindex(sim.subdomain_simulators)
         cfg = config[:config_subdomains][i]
         m = sim.subdomain_simulators[i].model
-        set_default_cnv_mb!(cfg, m; kwarg...)
+        set_default_cnv_mb!(cfg, m; sub_kwarg...)
     end
+end
+
+"""
+    scale_subdomain_tolerances(mul; kwarg...)
+
+Multiply all tolerance arguments (`tol_*` and `inc_tol_*`) by `mul`, so that the
+subdomains use `inner_tol_mul` times the global tolerances.
+"""
+function scale_subdomain_tolerances(mul; kwarg...)
+    out = Dict{Symbol, Any}()
+    for (k, v) in kwarg
+        s = string(k)
+        if v isa Real && (startswith(s, "tol_") || startswith(s, "inc_tol_"))
+            v = mul*v
+        end
+        out[k] = v
+    end
+    return out
 end
 
 function Jutul.preprocess_forces(sim::NLDDSimulator, forces)

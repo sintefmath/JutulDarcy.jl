@@ -60,6 +60,11 @@ function global_aspen!(
                 sub_sim = sub_sims[i]
                 if subdomain_solved_in_single_timestep(i)
                     update_aspen_residual_local!(sub_sim, buffers[i], i, p)
+                elseif solve_status[i] == local_solved_in_multiple_steps
+                    # The local solution has been transferred to the global
+                    # state. Keep the local update in the buffer so that the
+                    # ASPEN rows of the neighbors see the change.
+                    reassemble_newton_locally!(s, outer_sim, sub_sim, all_forces, dt, i)
                 else
                     reassemble_newton_locally!(s, outer_sim, sub_sim, all_forces, dt, i, buffers[i], pos[i])
                 end
@@ -81,11 +86,12 @@ function global_aspen!(
                     update_aspen_residual_global!(s, sub_sim.storage.LinearizedSystem, pos[i], i, p)
                 end
             end
-            # Subtract A*(p^k - p^{k+1/2}) from r to solve for only p^{k+1/2} to p^k
-            @tic "aspen global preprocess" if !solve_for_full_increment
-                # TODO: Check that this doesn't mess up stuff when FI fallback is used
-                remove_local_update_from_aspen_residual!(simulator, s)
-            end
+            # Subtract A*(p^k - p^{k+1/2}) from r to solve for only p^{k+1/2} to p^k.
+            # This is also done when the full increment is checked: Rows for
+            # subdomains that were not solved in a single step are Newton rows
+            # linearized around the current state and must use the same
+            # unknown as the ASPEN rows.
+            @tic "aspen global preprocess" remove_local_update_from_aspen_residual!(simulator, s)
             for i in 1:n
                 sub_sim = sub_sims[i]
                 if !subdomain_solved_in_single_timestep(i)
@@ -113,14 +119,13 @@ function global_aspen!(
             t_solve = @elapsed begin
                 @tic "linear solve" (lsolve_ok, n_iter, rep_lsolve) = Jutul.linear_solve!(lsys, lsolve, m, s, dt, rec)
             end
-            if solve_for_full_increment
-                t_aspen_lres = @elapsed @batch minbatch=10 for i in 1:n
-                    if subdomain_solved_in_single_timestep(i)
-                        subtract_primary_deltas!(simulator.simulator, buffers[i], pos[i])
-                    end
+            t_update = @elapsed @tic "primary variables" begin
+                if config[:aspen_increment_limits]
+                    report[:update] = Jutul.update_primary_variables!(s, m, check = check; relaxation = relaxation)
+                else
+                    report[:update] = update_primary_variables_without_increment_limits!(s, m, check = check; relaxation = relaxation)
                 end
             end
-            t_update = @elapsed @tic "primary variables" report[:update] = Jutul.update_primary_variables!(s, m, check = check; relaxation = relaxation)
 
             report[:linear_solver] = rep_lsolve
             report[:linear_iterations] = n_iter
@@ -131,7 +136,12 @@ function global_aspen!(
             report[:solved] = false
         end
     end
-
+    # Call the hook in the same way as Jutul.perform_step! does for the
+    # Newton global stage.
+    post_hook = config[:post_iteration_hook]
+    if !ismissing(post_hook)
+        converged = post_hook(converged, report, s, m, dt, forces, config, iteration)
+    end
     return e, converged, report
 end
 
@@ -680,7 +690,7 @@ function transfer_pvar!(buffer, model, state, a, do_delta, pvar::AbstractVector,
             if phases == JutulDarcy.GasOnly
                 rv = x
             elseif phases == JutulDarcy.OilAndGas
-                rvtab = table_by_region(model.system.rs_max, reg_i)
+                rvtab = JutulDarcy.table_by_region(model.system.rv_max, reg_i)
                 rv = rvtab(p)
             else
                 # Gas only
@@ -909,3 +919,30 @@ function check_aspen_assembly(storage, sub_sims, p)
         @assert length(nonzeros(d)) == 0
     end
 end
+
+# Global ASPEN update without the increment limits meant to damp Newton
+function update_primary_variables_without_increment_limits!(storage, model::MultiModel; kwarg...)
+    report = Dict{Symbol, AbstractDict}()
+    for key in Jutul.submodels_symbols(model)
+        report[key] = update_primary_variables_without_increment_limits!(storage[key], model[key]; kwarg...)
+    end
+    return report
+end
+
+function update_primary_variables_without_increment_limits!(storage, model; kwarg...)
+    dx = storage.views.primary_variables
+    pdef = map(without_increment_limits, storage.variable_definitions.primary_variables)
+    return Jutul.update_primary_variables!(storage.state, dx, model, pdef; state = storage.state, kwarg...)
+end
+
+without_increment_limits(p) = p
+without_increment_limits(p::JutulDarcy.Pressure) = JutulDarcy.Pressure(nothing, nothing, p.minimum_pressure, p.maximum_pressure, p.scale)
+without_increment_limits(p::JutulDarcy.Saturations) = JutulDarcy.Saturations(Inf)
+without_increment_limits(p::JutulDarcy.ImmiscibleSaturation) = JutulDarcy.ImmiscibleSaturation(ds_max = Inf)
+without_increment_limits(p::JutulDarcy.OverallMoleFractions) = JutulDarcy.OverallMoleFractions(Inf, p.z_min)
+without_increment_limits(p::JutulDarcy.BlackOilUnknown) = JutulDarcy.BlackOilUnknown(dr_max = Inf, ds_max = Inf)
+without_increment_limits(p::JutulDarcy.GasMassFraction) = JutulDarcy.GasMassFraction(dz_max = Inf, sat_chop = p.sat_chop)
+without_increment_limits(p::JutulDarcy.Temperature) = JutulDarcy.Temperature(min = p.min, max = p.max, max_rel = nothing, max_abs = nothing)
+without_increment_limits(p::JutulDarcy.TotalMassFlux) = JutulDarcy.TotalMassFlux(scale = p.scale)
+without_increment_limits(p::JutulDarcy.BottomHolePressure) = JutulDarcy.BottomHolePressure(scale = p.scale)
+without_increment_limits(p::JutulDarcy.TotalSurfaceMassRate) = JutulDarcy.TotalSurfaceMassRate()

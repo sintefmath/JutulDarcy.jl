@@ -10,7 +10,7 @@ using Jutul, JutulDarcy, Test, MPI, PartitionedArrays
     ws[:nldd], = simulate_reservoir(case, method = :nldd, info_level = il);
     ws[:nldd_4], = simulate_reservoir(case, method = :nldd, info_level = il, nldd_arg = Dict(:no_blocks => 4));
 
-    # ws[:aspen], = simulate_reservoir(case, method = :aspen, info_level = il);
+    ws[:aspen], = simulate_reservoir(case, method = :aspen, info_level = il);
     ws[:mpi], = simulate_reservoir(case, method = :newton, mode = :mpi, info_level = il);
     ws[:nldd_mpi], = simulate_reservoir(case, method = :nldd, mode = :mpi, info_level = il);
 
@@ -123,16 +123,16 @@ end
             case = setup_bc_case(thermal = thermal)
             results_newton = simulate_reservoir(case;
             method = :newton, args...)
-            for nb = [1,4]
+            for method = [:nldd, :aspen], nb = [1,4]
                 results_nldd = simulate_reservoir(case;
-                    method = :nldd, nldd_arg = (no_blocks = nb, ), args...)
+                    method = method, nldd_arg = (no_blocks = nb, ), args...)
                 if nb == 1
                     # Simulation should converge in a single global iteration
                     # with a single NLDD partition
                     @test get_its(results_nldd) == 1
                 end
                 for k = [:Pressure, :Temperature]
-                    # Compare NLDD to Newton
+                    # Compare NLDD/ASPEN to Newton
                     v_newton = results_newton.states[end][k]
                     v_nldd = results_nldd.states[end][k]
                     @test all(isapprox.(v_nldd, v_newton, rtol=1e-3))
@@ -238,5 +238,28 @@ end
             @test stats.newtons == stats.ministeps
         end
 
+    end
+
+    @testset "Partition keeps wells in a single block" begin
+        f = JutulDarcy.GeoEnergyIO.test_input_file_path("SPE9", "SPE9.DATA")
+        case = setup_case_from_data_file(f, split_wells = true)
+        well_groups = JutulDarcy.partitioner_well_groups(case.model)
+        for coarsedim in [32, 64, (4, 4, 2)]
+            p = JutulDarcy.partition_reservoir(case, coarsedim; wells_in_single_block = true)
+            for cells in well_groups
+                @test length(unique(p[cells])) == 1
+            end
+        end
+    end
+end
+@testset "NLDD/ASPEN post_iteration_hook" begin
+    f = JutulDarcy.GeoEnergyIO.test_input_file_path("SPE1", "SPE1.DATA")
+    case = setup_case_from_data_file(f, split_wells = true)[1:3]
+    for method in [:nldd, :aspen]
+        n = Ref(0)
+        hook = (conv, report, storage, model, dt, forces, config, it) -> (n[] += 1; conv)
+        res = simulate_reservoir(case, method = method, info_level = -1, post_iteration_hook = hook)
+        @test n[] > 0
+        @test n[] == Jutul.report_stats(res.result.reports).newtons
     end
 end

@@ -203,8 +203,8 @@ const BlackOilGasFractionSystem = StandardBlackOilSystem{<:Any, <:Any, <:Any, <:
 const DisgasBlackOilSystem = StandardBlackOilSystem{<:Any, Nothing, <:Any, <:Any, <:Any, <:Any, <:Any}
 const VapoilBlackOilSystem = StandardBlackOilSystem{Nothing, <:Any, <:Any, <:Any, <:Any, <:Any, <:Any}
 
-const BlackOilModelVariableSwitching = SimulationModel{<:Any, BlackOilVariableSwitchingSystem, <:Any, <:Any}
-const BlackOilModelGasFraction       = SimulationModel{<:Any, BlackOilGasFractionSystem,        <:Any, <:Any}
+const BlackOilModelVariableSwitching = SimulationModel{<:Any, <:BlackOilVariableSwitchingSystem, <:Any, <:Any}
+const BlackOilModelGasFraction       = SimulationModel{<:Any, <:BlackOilGasFractionSystem,       <:Any, <:Any}
 const StandardBlackOilModel          = SimulationModel{<:Any, <:StandardBlackOilSystem, <:Any, <:Any}
 const VapoilBlackOilModel            = SimulationModel{<:Any, <:VapoilBlackOilSystem, <:Any, <:Any}
 const DisgasBlackOilModel            = SimulationModel{<:Any, <:DisgasBlackOilSystem, <:Any, <:Any}
