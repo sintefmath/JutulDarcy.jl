@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Validation: OLYMPUS 1 · JutulDarcy.jl</title><meta name="title" content="Validation: OLYMPUS 1 · JutulDarcy.jl"/><meta property="og:title" content="Validation: OLYMPUS 1 · JutulDarcy.jl"/><meta property="twitter:title" content="Validation: OLYMPUS 1 · JutulDarcy.jl"/><meta name="description" content="Documentation for JutulDarcy.jl."/><meta property="og:description" content="Documentation for JutulDarcy.jl."/><meta property="twitter:description" content="Documentation for JutulDarcy.jl."/><meta property="og:url" content="https://sintefmath.github.io/JutulDarcy.jl/examples/validation_olympus_1/"/><meta property="twitter:url" content="https://sintefmath.github.io/JutulDarcy.jl/examples/validation_olympus_1/"/><link rel="canonical" href="https://sintefmath.github.io/JutulDarcy.jl/examples/validation_olympus_1/"/><script data-outdated-warner src="../../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../search_index.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script><link href="../../assets/citations.css" rel="stylesheet" type="text/css"/></head><body><div id="documenter"><nav class="docs-sidebar"><a class="docs-logo" href="../../"><img src="../../assets/logo.png" alt="JutulDarcy.jl logo"/></a><div class="docs-package-name"><span class="docs-autofit"><a href="../../">JutulDarcy.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><span class="tocitem">Introduction</span><ul><li><a class="tocitem" href="../../">JutulDarcy.jl</a></li><li><a class="tocitem" href="../../man/intro/">Getting started</a></li></ul></li><li><span class="tocitem">Examples</span><ul><li><a class="tocitem" href="../two_phase_gravity_segregation/">Gravity segregation</a></li><li><a class="tocitem" href="../two_phase_buckley_leverett/">Two-phase Buckley-Leverett</a></li><li><a class="tocitem" href="../two_phase_unstable_gravity/">Gravity circulation with CPR preconditioner</a></li><li><a class="tocitem" href="../wells_intro/">Intro to wells</a></li><li><a class="tocitem" href="../co2_sloped/">CO2 injection in saline aquifer</a></li><li><a class="tocitem" href="../data_input_file/">Simulating Eclipse/DATA input files</a></li><li><a class="tocitem" href="../five_spot_ensemble/">Quarter-five-spot with variation</a></li><li><a class="tocitem" href="../co2_brine_2d_vertical/">Intro to compositional flow</a></li><li><a class="tocitem" href="../compositional_5components/">Compositional with five components</a></li><li><a class="tocitem" href="../optimize_simple_bl/">Parameter optimization of Buckley-Leverett</a></li><li><a class="tocitem" href="../validation_spe1/">Validation: SPE1</a></li><li><a class="tocitem" href="../validation_spe9/">Validation: SPE9</a></li><li><a class="tocitem" href="../validation_egg/">Validation: Egg</a></li><li class="is-active"><a class="tocitem" href>Validation: OLYMPUS 1</a><ul class="internal"><li><a class="tocitem" href="#Plot-the-reservoir"><span>Plot the reservoir</span></a></li><li><a class="tocitem" href="#Plot-the-saturations"><span>Plot the saturations</span></a></li><li><a class="tocitem" href="#Load-reference-and-set-up-plotting"><span>Load reference and set up plotting</span></a></li><li><a class="tocitem" href="#Plot-water-production-rates"><span>Plot water production rates</span></a></li><li><a class="tocitem" href="#Plot-oil-production-rates"><span>Plot oil production rates</span></a></li><li><a class="tocitem" href="#Plot-water-injection-rates"><span>Plot water injection rates</span></a></li><li><a class="tocitem" href="#Example-on-GitHub"><span>Example on GitHub</span></a></li></ul></li><li><a class="tocitem" href="../validation_norne_nohyst/">Validation: Norne</a></li><li><a class="tocitem" href="../validation_mrst/">Validation: MRST input files</a></li></ul></li><li><span class="tocitem">Manual</span><ul><li><a class="tocitem" href="../../man/highlevel/">High-level API</a></li><li><a class="tocitem" href="../../man/basics/input_files/">Input formats</a></li><li><a class="tocitem" href="../../man/basics/forces/">Driving forces</a></li><li><a class="tocitem" href="../../man/basics/systems/">Supported physical systems</a></li><li><a class="tocitem" href="../../man/basics/wells/">Wells and controls</a></li><li><a class="tocitem" href="../../man/basics/solution/">Solving the equations</a></li><li><a class="tocitem" href="../../man/basics/primary/">Primary variables</a></li><li><a class="tocitem" href="../../man/basics/secondary/">Secondary variables (properties)</a></li><li><a class="tocitem" href="../../man/basics/parameters/">Parameters</a></li><li><a class="tocitem" href="../../man/basics/plotting/">Plotting and visualization</a></li></ul></li><li><span class="tocitem">Advanced usage</span><ul><li><a class="tocitem" href="../../man/advanced/mpi/">Multi-threading and MPI support</a></li><li><a class="tocitem" href="../../man/advanced/compiled/">Standalone reservoir simulator</a></li></ul></li><li><span class="tocitem">Reference</span><ul><li><a class="tocitem" href="../../ref/jutul/">Jutul functions</a></li></ul></li><li><span class="tocitem">Additional information </span><ul><li><a class="tocitem" href="../../extras/refs/">References</a></li><li><a class="tocitem" href="../../extras/faq/">FAQ</a></li></ul></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Examples</a></li><li class="is-active"><a href>Validation: OLYMPUS 1</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Validation: OLYMPUS 1</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/sintefmath/JutulDarcy.jl/blob/main/examples/validation_olympus_1.jl#" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="OLYMPUS_1-model"><a class="docs-heading-anchor" href="#OLYMPUS_1-model">OLYMPUS_1 model</a><a id="OLYMPUS_1-model-1"></a><a class="docs-heading-anchor-permalink" href="#OLYMPUS_1-model" title="Permalink"></a></h1><p>Model from the <a href="https://www.isapp2.com/optimization-challenge/reservoir-model-description.html">ISAPP Optimization challenge</a></p><pre><code class="language-julia hljs">using Jutul, JutulDarcy, GLMakie, DelimitedFiles, HYPRE
+olympus_dir = JutulDarcy.GeoEnergyIO.test_input_file_path(&quot;OLYMPUS_1&quot;)
+case = setup_case_from_data_file(joinpath(olympus_dir, &quot;OLYMPUS_1.DATA&quot;), backend = :csr)
+ws, states = simulate_reservoir(case, output_substates = true)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">ReservoirSimResult with 79 entries:
+
+  wells (18 present):
+    :INJ-7
+    :PROD-4
+    :INJ-5
+    :INJ-4
+    :PROD-9
+    :INJ-2
+    :PROD-3
+    :PROD-2
+    :PROD-8
+    :INJ-3
+    :PROD-6
+    :PROD-1
+    :PROD-10
+    :PROD-7
+    :PROD-5
+    :INJ-6
+    :PROD-11
+    :INJ-1
+    Results per well:
+       :lrat =&gt; Vector{Float64} of size (79,)
+       :wrat =&gt; Vector{Float64} of size (79,)
+       :Aqueous_mass_rate =&gt; Vector{Float64} of size (79,)
+       :orat =&gt; Vector{Float64} of size (79,)
+       :control =&gt; Vector{Symbol} of size (79,)
+       :bhp =&gt; Vector{Float64} of size (79,)
+       :Liquid_mass_rate =&gt; Vector{Float64} of size (79,)
+       :mass_rate =&gt; Vector{Float64} of size (79,)
+       :rate =&gt; Vector{Float64} of size (79,)
+
+  states (Vector with 79 entries, reservoir variables for each state)
+    :Saturations =&gt; Matrix{Float64} of size (2, 192750)
+    :Pressure =&gt; Vector{Float64} of size (192750,)
+    :TotalMasses =&gt; Matrix{Float64} of size (2, 192750)
+
+  time (report time for each state)
+     Vector{Float64} of length 79
+
+  result (extended states, reports)
+     SimResult with 20 entries
+
+  extra
+     Dict{Any, Any} with keys :simulator, :config
+
+  Completed at Aug. 02 2024 15:08 after 4 minutes, 48 seconds, 898 milliseconds.</code></pre><h2 id="Plot-the-reservoir"><a class="docs-heading-anchor" href="#Plot-the-reservoir">Plot the reservoir</a><a id="Plot-the-reservoir-1"></a><a class="docs-heading-anchor-permalink" href="#Plot-the-reservoir" title="Permalink"></a></h2><pre><code class="language-julia hljs">plot_reservoir(case.model, key = :porosity)</code></pre><img src="80fda4d6.png" alt="Example block output"/><h2 id="Plot-the-saturations"><a class="docs-heading-anchor" href="#Plot-the-saturations">Plot the saturations</a><a id="Plot-the-saturations-1"></a><a class="docs-heading-anchor-permalink" href="#Plot-the-saturations" title="Permalink"></a></h2><pre><code class="language-julia hljs">plot_reservoir(case.model, states, step = 10, key = :Saturations)</code></pre><img src="a2f29586.png" alt="Example block output"/><h2 id="Load-reference-and-set-up-plotting"><a class="docs-heading-anchor" href="#Load-reference-and-set-up-plotting">Load reference and set up plotting</a><a id="Load-reference-and-set-up-plotting-1"></a><a class="docs-heading-anchor-permalink" href="#Load-reference-and-set-up-plotting" title="Permalink"></a></h2><pre><code class="language-julia hljs">csv_path = joinpath(olympus_dir, &quot;REFERENCE.CSV&quot;)
+data, header = readdlm(csv_path, &#39;,&#39;, header = true)
+time_ref = data[:, 1]
+time_jutul = deepcopy(ws.time)
+wells = deepcopy(ws.wells)
+wnames = collect(keys(wells))
+nw = length(wnames)
+day = si_unit(:day)
+cmap = :tableau_hue_circle
+
+inj = Symbol[]
+prod = Symbol[]
+for (wellname, well) in pairs(wells)
+    qts = well[:wrat] + well[:orat]
+    if sum(qts) &gt; 0
+        push!(inj, wellname)
+    else
+        push!(prod, wellname)
+    end
+end
+
+function plot_well_comparison(response, well_names, reponse_name = &quot;$response&quot;; ylims = missing)
+    fig = Figure(size = (1000, 400))
+    if response == :bhp
+        ys = 1/si_unit(:bar)
+        yl = &quot;Bottom hole pressure / Bar&quot;
+    elseif response == :wrat
+        ys = si_unit(:day)
+        yl = &quot;Surface water rate / m³/day&quot;
+    elseif response == :orat
+        ys = si_unit(:day)/(1000*si_unit(:stb))
+        yl = &quot;Surface oil rate / 10³ stb/day&quot;
+    else
+        error(&quot;$response not ready.&quot;)
+    end
+    welltypes = []
+    ax = Axis(fig[1:4, 1], xlabel = &quot;Time / days&quot;, ylabel = yl)
+    i = 1
+    linehandles = []
+    linelabels = []
+    for well_name in well_names
+        well = wells[well_name]
+        label_in_csv = &quot;$well_name:$response&quot;
+        ref_pos = findfirst(x -&gt; x == label_in_csv, vec(header))
+        qoi = copy(well[response]).*ys
+        qoi_ref = data[:, ref_pos].*ys
+        tot_rate = copy(well[:rate])
+        @. qoi[tot_rate == 0] = NaN
+        orat_ref = data[:, findfirst(x -&gt; x == &quot;$well_name:orat&quot;, vec(header))]
+        wrat_ref = data[:, findfirst(x -&gt; x == &quot;$well_name:wrat&quot;, vec(header))]
+        tot_rate_ref = orat_ref + wrat_ref
+        @. qoi_ref[tot_rate_ref == 0] = NaN
+        crange = (1, max(length(well_names), 2))
+        lh = lines!(ax, time_jutul./day, abs.(qoi),
+            color = i,
+            colorrange = crange,
+            label = &quot;$well_name&quot;, colormap = cmap
+        )
+        push!(linehandles, lh)
+        push!(linelabels, &quot;$well_name&quot;)
+        lines!(ax, time_ref./day, abs.(qoi_ref),
+            color = i,
+            colorrange = crange,
+            linestyle = :dash,
+            colormap = cmap
+        )
+        i += 1
+        if !ismissing(ylims)
+            ylims!(ax, ylims)
+        end
+    end
+    l1 = LineElement(color = :black, linestyle = nothing)
+    l2 = LineElement(color = :black, linestyle = :dash)
+
+    Legend(fig[1:3, 2], linehandles, linelabels, nbanks = 3)
+    Legend(fig[4, 2], [l1, l2], [&quot;JutulDarcy.jl&quot;, &quot;OPM Flow&quot;])
+    fig
+end</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">plot_well_comparison (generic function with 2 methods)</code></pre><h2 id="Plot-water-production-rates"><a class="docs-heading-anchor" href="#Plot-water-production-rates">Plot water production rates</a><a id="Plot-water-production-rates-1"></a><a class="docs-heading-anchor-permalink" href="#Plot-water-production-rates" title="Permalink"></a></h2><pre><code class="language-julia hljs">plot_well_comparison(:wrat, prod, &quot;Water surface production rate&quot;)</code></pre><img src="ca11caa2.png" alt="Example block output"/><h2 id="Plot-oil-production-rates"><a class="docs-heading-anchor" href="#Plot-oil-production-rates">Plot oil production rates</a><a id="Plot-oil-production-rates-1"></a><a class="docs-heading-anchor-permalink" href="#Plot-oil-production-rates" title="Permalink"></a></h2><pre><code class="language-julia hljs">plot_well_comparison(:orat, prod, &quot;Oil surface production rate&quot;, ylims = (0, 5))</code></pre><img src="5bc1f535.png" alt="Example block output"/><h2 id="Plot-water-injection-rates"><a class="docs-heading-anchor" href="#Plot-water-injection-rates">Plot water injection rates</a><a id="Plot-water-injection-rates-1"></a><a class="docs-heading-anchor-permalink" href="#Plot-water-injection-rates" title="Permalink"></a></h2><pre><code class="language-julia hljs">plot_well_comparison(:wrat, inj, &quot;Water injection rate&quot;)</code></pre><img src="dfd11434.png" alt="Example block output"/><h2 id="Example-on-GitHub"><a class="docs-heading-anchor" href="#Example-on-GitHub">Example on GitHub</a><a id="Example-on-GitHub-1"></a><a class="docs-heading-anchor-permalink" href="#Example-on-GitHub" title="Permalink"></a></h2><p>If you would like to run this example yourself, it can be downloaded from the JutulDarcy.jl GitHub repository <a href="https://github.com/sintefmath/JutulDarcy.jl/blob/main/examples/validation_olympus_1.jl">as a script</a>, or as a <a href="https://github.com/sintefmath/JutulDarcy.jl/blob/gh-pages/dev/examples/validation_olympus_1.ipynb">Notebook</a></p><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../validation_egg/">« Validation: Egg</a><a class="docs-footer-nextpage" href="../validation_norne_nohyst/">Validation: Norne »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.5.0 on <span class="colophon-date" title="Friday 2 August 2024 15:30">Friday 2 August 2024</span>. Using Julia version 1.10.4.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>

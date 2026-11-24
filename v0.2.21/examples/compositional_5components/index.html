@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Compositional with five components · JutulDarcy.jl</title><meta name="title" content="Compositional with five components · JutulDarcy.jl"/><meta property="og:title" content="Compositional with five components · JutulDarcy.jl"/><meta property="twitter:title" content="Compositional with five components · JutulDarcy.jl"/><meta name="description" content="Documentation for JutulDarcy.jl."/><meta property="og:description" content="Documentation for JutulDarcy.jl."/><meta property="twitter:description" content="Documentation for JutulDarcy.jl."/><meta property="og:url" content="https://sintefmath.github.io/JutulDarcy.jl/examples/compositional_5components/"/><meta property="twitter:url" content="https://sintefmath.github.io/JutulDarcy.jl/examples/compositional_5components/"/><link rel="canonical" href="https://sintefmath.github.io/JutulDarcy.jl/examples/compositional_5components/"/><script data-outdated-warner src="../../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../search_index.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script><link href="../../assets/citations.css" rel="stylesheet" type="text/css"/></head><body><div id="documenter"><nav class="docs-sidebar"><a class="docs-logo" href="../../"><img src="../../assets/logo.png" alt="JutulDarcy.jl logo"/></a><div class="docs-package-name"><span class="docs-autofit"><a href="../../">JutulDarcy.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><span class="tocitem">Introduction</span><ul><li><a class="tocitem" href="../../">JutulDarcy.jl</a></li><li><a class="tocitem" href="../../man/intro/">Getting started</a></li></ul></li><li><span class="tocitem">Examples</span><ul><li><a class="tocitem" href="../two_phase_gravity_segregation/">Gravity segregation</a></li><li><a class="tocitem" href="../two_phase_buckley_leverett/">Two-phase Buckley-Leverett</a></li><li><a class="tocitem" href="../two_phase_unstable_gravity/">Gravity circulation with CPR preconditioner</a></li><li><a class="tocitem" href="../wells_intro/">Intro to wells</a></li><li><a class="tocitem" href="../co2_sloped/">CO2 injection in saline aquifer</a></li><li><a class="tocitem" href="../data_input_file/">Simulating Eclipse/DATA input files</a></li><li><a class="tocitem" href="../five_spot_ensemble/">Quarter-five-spot with variation</a></li><li><a class="tocitem" href="../co2_brine_2d_vertical/">Intro to compositional flow</a></li><li class="is-active"><a class="tocitem" href>Compositional with five components</a><ul class="internal"><li><a class="tocitem" href="#Once-the-simulation-is-done,-we-can-plot-the-states"><span>Once the simulation is done, we can plot the states</span></a></li><li><a class="tocitem" href="#Example-on-GitHub"><span>Example on GitHub</span></a></li></ul></li><li><a class="tocitem" href="../optimize_simple_bl/">Parameter optimization of Buckley-Leverett</a></li><li><a class="tocitem" href="../mrst_validation/">Validation of reservoir simulator</a></li></ul></li><li><span class="tocitem">Manual</span><ul><li><a class="tocitem" href="../../man/highlevel/">High-level API</a></li><li><a class="tocitem" href="../../man/basics/input_files/">Input formats</a></li><li><a class="tocitem" href="../../man/basics/forces/">Driving forces</a></li><li><a class="tocitem" href="../../man/basics/systems/">Supported physical systems</a></li><li><a class="tocitem" href="../../man/basics/wells/">Wells and controls</a></li><li><a class="tocitem" href="../../man/basics/solution/">Solving the equations</a></li><li><a class="tocitem" href="../../man/basics/primary/">Primary variables</a></li><li><a class="tocitem" href="../../man/basics/secondary/">Secondary variables (properties)</a></li><li><a class="tocitem" href="../../man/basics/parameters/">Parameters</a></li><li><a class="tocitem" href="../../man/basics/plotting/">Plotting and visualization</a></li></ul></li><li><span class="tocitem">Advanced usage</span><ul><li><a class="tocitem" href="../../man/advanced/mpi/">Multi-threading and MPI support</a></li><li><a class="tocitem" href="../../man/advanced/compiled/">Standalone reservoir simulator</a></li></ul></li><li><span class="tocitem">Reference</span><ul><li><a class="tocitem" href="../../ref/jutul/">Jutul functions</a></li></ul></li><li><span class="tocitem">Additional information </span><ul><li><a class="tocitem" href="../../extras/refs/">References</a></li><li><a class="tocitem" href="../../extras/faq/">FAQ</a></li></ul></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Examples</a></li><li class="is-active"><a href>Compositional with five components</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Compositional with five components</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/sintefmath/JutulDarcy.jl/blob/main/examples/compositional_5components.jl#" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="A-more-complex-compositional-model"><a class="docs-heading-anchor" href="#A-more-complex-compositional-model">A more complex compositional model</a><a id="A-more-complex-compositional-model-1"></a><a class="docs-heading-anchor-permalink" href="#A-more-complex-compositional-model" title="Permalink"></a></h1><p>This example sets up a more complex compositional simulation with five different components. Other than that, the example is similar to the others that include wells and is therefore not commented in great detail.</p><pre><code class="language-julia hljs">using MultiComponentFlash
+
+n2_ch4 = MolecularProperty(0.0161594, 4.58e6, 189.515, 9.9701e-05, 0.00854)
+co2 = MolecularProperty(0.04401, 7.3866e6, 304.200, 9.2634e-05, 0.228)
+c2_5 = MolecularProperty(0.0455725, 4.0955e6, 387.607, 2.1708e-04, 0.16733)
+c6_13 = MolecularProperty(0.117740, 3.345e6, 597.497, 3.8116e-04, 0.38609)
+c14_24 = MolecularProperty(0.248827, 1.768e6, 698.515, 7.2141e-04, 0.80784)
+
+bic = [0.11883 0.00070981 0.00077754 0.01 0.011;
+       0.00070981 0.15 0.15 0.15 0.15;
+       0.00077754 0.15 0 0 0;
+       0.01 0.15 0 0 0;
+       0.011 0.15 0 0 0]
+
+mixture = MultiComponentMixture([n2_ch4, co2, c2_5, c6_13, c14_24], A_ij = bic, names = [&quot;N2-CH4&quot;, &quot;CO2&quot;, &quot;C2-5&quot;, &quot;C6-13&quot;, &quot;C14-24&quot;])
+eos = GenericCubicEOS(mixture, PengRobinson())
+
+using Jutul, JutulDarcy, GLMakie
+Darcy, bar, kg, meter, Kelvin, day = si_units(:darcy, :bar, :kilogram, :meter, :Kelvin, :day)
+nx = ny = 20
+nz = 2
+
+dims = (nx, ny, nz)
+g = CartesianMesh(dims, (1000.0, 1000.0, 1.0))
+nc = number_of_cells(g)
+K = repeat([0.05*Darcy], 1, nc)
+res = reservoir_domain(g, porosity = 0.25, permeability = K)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">DataDomain wrapping CartesianMesh (3D) with 20x20x2=800 cells with 17 data fields added:
+  800 Cells
+    :permeability =&gt; 1×800 Matrix{Float64}
+    :porosity =&gt; 800 Vector{Float64}
+    :rock_thermal_conductivity =&gt; 800 Vector{Float64}
+    :fluid_thermal_conductivity =&gt; 800 Vector{Float64}
+    :rock_density =&gt; 800 Vector{Float64}
+    :cell_centroids =&gt; 3×800 Matrix{Float64}
+    :volumes =&gt; 800 Vector{Float64}
+  1920 Faces
+    :neighbors =&gt; 2×1920 Matrix{Int64}
+    :areas =&gt; 1920 Vector{Float64}
+    :normals =&gt; 3×1920 Matrix{Float64}
+    :face_centroids =&gt; 3×1920 Matrix{Float64}
+  3840 HalfFaces
+    :half_face_cells =&gt; 3840 Vector{Int64}
+    :half_face_faces =&gt; 3840 Vector{Int64}
+  960 BoundaryFaces
+    :boundary_areas =&gt; 960 Vector{Float64}
+    :boundary_centroids =&gt; 3×960 Matrix{Float64}
+    :boundary_normals =&gt; 3×960 Matrix{Float64}
+    :boundary_neighbors =&gt; 960 Vector{Int64}
+</code></pre><p>Set up a vertical well in the first corner, perforated in all layers</p><pre><code class="language-julia hljs">prod = setup_vertical_well(g, K, nx, ny, name = :Producer)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">MultiSegmentWell [Producer] (3 nodes, 2 segments, 2 perforations)</code></pre><p>Set up an injector in the opposite corner, perforated in all layers</p><pre><code class="language-julia hljs">inj = setup_vertical_well(g, K, 1, 1, name = :Injector)
+
+rhoLS = 1000.0*kg/meter^3
+rhoVS = 100.0*kg/meter^3
+
+rhoS = [rhoLS, rhoVS]
+L, V = LiquidPhase(), VaporPhase()</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">(LiquidPhase(), VaporPhase())</code></pre><p>Define system and realize on grid</p><pre><code class="language-julia hljs">sys = MultiPhaseCompositionalSystemLV(eos, (L, V))
+model, parameters = setup_reservoir_model(res, sys, wells = [inj, prod], reference_densities = rhoS, block_backend = true);
+kr = BrooksCoreyRelativePermeabilities(sys, 2.0, 0.0, 1.0)
+model = replace_variables!(model, RelativePermeabilities = kr)
+
+push!(model[:Reservoir].output_variables, :Saturations)
+
+parameters[:Reservoir][:Temperature] = 387.45*Kelvin
+state0 = setup_reservoir_state(model, Pressure = 225*bar, OverallMoleFractions = [0.463, 0.01640, 0.20520, 0.19108, 0.12432]);
+
+dt = repeat([2.0]*day, 365)
+rate_target = TotalRateTarget(0.0015)
+I_ctrl = InjectorControl(rate_target, [0, 1, 0, 0, 0], density = rhoVS)
+bhp_target = BottomHolePressureTarget(100*bar)
+P_ctrl = ProducerControl(bhp_target)
+
+controls = Dict()
+controls[:Injector] = I_ctrl
+controls[:Producer] = P_ctrl
+forces = setup_reservoir_forces(model, control = controls)
+ws, states = simulate_reservoir(state0, model, dt, parameters = parameters, forces = forces)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">ReservoirSimResult with 365 entries:
+
+  wells (2 present):
+    :Producer
+    :Injector
+    Results per well:
+       :lrat =&gt; Vector{Float64} of size (365,)
+       :orat =&gt; Vector{Float64} of size (365,)
+       :control =&gt; Vector{Symbol} of size (365,)
+       :bhp =&gt; Vector{Float64} of size (365,)
+       :mass_rate =&gt; Vector{Float64} of size (365,)
+       :rate =&gt; Vector{Float64} of size (365,)
+       :grat =&gt; Vector{Float64} of size (365,)
+
+  states (Vector with 365 entries, reservoir variables for each state)
+    :LiquidMassFractions =&gt; Matrix{Float64} of size (5, 800)
+    :OverallMoleFractions =&gt; Matrix{Float64} of size (5, 800)
+    :Saturations =&gt; Matrix{Float64} of size (2, 800)
+    :Pressure =&gt; Vector{Float64} of size (800,)
+    :VaporMassFractions =&gt; Matrix{Float64} of size (5, 800)
+    :TotalMasses =&gt; Matrix{Float64} of size (5, 800)
+
+  time (report time for each state)
+     Vector{Float64} of length 365
+
+  result (extended states, reports)
+     SimResult with 365 entries
+
+  extra
+     Dict{Any, Any} with keys :simulator, :config
+
+  Completed at Apr. 12 2024 13:04 after 23 seconds, 366 milliseconds, 981.3 microseconds.</code></pre><h2 id="Once-the-simulation-is-done,-we-can-plot-the-states"><a class="docs-heading-anchor" href="#Once-the-simulation-is-done,-we-can-plot-the-states">Once the simulation is done, we can plot the states</a><a id="Once-the-simulation-is-done,-we-can-plot-the-states-1"></a><a class="docs-heading-anchor-permalink" href="#Once-the-simulation-is-done,-we-can-plot-the-states" title="Permalink"></a></h2><h3 id="CO2-mole-fraction"><a class="docs-heading-anchor" href="#CO2-mole-fraction">CO2 mole fraction</a><a id="CO2-mole-fraction-1"></a><a class="docs-heading-anchor-permalink" href="#CO2-mole-fraction" title="Permalink"></a></h3><pre><code class="language-julia hljs">sg = states[end][:OverallMoleFractions][2, :]
+fig, ax, p = plot_cell_data(g, sg)
+fig</code></pre><img src="fcb1b688.png" alt="Example block output"/><h3 id="Gas-saturation"><a class="docs-heading-anchor" href="#Gas-saturation">Gas saturation</a><a id="Gas-saturation-1"></a><a class="docs-heading-anchor-permalink" href="#Gas-saturation" title="Permalink"></a></h3><pre><code class="language-julia hljs">sg = states[end][:Saturations][2, :]
+fig, ax, p = plot_cell_data(g, sg)
+fig</code></pre><img src="6370cb72.png" alt="Example block output"/><h3 id="Pressure"><a class="docs-heading-anchor" href="#Pressure">Pressure</a><a id="Pressure-1"></a><a class="docs-heading-anchor-permalink" href="#Pressure" title="Permalink"></a></h3><pre><code class="language-julia hljs">p = states[end][:Pressure]
+fig, ax, p = plot_cell_data(g, p)
+fig</code></pre><img src="c91d9b18.png" alt="Example block output"/><h2 id="Example-on-GitHub"><a class="docs-heading-anchor" href="#Example-on-GitHub">Example on GitHub</a><a id="Example-on-GitHub-1"></a><a class="docs-heading-anchor-permalink" href="#Example-on-GitHub" title="Permalink"></a></h2><p>If you would like to run this example yourself, it can be downloaded from the JutulDarcy.jl GitHub repository <a href="https://github.com/sintefmath/JutulDarcy.jl/blob/main/examples/compositional_5components.jl">as a script</a>, or as a <a href="https://github.com/sintefmath/JutulDarcy.jl/blob/gh-pages/dev/examples/compositional_5components.ipynb">Notebook</a></p><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../co2_brine_2d_vertical/">« Intro to compositional flow</a><a class="docs-footer-nextpage" href="../optimize_simple_bl/">Parameter optimization of Buckley-Leverett »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.3.0 on <span class="colophon-date" title="Friday 12 April 2024 13:37">Friday 12 April 2024</span>. Using Julia version 1.10.2.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
