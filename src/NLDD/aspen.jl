@@ -136,7 +136,12 @@ function global_aspen!(
             report[:solved] = false
         end
     end
-
+    # Call the hook in the same way as Jutul.perform_step! does for the
+    # Newton global stage.
+    post_hook = config[:post_iteration_hook]
+    if !ismissing(post_hook)
+        converged = post_hook(converged, report, s, m, dt, forces, config, iteration)
+    end
     return e, converged, report
 end
 

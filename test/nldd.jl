@@ -252,3 +252,14 @@ end
         end
     end
 end
+@testset "NLDD/ASPEN post_iteration_hook" begin
+    f = JutulDarcy.GeoEnergyIO.test_input_file_path("SPE1", "SPE1.DATA")
+    case = setup_case_from_data_file(f, split_wells = true)[1:3]
+    for method in [:nldd, :aspen]
+        n = Ref(0)
+        hook = (conv, report, storage, model, dt, forces, config, it) -> (n[] += 1; conv)
+        res = simulate_reservoir(case, method = method, info_level = -1, post_iteration_hook = hook)
+        @test n[] > 0
+        @test n[] == Jutul.report_stats(res.result.reports).newtons
+    end
+end
