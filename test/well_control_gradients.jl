@@ -140,4 +140,36 @@ fd_central(prob, x, i; h = 1e-5) =
         @test isapprox(gh[i], gfd; rtol = 0.2, atol = 1e-4)      # ... and matches FD
         @test abs(gh[i]) > 1e-3 * max(norm(gdh, Inf), 1e-8)      # genuinely nonzero now
     end
+
+    @testset "limit that changes while the well operates on it" begin
+        # A producer with an unreachable rate target, the same in both periods, always
+        # operates on its BHP limit. The limit differs between the periods. (Injectors
+        # are not suited: their controls hold a mixture vector, so a copied control
+        # never compares equal and they always go back to the target in a new period.)
+        target = JutulDarcy.SurfaceLiquidRateTarget(-1e4 / s.day)
+        egg = deepcopy(s.egg)
+        for f in (egg.forces isa AbstractVector ? unique(objectid, egg.forces) : [egg.forces])
+            fac = f[:Facility]
+            fac.control[:PROD1] = JutulDarcy.replace_target(fac.control[:PROD1], target)
+            fac.limits[:PROD1] = merge(JutulDarcy.as_limit(target), (bhp = 395 * s.bar, ))
+        end
+        limits = [395.0, 390.0] .* s.bar
+        copt_l = setup_well_control_optimization(egg, s.control_periods,
+            [(well = :PROD1, quantity = :bhp, abs_min = 380 * s.bar, abs_max = 400 * s.bar, initial = limits)];
+            objective = copt.objective, verbose = false)
+        @test !only(copt_l.dofs).is_target
+        ws, = simulate_reservoir(copt_l(copt_l.dopt.parameters); info_level = -1)
+        for (steps, limit) in zip(s.control_periods, limits)
+            @test all(==(:bhp), ws.wells[:PROD1][:control][steps])
+            @test all(isapprox.(ws.wells[:PROD1][:bhp][steps], limit, rtol = 1e-4))
+        end
+        prob_l = JutulDarcy.well_control_optimization_problem(copt_l; simulator_arg = sim_arg)
+        x_l = copy(prob_l.x0)
+        _, gl = prob_l(x_l)
+        for p in 1:2
+            gfd = fd_central(prob_l, x_l, p; h = 1e-4)
+            @test abs(gfd) > 1e-5
+            @test isapprox(gl[p], gfd; rtol = 1e-2)
+        end
+    end
 end

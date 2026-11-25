@@ -60,6 +60,12 @@ function Jutul.update_before_step_multimodel!(storage_g, model_g::MultiModel, mo
             # might be incoming (e.g. use of AD)
             changed = changed || value_has_promoted_type(newctrl.target.value, oldctrl.target.value)
         end
+        if !changed && is_new_step && !new_is_disabled
+            # The requested control is the same, but the well may be operating on
+            # a limit that has a different value in this step. Go back to the
+            # requested control, so that the limits are checked again.
+            changed = operating_limit_is_outdated(op_ctrls[key], newctrl, cfg.limits[key])
+        end
         if changed
             # We have a new control. Any previous control change is invalid.
             # Set both operating and requested control to the new one.
@@ -98,6 +104,29 @@ function Jutul.update_before_step_multimodel!(storage_g, model_g::MultiModel, mo
     end
 end
 
+"""
+    operating_limit_is_outdated(control, requested, limits)
+
+Check if `control` operates on a limit (and not on the `requested` control) with a
+value that differs from the current value of that limit in `limits`.
+"""
+function operating_limit_is_outdated(control, requested, limits)
+    if control isa DisabledControl || isnothing(limits)
+        return false
+    end
+    name = translate_target_to_symbol(control.target)
+    if name == translate_target_to_symbol(requested.target)
+        return false
+    end
+    # Limits are compared by magnitude since the sign depends on the well type. A
+    # lower rate limit also gives a well that operates on :rate.
+    names = filter(k -> haskey(limits, k) && limits[k] isa Real, name == :rate ? (:rate, :rate_lower) : (name, ))
+    if isempty(names)
+        return false
+    end
+    val = abs(value(control.target.value))
+    return all(k -> abs(value(limits[k])) != val, names)
+end
 
 """
 Rebuild `target` with a new (possibly AD) `val`, keeping its type. Returns the
