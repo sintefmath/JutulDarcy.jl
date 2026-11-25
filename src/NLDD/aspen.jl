@@ -99,9 +99,6 @@ function global_aspen!(
                     set_global_residual_to_newton_residual_for_subdomain!(s.LinearizedSystem, sub_sim, storage, i)
                 end
             end
-            # With MPI: Newton rows see the ghost cells at the start of the
-            # iteration, add the coupling to the local updates of the ghosts.
-            add_ghost_coupling_to_newton_rows!(simulator, s, i -> !subdomain_solved_in_single_timestep(i))
             # With MPI: rows of ghost cells belong to other processes
             finalize_distributed_aspen_system!(outer_sim)
             t_conv = @elapsed if !check_fi

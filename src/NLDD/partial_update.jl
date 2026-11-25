@@ -70,51 +70,6 @@ function exchange_ghost_increments!(sim_dd)
 end
 
 """
-    add_ghost_coupling_to_newton_rows!(sim_dd, storage, is_newton)
-
-When running with MPI, the Newton rows of the subdomains where `is_newton(i)`
-is true are linearized with the ghost cells at the values from the start of the
-iteration, while the unknowns of the ghost cells are increments from their
-local solutions. Subtract J_ig b_g from these rows, where b_g is the local update
-of the ghost cells (from `remove_local_update_from_aspen_residual!`), so that
-the rows are linearized at the local solutions of the ghost cells. Does nothing
-for a serial simulation, where the halo of each subdomain is taken from the
-current global state.
-"""
-function add_ghost_coupling_to_newton_rows!(sim_dd, storage, is_newton)
-    sim_dd.simulator.executor isa Jutul.PArrayExecutor || return sim_dd
-    positions = sim_dd.storage.primary_variable_positions
-    newton = filter(is_newton, eachindex(positions))
-    isempty(newton) && return sim_dd
-    sys = storage.LinearizedSystem
-    r = vec(sys.r_buffer)
-    dvar = vec(sys.dx_buffer)
-    op = linear_operator(sys, skip_red = true)
-    dvar0 = copy(dvar)
-    r0 = copy(r)
-    # Keep only the increments of the ghost cells (not part of any subdomain)
-    for pos_i in positions
-        for (j, pos) in enumerate(pos_i)
-            dx = sys[j, j].dx_buffer
-            for k in pos
-                @inbounds dx[k] = 0.0
-            end
-        end
-    end
-    # r = J_ig b_g, stored for the rows of the Newton subdomains
-    mul!(r, op, dvar)
-    coupling = map(i -> map((j, pos) -> vec(sys[j, j].r_buffer)[pos], eachindex(positions[i]), positions[i]), newton)
-    copyto!(r, r0)
-    copyto!(dvar, dvar0)
-    for (i, c_i) in zip(newton, coupling)
-        for (j, pos) in enumerate(positions[i])
-            zippy_minus!(vec(sys[j, j].r_buffer), pos, c_i[j])
-        end
-    end
-    return sim_dd
-end
-
-"""
     finalize_distributed_aspen_system!(outer_sim)
 
 When running with MPI, replace the rows of ghost cells by unit rows, as is done
