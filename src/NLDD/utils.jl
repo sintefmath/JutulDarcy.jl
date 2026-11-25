@@ -172,6 +172,15 @@ function simulator_config(sim::NLDDSimulator;
         for k in [:failure_cuts_timestep, :relaxation]
             subconfigs[i][k] = cfg[k]
         end
+        if haskey(subconfigs[i], :subdomain_nldd)
+            # NLDD as subdomain solver: Same settings for its global and local solves
+            inner_cfg = last(subconfigs[i][:subdomain_nldd])
+            for c in vcat(inner_cfg, inner_cfg[:config_subdomains])
+                for k in [:failure_cuts_timestep, :relaxation]
+                    c[k] = cfg[k]
+                end
+            end
+        end
     end
     cfg[:end_report] = cfg[:info_level] > -1
     return cfg
