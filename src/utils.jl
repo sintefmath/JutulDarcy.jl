@@ -2352,7 +2352,8 @@ end
 
 function partitioner_input(model_or_domain::Union{JutulModel, DataDomain}, parameters = missing;
         conn = :trans,
-        preserve_faults = true
+        preserve_faults = true,
+        well_padding = 0
     )
     res = reservoir_domain(model_or_domain)
     N = res[:neighbors]
@@ -2396,7 +2397,71 @@ function partitioner_input(model_or_domain::Union{JutulModel, DataDomain}, param
         end
     end
     groups = partitioner_well_groups(model_or_domain)
+    groups = pad_partitioner_groups(groups, N, well_padding)
     return (N, T, groups)
+end
+
+"""
+    pad_partitioner_groups(groups, N, layers)
+
+Extend each group of cells with `layers` layers of neighboring cells in the
+graph given by the neighbor list `N`. Groups that overlap after padding are
+merged into one group. Used to keep wells away from the boundaries of the
+blocks of a partition.
+"""
+function pad_partitioner_groups(groups, N, layers::Int)
+    if layers < 1 || isempty(groups)
+        return groups
+    end
+    nc = maximum(N)
+    adj = [Int[] for _ in 1:nc]
+    for f in axes(N, 2)
+        l, r = N[1, f], N[2, f]
+        push!(adj[l], r)
+        push!(adj[r], l)
+    end
+    padded = Vector{Vector{Int}}()
+    for group in groups
+        cells = Set{Int}(group)
+        front = collect(cells)
+        for _ in 1:layers
+            next = Int[]
+            for c in front
+                for n in adj[c]
+                    if !(n in cells)
+                        push!(cells, n)
+                        push!(next, n)
+                    end
+                end
+            end
+            front = next
+        end
+        push!(padded, sort!(collect(cells)))
+    end
+    # Merge groups that share cells (union-find over the groups)
+    parent = collect(eachindex(padded))
+    function root(i)
+        while parent[i] != i
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        end
+        return i
+    end
+    owner = zeros(Int, nc)
+    for (i, group) in enumerate(padded)
+        for c in group
+            if owner[c] == 0
+                owner[c] = i
+            else
+                parent[root(i)] = root(owner[c])
+            end
+        end
+    end
+    merged = Dict{Int, Vector{Int}}()
+    for (i, group) in enumerate(padded)
+        append!(get!(merged, root(i), Int[]), group)
+    end
+    return [sort!(unique!(g)) for g in values(merged)]
 end
 
 function partitioner_well_groups(model::MultiModel)

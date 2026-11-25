@@ -141,3 +141,13 @@ end
         @test size(N, 2) == length(T) == nf
     end
 end
+
+@testset "pad_partitioner_groups" begin
+    N = [1 2 3 4 5 6; 2 3 4 5 6 7]
+    pad(groups, k) = sort(JutulDarcy.pad_partitioner_groups(groups, N, k))
+    @test pad([[1], [7]], 0) == [[1], [7]]
+    @test pad([[1], [7]], 1) == [[1, 2], [6, 7]]
+    @test pad([[2], [6]], 1) == [[1, 2, 3], [5, 6, 7]]
+    # Overlapping groups after padding are merged
+    @test pad([[2], [5]], 2) == [collect(1:7)]
+end

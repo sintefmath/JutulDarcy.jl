@@ -12,7 +12,7 @@ module JutulDarcyPartitionedArraysExt
     import Jutul: DebugPArrayBackend, JuliaPArrayBackend, MPI_PArrayBackend
     import Jutul: partition_distributed, simulate_parray, @tic
     import JutulDarcy:
-        reservoir_partition, partitioner_input, apply_cpr_pressure_stage!,
+        reservoir_partition, partitioner_input, partitioner_well_groups, apply_cpr_pressure_stage!,
         apply_cpr_smoother!, set_default_cnv_mb!, setup_reservoir_simulator_parray,
         increment_pressure!, set_dp!, correct_residual!, CPRStorage, CPRPreconditioner,
         number_of_components
@@ -31,16 +31,28 @@ module JutulDarcyPartitionedArraysExt
             # Minimizes the number of ghost cells. MetisPartitioner(objective = :cut)
             # minimizes the cut of the connection weights (conn) instead.
             partitioner = Jutul.MetisPartitioner(objective = :vol),
+            # Number of cell layers around each well that are kept in the same
+            # process as the well.
+            well_padding = 0,
             kwarg...
         )
         if ismissing(np)
             np = MPI.Comm_size(MPI.COMM_WORLD)
         end
         np::Int
-        N, T, groups = partitioner_input(case.model, case.parameters, conn = conn, preserve_faults = preserve_faults)
+        N, T, groups = partitioner_input(case.model, case.parameters,
+            conn = conn,
+            preserve_faults = preserve_faults,
+            well_padding = well_padding
+        )
         rmodel = reservoir_model(case.model)
         nc = number_of_cells(rmodel.domain)
-        p_num = partition_distributed(N, T, nc = nc, np = np, groups = groups, partitioner = partitioner)
+        # Extra weight for the cells with wells (not the padding)
+        node_weights = fill(1, nc)
+        for well_cells in partitioner_well_groups(case.model)
+            node_weights[well_cells] .= 10
+        end
+        p_num = partition_distributed(N, T, node_weights, nc = nc, np = np, groups = groups, partitioner = partitioner)
         p = reservoir_partition(case.model, p_num)
         psim = PArraySimulator(case, p; backend = backend, kwarg...)
         setup_distributed_increment_exchange!(psim)
