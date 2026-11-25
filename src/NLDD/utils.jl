@@ -146,6 +146,7 @@ function simulator_config(sim::NLDDSimulator;
                 method = inner_method,
                 gauss_seidel = true,
                 info_level = -1,
+                min_nonlinear_iterations = inner_min_nonlinear_iterations,
                 linear_solver = linear_solver,
                 tol_cnv = tol_multiplier(inner_tol_mul, :tol_cnv)*tol_cnv,
                 tol_mb = tol_multiplier(inner_tol_mul, :tol_mb)*tol_mb,
