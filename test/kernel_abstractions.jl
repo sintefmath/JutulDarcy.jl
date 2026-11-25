@@ -551,6 +551,9 @@ end
     simulator = transfer_to_backend(cpu_simulator, KernelAbstractions.CPU())
     @test isbitstype(typeof(simulator.model.system))
     states, = simulate!(simulator, timesteps; info_level = -1)
+    @test haskey(states[end], :FlashResults)
+    @test map(f -> f.V, states[end][:FlashResults]) ≈
+        map(f -> f.V, reference[end][:FlashResults])
     @test Array(states[end][:Pressure]) ≈
         reference[end][:Pressure] rtol = 1e-10
     @test Array(states[end][:OverallMoleFractions]) ≈

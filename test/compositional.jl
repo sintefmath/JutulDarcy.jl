@@ -5,6 +5,29 @@ using LinearAlgebra
 using MultiComponentFlash
 using StaticArrays
 
+@testset "Default compositional flash output and JLD2 restart" begin
+    case = JutulDarcy.setup_mini_wellcase(:compositional_2ph_3c;
+        nstep = 2, extra_outputs = false)
+    @test :FlashResults in reservoir_model(case).output_variables
+    options = (info_level = -1, output_substates = true, error_on_incomplete = true)
+    reference = simulate_reservoir(case; options...)
+    mktempdir() do output_path
+        first_step = simulate_reservoir(case[1:1]; output_path, options...)
+        raw_state = Jutul.JLD2.load(joinpath(output_path, "jutul_1.jld2"), "state")
+        flash = raw_state[:Reservoir][:FlashResults]
+        @test eltype(flash) <: MultiComponentFlash.FlashedMixture2Phase
+        @test isequal(flash, first_step.states[end][:FlashResults])
+        @test all(haskey(s[:Reservoir], :FlashResults) for s in raw_state[:substates])
+
+        restarted = simulate_reservoir(case; output_path, restart = true, options...)
+        @test length(restarted.result.states) == length(case.dt)
+        @test restarted.states[end][:Pressure] ≈ reference.states[end][:Pressure]
+        @test restarted.states[end][:OverallMoleFractions] ≈ reference.states[end][:OverallMoleFractions]
+        @test map(f -> f.V, restarted.states[end][:FlashResults]) ≈
+            map(f -> f.V, reference.states[end][:FlashResults]) atol = 1e-8
+    end
+end
+
 @testset "SIMPLE_COMP validation" begin
     dpth = JutulDarcy.GeoEnergyIO.test_input_file_path("SIMPLE_COMP")
     data_path = joinpath(dpth, "SIMPLE_COMP.DATA")

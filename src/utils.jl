@@ -420,8 +420,8 @@ reservoir and that facility.
 - `extra_outputs=Symbol[]`: Extra output variables for reservoir model. Defaults
   to "typical" values seen in reservoir simulation. Valid values: Vector of
   symbols to be output, `true` for all variables and `false` for the minimal set
-  required to restart simulations (typically only the primary variables and mass
-  of each component)
+  required to restart simulations. The minimum includes primary variables and
+  component masses, along with `FlashResults` for compositional models.
 - `diffusion=true`: Enable molecular diffusion when coefficients are present in
   the reservoir domain. Set to `false` to omit diffusion from the model.
 

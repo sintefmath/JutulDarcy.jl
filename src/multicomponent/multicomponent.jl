@@ -41,6 +41,14 @@ function select_secondary_variables!(S, system::CompositionalSystem, model)
     S[:Saturations] = Saturations()
 end
 
+function select_minimum_output_variables!(out, system::CompositionalSystem, model)
+    invoke(select_minimum_output_variables!, Tuple{Any, MultiPhaseSystem, Any}, out, system, model)
+    if haskey(model.secondary_variables, :FlashResults)
+        push!(out, :FlashResults)
+    end
+    return out
+end
+
 function select_parameters!(prm, system::CompositionalSystem, model)
     select_default_darcy_parameters!(prm, model.domain, system, model.formulation)
     prm[:Temperature] = Temperature()
