@@ -131,7 +131,8 @@ function NLDDSimulator(case::JutulCase, partition = missing;
         if !ismissing(subdomain_solver_blocks)
             # Solve the subdomain with NLDD on smaller blocks. The NLDD
             # simulator shares the subdomain simulator.
-            subdomain_nldd[i] = subdomain_nldd_simulator(subsim[i], sm, substate0, subparam, subdomain_solver_blocks, model)
+            subdomain_nldd[i] = subdomain_nldd_simulator(subsim[i], sm, substate0, subparam, subdomain_solver_blocks, model,
+                conn = get(partitioner_arg, :partitioner_conn_type, :unit))
         end
 
         neigh_c = Jutul.coarse_neighborhood(partition, sm)
@@ -205,6 +206,7 @@ function Jutul.perform_step!(
             simulator, dt, forces, config;
             iteration = iteration,
             report = report,
+            solve = solve,
             executor = executor
         )
     end
@@ -965,6 +967,7 @@ function Jutul.perform_step_per_process_initial_update!(simulator::NLDDSimulator
         executor = Jutul.default_executor(),
         update_secondary = nothing,
         iteration = 0,
+        solve = true,
         report = Jutul.setup_ministep_report()
     )
     log = simulator.storage[:solve_log]
@@ -984,6 +987,11 @@ function Jutul.perform_step_per_process_initial_update!(simulator::NLDDSimulator
     end
     if iteration <= config[:nldd_initial_newton_iterations]
         # Global Newton iterations before the local solves of each time step
+        active = false
+    end
+    if !solve
+        # Iteration that only checks convergence after the maximum number of
+        # iterations: Check the state after the last global update.
         active = false
     end
 

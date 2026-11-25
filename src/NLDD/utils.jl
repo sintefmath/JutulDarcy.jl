@@ -12,6 +12,7 @@ function simulator_config(sim::NLDDSimulator;
         inner_min_nonlinear_iterations = 0,
         inner_max_nonlinear_iterations = missing,
         inner_accept_unconverged = false,
+        inner_method = :nldd,
         tol_cnv = 1e-3,
         tol_mb = 1e-7,
         tol_cnv_well = 1e-2,
@@ -56,7 +57,7 @@ function simulator_config(sim::NLDDSimulator;
     add_option!(cfg, :nldd_max_sweeps, 1, "Maximum number of NLDD sweeps", types = Int)
     add_option!(cfg, :nldd_subdomain_groups, nothing, "Group of each subdomain. The local stage is then Gauss-Seidel within each group and Jacobi between groups (as with MPI, where each group is a process).", types = Union{Nothing, Vector{Int}})
     add_option!(cfg, :nldd_initial_newton_iterations, 0, "Number of global Newton iterations at the start of each time step before local solves are used.", types = Int)
-    add_option!(cfg, :method, method, "Method to use", values = [:nldd, :aspen], types = Symbol)
+    add_option!(cfg, :method, method, "Method to use", values = [:nldd, :aspen, :local_only], types = Symbol)
     add_option!(cfg, :debug_checks, false, "Enable extra expensive checks", types = Bool)
     add_option!(cfg, :solve_subdomains, true, "Solve subdomains", types = Bool)
     add_option!(cfg, :aspen_full_increment, false, "Solve full ASPEN update", types = Bool)
@@ -142,7 +143,8 @@ function simulator_config(sim::NLDDSimulator;
             # checked on the assembled system so that the subdomain Jacobian is
             # up to date for ASPEN.
             inner_cfg = simulator_config(inner;
-                method = :nldd,
+                method = inner_method,
+                gauss_seidel = true,
                 info_level = -1,
                 linear_solver = linear_solver,
                 tol_cnv = tol_multiplier(inner_tol_mul, :tol_cnv)*tol_cnv,
@@ -836,17 +838,18 @@ end
 local_multimodel_partition(model, p, wells) = Jutul.SimplePartition(p)
 
 """
-    subdomain_nldd_simulator(subsim, sub_model, state0, parameters, nblocks, parent_model)
+    subdomain_nldd_simulator(subsim, sub_model, state0, parameters, nblocks, parent_model; conn = :unit)
 
 NLDD simulator with `nblocks` blocks that solves the subdomain of `subsim`. The
 boundary cells of the subdomain are kept fixed, and the NLDD simulator shares
 `subsim` (state, linear system) as its outer simulator. `parent_model` is the
-model the subdomain was taken from.
+model the subdomain was taken from. `conn` gives the edge weights of the
+partition (see `local_reservoir_partition`).
 """
-function subdomain_nldd_simulator(subsim, sub_model, state0, parameters, nblocks, parent_model)
+function subdomain_nldd_simulator(subsim, sub_model, state0, parameters, nblocks, parent_model; conn = :unit)
     gmap = JutulDarcy.reservoir_model(sub_model).domain.global_map
     active = .!gmap.cell_is_boundary
-    partition = local_reservoir_partition(sub_model, nblocks; active = active)
+    partition = local_reservoir_partition(sub_model, nblocks; active = active, parameters = parameters, conn = conn)
     blocks = inner_block_submodels(parent_model, sub_model, partition)
     case = JutulCase(sub_model, parameters = parameters, state0 = state0)
     return NLDDSimulator(case, partition;
