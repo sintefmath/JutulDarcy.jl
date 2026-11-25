@@ -539,7 +539,7 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         T_min = minimum_value(Temperature()),
         fast_flash = false,
         can_shut_wells = true,
-        flash_reuse_guess = fast_flash,
+        flash_reuse_guess = true,
         flash_stability_bypass = fast_flash,
         warm_ssi = DEFAULT_FLASH_WARM_SSI,
         warm_newton = DEFAULT_FLASH_WARM_NEWTON,
