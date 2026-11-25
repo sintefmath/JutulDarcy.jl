@@ -283,6 +283,7 @@ end
     ws_ref, = simulate_reservoir(case, info_level = -1)
     p = JutulDarcy.partition_reservoir(case, 2, :metis; wells_in_single_block = true)
     for (nldd_arg, maxit, inner_method) in [
+            (Dict(:subdomain_solver_blocks => 3), 0, :nldd),
             (Dict(:subdomain_solver_blocks => 3), 1, :local_only),
             (Dict(:subdomain_solver_blocks => 3), 1, :nldd),
             (Dict(), 1, :nldd),

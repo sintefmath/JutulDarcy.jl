@@ -428,7 +428,7 @@ function get_solve_status(rep, ok)
                 nstep = length(rep[:steps])
                 if nstep == 0
                     status = local_already_converged
-                elseif nstep == 1 && !haskey(rep[:steps][1], :linear_solver)
+                elseif nstep == 1 && !haskey(rep[:steps][1], :linear_solver) && !inner_local_solves_changed_state(rep)
                     status = local_already_converged
                 else
                     status = local_solved_in_single_step
@@ -439,6 +439,26 @@ function get_solve_status(rep, ok)
         end
     end
     return status
+end
+
+"""
+    inner_local_solves_changed_state(ministep_report)
+
+True if the ministep was taken by NLDD used as subdomain solver and one of its
+local solves changed the state. Such a solve can converge without a linear
+solve in the subdomain, but is not already converged.
+"""
+function inner_local_solves_changed_state(ministep_report)
+    for step in ministep_report[:steps]
+        for statuses in get(step, :solve_status, ())
+            for st in statuses
+                if st == local_solved_in_single_step || st == local_solved_in_multiple_steps
+                    return true
+                end
+            end
+        end
+    end
+    return false
 end
 
 function for_each_subdomain_do(f, n, use_threads, thread_type, early_stop::Bool)
