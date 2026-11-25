@@ -206,7 +206,6 @@ function Jutul.perform_step!(
             simulator, dt, forces, config;
             iteration = iteration,
             report = report,
-            solve = solve,
             executor = executor
         )
     end
@@ -967,7 +966,6 @@ function Jutul.perform_step_per_process_initial_update!(simulator::NLDDSimulator
         executor = Jutul.default_executor(),
         update_secondary = nothing,
         iteration = 0,
-        solve = true,
         report = Jutul.setup_ministep_report()
     )
     log = simulator.storage[:solve_log]
@@ -987,11 +985,6 @@ function Jutul.perform_step_per_process_initial_update!(simulator::NLDDSimulator
     end
     if iteration <= config[:nldd_initial_newton_iterations]
         # Global Newton iterations before the local solves of each time step
-        active = false
-    end
-    if !solve
-        # Iteration that only checks convergence after the maximum number of
-        # iterations: Check the state after the last global update.
         active = false
     end
 
