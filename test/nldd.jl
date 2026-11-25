@@ -277,3 +277,16 @@ end
         @test ws[:PROD, :bhp] ≈ ws_ref[:PROD, :bhp] rtol = 1e-2
     end
 end
+@testset "NLDD inner_tol_mul" begin
+    f = JutulDarcy.GeoEnergyIO.test_input_file_path("SPE1", "SPE1.DATA")
+    case = setup_case_from_data_file(f, split_wells = true)
+    p = JutulDarcy.partition_reservoir(case, 2, :metis; wells_in_single_block = true)
+    tol(cfg) = cfg[:tolerances][:Reservoir][:mass_conservation]
+    for (mul, f_cnv, f_mb) in [(1.0, 1.0, 1.0), (10.0, 10.0, 10.0), ((tol_mb = 100.0,), 1.0, 100.0), ((tol_mb = 100.0, tol_cnv = 0.1), 0.1, 100.0)]
+        sim, cfg = setup_reservoir_simulator(case; method = :nldd, nldd_partition = p, inner_tol_mul = mul)
+        g = tol(cfg)
+        l = tol(cfg[:config_subdomains][1])
+        @test l.CNV ≈ f_cnv*g.CNV
+        @test l.MB ≈ f_mb*g.MB
+    end
+end

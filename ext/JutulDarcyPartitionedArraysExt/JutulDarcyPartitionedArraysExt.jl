@@ -28,6 +28,9 @@ module JutulDarcyPartitionedArraysExt
             # Fault faces are real connections: cutting them creates ghost cells like any other face.
             preserve_faults = false,
             np = missing,
+            # Minimizes the number of ghost cells. MetisPartitioner(objective = :cut)
+            # minimizes the cut of the connection weights (conn) instead.
+            partitioner = Jutul.MetisPartitioner(objective = :vol),
             kwarg...
         )
         if ismissing(np)
@@ -37,7 +40,7 @@ module JutulDarcyPartitionedArraysExt
         N, T, groups = partitioner_input(case.model, case.parameters, conn = conn, preserve_faults = preserve_faults)
         rmodel = reservoir_model(case.model)
         nc = number_of_cells(rmodel.domain)
-        p_num = partition_distributed(N, T, nc = nc, np = np, groups = groups)
+        p_num = partition_distributed(N, T, nc = nc, np = np, groups = groups, partitioner = partitioner)
         p = reservoir_partition(case.model, p_num)
         psim = PArraySimulator(case, p; backend = backend, kwarg...)
         setup_distributed_increment_exchange!(psim)

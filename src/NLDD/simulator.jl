@@ -48,7 +48,8 @@ function NLDDSimulator(case::JutulCase, partition = missing;
                 n_self = executor.data[:n_self]
                 active_cells = [i <= n_self for i in 1:nc]
             end
-            partition = local_reservoir_partition(model, N; active = active_cells)
+            partition = local_reservoir_partition(model, N; active = active_cells,
+                parameters = parameters, conn = get(partitioner_arg, :partitioner_conn_type, :unit))
         else
             jutul_message("Partition", "Generating $N coarse blocks using $partitioner_type.")
             p = JutulDarcy.partition_reservoir(case, N, partitioner_type; partitioner_arg..., wells_in_single_block = true)
@@ -340,14 +341,19 @@ function local_stage(simulator, dt, forces, config, iteration, sweep_no)
             pre(i)
             return solve_and_transfer(i)
         end
-        @tic "local solves [GS]" sim_order = gauss_seidel_for_each_subdomain_do(
-            gs_solve,
-            simulator,
-            sub_sims,
-            subreports,
-            config[:gauss_seidel_order],
-            allow_early_termination
-        )
+        groups = config[:nldd_subdomain_groups]
+        if isnothing(groups)
+            @tic "local solves [GS]" sim_order = gauss_seidel_for_each_subdomain_do(
+                gs_solve,
+                simulator,
+                sub_sims,
+                subreports,
+                config[:gauss_seidel_order],
+                allow_early_termination
+            )
+        else
+            @tic "local solves [grouped GS]" sim_order = grouped_gauss_seidel!(gs_solve, simulator, groups)
+        end
     else
         execute = (f) -> for_each_subdomain_do(f, n, use_threads, config[:nldd_thread_type], allow_early_termination)
         # Jacobi solve
@@ -958,6 +964,10 @@ function Jutul.perform_step_per_process_initial_update!(simulator::NLDDSimulator
     else
         active = active_status(strategy, log, iteration)
     end
+    if iteration <= config[:nldd_initial_newton_iterations]
+        # Global Newton iterations before the local solves of each time step
+        active = false
+    end
 
     subreports = []
     solve_order = []
@@ -1023,4 +1033,75 @@ end
 
 function update_state_mirror!(state_mirror, state, m::MultiModel, flds)
     update_state_mirror!(state_mirror, state[:Reservoir], m[:Reservoir], flds)
+end
+
+
+
+"""
+    grouped_gauss_seidel!(gs_solve, simulator, groups)
+
+Local stage that is multiplicative (Gauss-Seidel) within groups of subdomains
+and additive (Jacobi) between groups, as NLDD with MPI where each group is a
+process: every group starts from the same state, its subdomains are solved in
+order of decreasing maximum interior pressure, and the results of all groups
+are combined at the end. `groups[i]` is the group of subdomain `i`.
+"""
+function grouped_gauss_seidel!(gs_solve, simulator, groups)
+    !simulator.storage.is_mpi || error("nldd_subdomain_groups is not supported with MPI.")
+    sub_sims = simulator.subdomain_simulators
+    state = simulator.simulator.storage.state
+    p_cells = Jutul.main_partition(simulator.partition).partition
+    snapshot = copy_state_arrays(state)
+    result = copy_state_arrays(state)
+    pval = map(s -> -find_max_interior_pressure(s), sub_sims)
+    order = sortperm(pval)
+    for g in sort(unique(groups))
+        members = filter(i -> groups[i] == g, order)
+        for i in members
+            gs_solve(i)
+        end
+        # Keep the result of this group and start the next group from the
+        # original state
+        in_group = Set(members)
+        copy_group_values!(result, state, simulator.partition, p_cells, in_group)
+        copy_all_values!(state, snapshot)
+    end
+    copy_all_values!(state, result)
+    return order
+end
+
+function copy_state_arrays(state)
+    out = Dict{Symbol, Any}()
+    for k in keys(state)
+        s = state[k]
+        out[k] = Dict{Symbol, Any}(v => copy(s[v]) for v in keys(s) if s[v] isa AbstractArray)
+    end
+    return out
+end
+
+function copy_all_values!(state, buf)
+    for (k, vars) in buf, (v, x) in vars
+        state[k][v] .= x
+    end
+    return state
+end
+
+function copy_group_values!(buf, state, partition, p_cells, in_group)
+    nc = length(p_cells)
+    cells = findall(c -> p_cells[c] in in_group, 1:nc)
+    for (k, vars) in buf
+        if k == :Reservoir
+            for (v, x) in vars
+                y = state[k][v]
+                if size(x)[end] == nc
+                    selectdim(x, ndims(x), cells) .= selectdim(y, ndims(y), cells)
+                end
+            end
+        elseif partition.partition[k] in in_group
+            for (v, x) in vars
+                x .= state[k][v]
+            end
+        end
+    end
+    return buf
 end

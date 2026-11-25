@@ -52,17 +52,19 @@ function simulator_config(sim::NLDDSimulator;
         values = [:linear, :pressure, :potential, :adaptive]
     )
     add_option!(cfg, :nldd_max_sweeps, 1, "Maximum number of NLDD sweeps", types = Int)
+    add_option!(cfg, :nldd_subdomain_groups, nothing, "Group of each subdomain. The local stage is then Gauss-Seidel within each group and Jacobi between groups (as with MPI, where each group is a process).", types = Union{Nothing, Vector{Int}})
+    add_option!(cfg, :nldd_initial_newton_iterations, 0, "Number of global Newton iterations at the start of each time step before local solves are used.", types = Int)
     add_option!(cfg, :method, method, "Method to use", values = [:nldd, :aspen], types = Symbol)
     add_option!(cfg, :debug_checks, false, "Enable extra expensive checks", types = Bool)
     add_option!(cfg, :solve_subdomains, true, "Solve subdomains", types = Bool)
     add_option!(cfg, :aspen_full_increment, false, "Solve full ASPEN update", types = Bool)
     add_option!(cfg, :aspen_increment_limits, true, "Apply the maximum relative/absolute changes of primary variables to the global ASPEN update. Bounds on the values (e.g. saturations in [0, 1]) are always applied.", types = Bool)
     add_option!(cfg, :strategy, DefaultNLDDStrategy(), "Strategy to use for applying NLDD/ASPEN")
-    add_option!(cfg, :inner_tol_mul, inner_tol_mul, "Factor applied to the convergence tolerances of the subdomains relative to the global tolerances.", types = Real)
+    add_option!(cfg, :inner_tol_mul, inner_tol_mul, "Factor applied to the convergence tolerances of the subdomains relative to the global tolerances. Either a number (applied to all tolerances) or a NamedTuple with tolerance names as keys (e.g. (tol_mb = 100.0, tol_cnv = 0.1)), where tolerances that are not given keep the global value.", types = Union{Real, NamedTuple})
     # Only subdomains that converge without iterating count towards global
     # convergence, so inner_tol_final (only used at the last iteration) does not
     # matter here.
-    same_tol = inner_tol_mul <= 1.0
+    same_tol = all(x -> x <= 1.0, inner_tol_mul isa Real ? (inner_tol_mul,) : values(inner_tol_mul))
     add_option!(cfg, :subdomain_tol_sufficient, same_tol && !is_mpi, "Tolerances in subdomains are at least tight enough to be able to conclude global convergence.", types = Bool)
 
     # Subdomain tolerances for when to solve a local subdomain
@@ -117,14 +119,14 @@ function simulator_config(sim::NLDDSimulator;
         )
         # Small hack for reservoir stuff
         set_default_cnv_mb!(subconfigs[i], submodel,
-            tol_cnv = inner_tol_mul*tol_cnv,
-            tol_mb = inner_tol_mul*tol_mb,
-            inc_tol_dp_abs = inner_tol_mul*inc_tol_dp_abs,
-            inc_tol_dp_rel = inner_tol_mul*inc_tol_dp_rel,
-            inc_tol_dz = inner_tol_mul*inc_tol_dz,
-            tol_dp_well = inner_tol_mul*tol_dp_well,
-            tol_cnv_well = inner_tol_mul*tol_cnv_well,
-            tol_mb_well = inner_tol_mul*tol_mb_well
+            tol_cnv = tol_multiplier(inner_tol_mul, :tol_cnv)*tol_cnv,
+            tol_mb = tol_multiplier(inner_tol_mul, :tol_mb)*tol_mb,
+            inc_tol_dp_abs = tol_multiplier(inner_tol_mul, :inc_tol_dp_abs)*inc_tol_dp_abs,
+            inc_tol_dp_rel = tol_multiplier(inner_tol_mul, :inc_tol_dp_rel)*inc_tol_dp_rel,
+            inc_tol_dz = tol_multiplier(inner_tol_mul, :inc_tol_dz)*inc_tol_dz,
+            tol_dp_well = tol_multiplier(inner_tol_mul, :tol_dp_well)*tol_dp_well,
+            tol_cnv_well = tol_multiplier(inner_tol_mul, :tol_cnv_well)*tol_cnv_well,
+            tol_mb_well = tol_multiplier(inner_tol_mul, :tol_mb_well)*tol_mb_well
         )
         subconfigs[i][:id] = "Ω_$i"
         inner = sim.storage[:subdomain_nldd_simulators][i]
@@ -136,14 +138,14 @@ function simulator_config(sim::NLDDSimulator;
                 method = :nldd,
                 info_level = -1,
                 linear_solver = linear_solver,
-                tol_cnv = inner_tol_mul*tol_cnv,
-                tol_mb = inner_tol_mul*tol_mb,
-                tol_cnv_well = inner_tol_mul*tol_cnv_well,
-                tol_mb_well = inner_tol_mul*tol_mb_well,
-                tol_dp_well = inner_tol_mul*tol_dp_well,
-                inc_tol_dp_abs = inner_tol_mul*inc_tol_dp_abs,
-                inc_tol_dp_rel = inner_tol_mul*inc_tol_dp_rel,
-                inc_tol_dz = inner_tol_mul*inc_tol_dz,
+                tol_cnv = tol_multiplier(inner_tol_mul, :tol_cnv)*tol_cnv,
+                tol_mb = tol_multiplier(inner_tol_mul, :tol_mb)*tol_mb,
+                tol_cnv_well = tol_multiplier(inner_tol_mul, :tol_cnv_well)*tol_cnv_well,
+                tol_mb_well = tol_multiplier(inner_tol_mul, :tol_mb_well)*tol_mb_well,
+                tol_dp_well = tol_multiplier(inner_tol_mul, :tol_dp_well)*tol_dp_well,
+                inc_tol_dp_abs = tol_multiplier(inner_tol_mul, :inc_tol_dp_abs)*inc_tol_dp_abs,
+                inc_tol_dp_rel = tol_multiplier(inner_tol_mul, :inc_tol_dp_rel)*inc_tol_dp_rel,
+                inc_tol_dz = tol_multiplier(inner_tol_mul, :inc_tol_dz)*inc_tol_dz,
                 subdomain_tol_sufficient = false
             )
             inner_cfg[:max_nonlinear_iterations] = subconfigs[i][:max_nonlinear_iterations]
@@ -736,7 +738,7 @@ the connections of the global mesh) does not. Cells that are not unknowns
 and assigned to the block of a neighbor. All cells perforated by a well end up
 in the same block.
 """
-function local_reservoir_partition(model, nblocks::Int; active = missing)
+function local_reservoir_partition(model, nblocks::Int; active = missing, parameters = missing, conn = :unit)
     rmodel = JutulDarcy.reservoir_model(model)
     D = rmodel.domain
     nc = number_of_cells(D)
@@ -753,12 +755,13 @@ function local_reservoir_partition(model, nblocks::Int; active = missing)
         local_index[ia] = eachindex(ia)
         keep = [active[N[1, f]] && active[N[2, f]] for f in axes(N, 2)]
         N_a = local_index[N[:, keep]]
+        edge_weights = local_partition_weights(parameters, conn, size(N, 2))[keep]
         groups = Vector{Vector{Int}}()
         for cells in values(wells)
             g = unique(local_index[filter(c -> active[c], cells)])
             length(g) > 1 && push!(groups, g)
         end
-        p_a = Jutul.partition_hypergraph(N_a, nblocks, Jutul.MetisPartitioner(); num_nodes = length(ia), groups = groups)
+        p_a = Jutul.partition_hypergraph(N_a, nblocks, Jutul.MetisPartitioner(); num_nodes = length(ia), groups = groups, edge_weights = edge_weights)
         p = zeros(Int, nc)
         p[ia] = p_a
         # Inactive cells get the block of a neighbor
@@ -781,6 +784,19 @@ function local_reservoir_partition(model, nblocks::Int; active = missing)
         p = Jutul.compress_partition(p)
     end
     return local_multimodel_partition(model, p, wells)
+end
+
+# Integer connection weights for Metis, as in partitioner_input (:unit or :trans)
+function local_partition_weights(parameters, conn, nf)
+    if conn == :unit || ismissing(parameters)
+        return ones(Int, nf)
+    end
+    conn == :trans || error("Local partition supports conn = :unit or :trans, was $conn")
+    prm = haskey(parameters, :Reservoir) ? parameters[:Reservoir] : parameters
+    T = max.(Jutul.value.(prm[:Transmissibilities]), 1e-20)
+    length(T) == nf || error("Expected $nf transmissibilities, found $(length(T)).")
+    T = length(T)*T./sum(T)
+    return Int.(ceil.(T))
 end
 
 function local_multimodel_partition(model::MultiModel, p, wells)
@@ -902,17 +918,27 @@ function reservoir_global_map_to_local(model::SimulationModel, cell_index, face_
 end
 
 """
+    tol_multiplier(mul, name)
+
+Factor for the subdomain tolerance `name` (e.g. `:tol_cnv`). `mul` is either a
+number used for all tolerances, or a NamedTuple with factors for some
+tolerances (1.0 for the others).
+"""
+tol_multiplier(mul::Real, name::Symbol) = mul
+tol_multiplier(mul::NamedTuple, name::Symbol) = Float64(get(mul, name, 1.0))
+
+"""
     scale_subdomain_tolerances(mul; kwarg...)
 
-Multiply all tolerance arguments (`tol_*` and `inc_tol_*`) by `mul`, so that the
-subdomains use `inner_tol_mul` times the global tolerances.
+Multiply all tolerance arguments (`tol_*` and `inc_tol_*`) by the factor given
+by `inner_tol_mul` (see `tol_multiplier`).
 """
 function scale_subdomain_tolerances(mul; kwarg...)
     out = Dict{Symbol, Any}()
     for (k, v) in kwarg
         s = string(k)
         if v isa Real && (startswith(s, "tol_") || startswith(s, "inc_tol_"))
-            v = mul*v
+            v = tol_multiplier(mul, k)*v
         end
         out[k] = v
     end
