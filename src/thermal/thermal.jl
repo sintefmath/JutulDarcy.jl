@@ -358,7 +358,8 @@ function Jutul.default_parameter_values(data_domain, model, param::FluidThermalC
         else
             size(C, 1) == nph || error("Expected size $(nph) x num_cells for :fluid_thermal_conductivity, got size $(size(C))")
             nf = number_of_faces(data_domain)
-            T = zeros(nph, nf)
+            T_num = promote_type(eltype(C), eltype(phi))
+            T = zeros(T_num, nph, nf)
             for ph in 1:nph
                 T[ph, :] = compute_face_trans(data_domain, phi.*C[ph, :])
             end
