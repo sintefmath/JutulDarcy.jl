@@ -259,7 +259,8 @@ function cpr_amg_rebuild_supported(cpr)
     return is_csr && !is_hypre
 end
 
-function cpr_amg_update_decision(cpr, full, partial)
+function cpr_amg_update_decision(cpr, full, partial, recorder = nothing)
+    should_update_cpr(cpr, recorder, :startup) && return (true, false)
     tolerance = cpr.amg_rebuild_tolerance
     check_change = full && tolerance > 0 && cpr_amg_rebuild_supported(cpr)
     if check_change
@@ -441,7 +442,7 @@ function update_cpr_internals!(cpr::CPRPreconditioner, lsys, model, storage, rec
     if !isnothing(rw_map)
         cprw_fix_bhp_controlled_wells!(A_p, rw_map, model, storage)
     end
-    return cpr_amg_update_decision(cpr, do_p_update, do_p_update_partial)
+    return cpr_amg_update_decision(cpr, do_p_update, do_p_update_partial, recorder)
 end
 
 # A BHP-controlled well's pressure is fixed by its control equation, which is not part of the
@@ -1031,39 +1032,65 @@ function should_update_pressure_subsystem(cpr, rec)
 end
 
 function should_update_cpr(cpr, rec, type = :amg)
-    if type == :partial
-        interval, update_frequency = cpr.update_interval_partial, cpr.update_frequency_partial
+    if type == :startup
+        # If we are at the first step and first substep, then we should do a
+        # full refresh since we could have an AMG from a completely different
+        # simulation.
+        if cpr.mode != :forward
+            return false
+        end
+        if isnothing(rec)
+            return false
+        end
+        if Jutul.step(rec) != 1
+            return false
+        end
+        if Jutul.substep(rec) != 1
+            return false
+        end
+        return iszero(Jutul.subiteration(rec))
+    elseif type == :partial
         if !cpr.partial_update
             return false
         end
+        interval, update_frequency = cpr.update_interval_partial, cpr.update_frequency_partial
     else
         @assert type == :amg
+        if should_update_cpr(cpr, rec, :startup)
+            return true
+        end
         interval, update_frequency = cpr.update_interval, cpr.update_frequency
     end
     if isnothing(cpr.storage)
-        update = true
-    elseif interval == :once
-        update = false
-    else
-        it = Jutul.subiteration(rec) + 1
-        outer_step = Jutul.step(rec)
-        ministep = Jutul.substep(rec)
-        if interval == :iteration
-            crit = true
-            n = it
-        elseif interval == :ministep
-            n = ministep
-            crit = it == 1
-        elseif interval == :step
-            n = outer_step
-            crit = it == 1 && ministep == 1
-        else
-            error("Bad parameter update_frequency: $interval")
-        end
-        uf = update_frequency
-        update = crit && (uf == 1 || (n % uf) == 1)
+        return true
     end
-    return update
+    if interval == :once
+        return false
+    end
+
+    iteration = Jutul.subiteration(rec) + 1
+    if interval == :iteration
+        index = iteration
+    elseif interval == :ministep
+        if iteration != 1
+            return false
+        end
+        index = Jutul.substep(rec)
+    elseif interval == :step
+        if iteration != 1
+            return false
+        end
+        if Jutul.substep(rec) != 1
+            return false
+        end
+        index = Jutul.step(rec)
+    else
+        error("Bad parameter update_frequency: $interval")
+    end
+    if update_frequency == 1
+        return true
+    end
+    return index % update_frequency == 1
 end
 
 function cpr_construct_well_reservoir_map(model::SimulationModel, lsys, bz)

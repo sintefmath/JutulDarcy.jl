@@ -43,7 +43,7 @@ function JutulDarcy.update_amgx_pressure_system!(amgx::AMGXPreconditioner, A::Ju
         amgx.data[:buffer_p] = AMGX.CUDA.CuVector{Tv}(undef, n)
     end
     if do_p_update
-        @tic "AMGX setup" if already_setup && amgx.resetup
+        @tic "AMGX setup" if already_setup && amgx.resetup && !JutulDarcy.should_update_cpr(cpr, recorder, :startup)
             AMGX.resetup!(s.solver, s.matrix)
         else
             AMGX.setup!(s.solver, s.matrix)
