@@ -28,13 +28,20 @@ module JutulDarcyPartitionedArraysExt
             # Fault faces are real connections: cutting them creates ghost cells like any other face.
             preserve_faults = false,
             np = missing,
+            # Number of cell layers around each well that are kept in the same
+            # process as the well.
+            well_padding = 0,
             kwarg...
         )
         if ismissing(np)
             np = MPI.Comm_size(MPI.COMM_WORLD)
         end
         np::Int
-        N, T, groups = partitioner_input(case.model, case.parameters, conn = conn, preserve_faults = preserve_faults)
+        N, T, groups = partitioner_input(case.model, case.parameters,
+            conn = conn,
+            preserve_faults = preserve_faults,
+            well_padding = well_padding
+        )
         rmodel = reservoir_model(case.model)
         nc = number_of_cells(rmodel.domain)
         p_num = partition_distributed(N, T, nc = nc, np = np, groups = groups)
