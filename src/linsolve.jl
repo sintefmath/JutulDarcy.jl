@@ -374,3 +374,30 @@ end
 function Jutul.select_linear_solver(m::SimulationModel{<:Any, S, <:Any, <:Any}; kwarg...) where S<:MultiPhaseSystem
     return select_reservoir_linear_solver(m; kwarg...)
 end
+
+function Jutul.select_linear_solver_multimodel(model::MultiModel,
+        rmodel::SimulationModel{<:Any, <:MultiPhaseSystem}; mode = :forward, kwarg...)
+    if mode == :adjoint && supports_adjoint_cprw(model, rmodel)
+        return select_reservoir_linear_solver(rmodel, :cprw; mode, kwarg...)
+    end
+    return Jutul.select_linear_solver(rmodel; mode, kwarg...)
+end
+
+function supports_adjoint_cprw(model, rmodel)
+    model.reduction == :schur_apply || return false
+    get(model.models, :Reservoir, nothing) === rmodel || return false
+    rmodel.context isa Union{ParallelCSRContext, Jutul.KernelAbstractionsContext} || return false
+    Jutul.is_cell_major(matrix_layout(rmodel.context)) || return false
+    haskey(rmodel.equations, :tracers) && return false
+    groups = model.groups
+    groups isa AbstractVector || return false
+    first(groups) == 1 && count(==(1), groups) == 1 && maximum(groups) == 2 || return false
+    has_simple_well = false
+    for submodel in values(model.models)
+        if model_or_domain_is_well(submodel)
+            physical_representation(submodel.domain) isa SimpleWell || return false
+            has_simple_well = true
+        end
+    end
+    return has_simple_well
+end

@@ -363,7 +363,8 @@ function pressure_matrix_from_global_jacobian(sys_jac::Jutul.StaticSparsityMatri
         end
     end
     A_p = Jutul.transfer_csr_to_backend(sys_jac, A_p_host)
-    prepare_cprw_backend_maps!(well_reservoir_map, sys_jac)
+    is_adjoint = Jutul.represented_as_adjoint(lsys.matrix_layout)
+    prepare_cprw_backend_maps!(well_reservoir_map, sys_jac, is_adjoint)
     return A_p
 end
 
@@ -376,23 +377,23 @@ function cpr_backend_copy(prototype, source::AbstractVector{T}) where T
     return destination
 end
 
-function prepare_cprw_backend_maps!(map, system_matrix)
+function prepare_cprw_backend_maps!(map, system_matrix, is_adjoint)
     flatten(groups) = reduce(vcat, groups; init = eltype(groups)())
     map_12 = flatten(map.map_12)
     map_21 = flatten(map.map_21)
     map_22 = flatten(map.map_22)
-    if isempty(map.well_cells)
-        cells_12 = Int[]
-    else
-        cells_12 = reduce(vcat,
-            (map.well_cells[index] for index in eachindex(map.map_12));
-            init = Int[])
-    end
+    cells = flatten(map.well_cells)
     reservoir_cells = size(system_matrix, 1)
-    wells_21 = reduce(vcat,
-        (fill(index + reservoir_cells, length(map.map_21[index]))
-            for index in eachindex(map.map_21));
-        init = Int[])
+    wells = reduce(vcat,
+        (fill(index + reservoir_cells, length(cells_at_well))
+            for (index, cells_at_well) in enumerate(map.well_cells)); init = Int[])
+    if is_adjoint
+        entities_12 = wells
+        entities_21 = cells
+    else
+        entities_12 = cells
+        entities_21 = wells
+    end
     wells_22 = collect((reservoir_cells + index
         for index in eachindex(map.map_22)))
     prototype = system_matrix.rowptr
@@ -400,8 +401,8 @@ function prepare_cprw_backend_maps!(map, system_matrix)
         map_12 = cpr_backend_copy(prototype, map_12),
         map_21 = cpr_backend_copy(prototype, map_21),
         map_22 = cpr_backend_copy(prototype, map_22),
-        cells_12 = cpr_backend_copy(prototype, cells_12),
-        wells_21 = cpr_backend_copy(prototype, wells_21),
+        entities_12 = cpr_backend_copy(prototype, entities_12),
+        entities_21 = cpr_backend_copy(prototype, entities_21),
         wells_22 = cpr_backend_copy(prototype, wells_22),
         nzmap_11 = cpr_backend_copy(prototype, map.nzmap_11),
         nzmap_12 = cpr_backend_copy(prototype, map.nzmap_12),
@@ -440,7 +441,8 @@ function update_cpr_internals!(cpr::CPRPreconditioner, lsys, model, storage, rec
     rw_map = cpr_s.well_reservoir_map
     @tic "pressure system" update_pressure_system!(A_p, cpr.pressure_precond, A, w_p, ctx, executor, rw_map)
     if !isnothing(rw_map)
-        cprw_fix_bhp_controlled_wells!(A_p, rw_map, model, storage)
+        cprw_fix_bhp_controlled_wells!(A_p, rw_map, model, storage,
+            Jutul.represented_as_adjoint(matrix_layout(ctx)))
     end
     return cpr_amg_update_decision(cpr, do_p_update, do_p_update_partial, recorder)
 end
@@ -448,7 +450,8 @@ end
 # A BHP-controlled well's pressure is fixed by its control equation, which is not part of the
 # CPRW pressure system. Its mass-balance row would make it a free, nearly volume-less node, so
 # keep only the diagonal (the row's rhs is already zero): the pressure stage then keeps BHP fixed.
-function cprw_fix_bhp_controlled_wells!(A_p::Jutul.StaticSparsityMatrixCSR, rw_map, model, storage)
+function cprw_fix_bhp_controlled_wells!(A_p::Jutul.StaticSparsityMatrixCSR, rw_map, model, storage,
+        is_adjoint = false)
     model isa MultiModel || return A_p
     fkey = :Facility
     haskey(storage, fkey) || return A_p
@@ -462,41 +465,57 @@ function cprw_fix_bhp_controlled_wells!(A_p::Jutul.StaticSparsityMatrixCSR, rw_m
         first_row = offset + first(range)
         info = well.multiwell
         if isnothing(info)
-            cprw_fix_bhp_controlled_well!(A_p, cfg, key, first_row, length(range))
+            cprw_fix_bhp_controlled_well!(A_p, cfg, key, first_row, length(range), is_adjoint)
         else
             # Merged wells retain their original control names and node ranges.
             for (index, name) in enumerate(info.names)
                 start = info.nodes.pos[index]
                 count = info.nodes.pos[index + 1] - start
-                cprw_fix_bhp_controlled_well!(A_p, cfg, name, first_row + start - 1, count)
+                cprw_fix_bhp_controlled_well!(A_p, cfg, name, first_row + start - 1, count, is_adjoint)
             end
         end
     end
     return A_p
 end
 
-function cprw_fix_bhp_controlled_well!(A_p, cfg, name, first_row, count)
+function cprw_fix_bhp_controlled_well!(A_p, cfg, name, first_row, count, is_adjoint)
     haskey(cfg.operating_controls, name) || return A_p
     if operating_control(cfg, name).target isa BottomHolePressureTarget
-        cprw_zero_offdiagonals!(A_p, first_row, count)
+        cprw_zero_offdiagonals!(A_p, first_row, count, is_adjoint)
     end
     return A_p
 end
 
-function cprw_zero_offdiagonals!(A_p, first_row, count)
+function cprw_zero_offdiagonals!(A_p, first_row, count, is_adjoint = false)
     nz = nonzeros(A_p)
     cols = Jutul.colvals(A_p)
     for row in first_row:(first_row + count - 1)
-        for pos in nzrange(A_p, row)
-            if cols[pos] != row
-                nz[pos] = zero(eltype(nz))
-            end
-        end
+        cprw_zero_offdiagonals_row!(nz, A_p.rowptr, cols, row, is_adjoint)
     end
     return A_p
 end
 
-cprw_fix_bhp_controlled_wells!(A_p, rw_map, model, storage) = A_p
+@inline function cprw_zero_offdiagonals_row!(values, rowptr, columns, row, is_adjoint)
+    @inbounds for position in rowptr[row]:(rowptr[row + 1] - 1)
+        column = columns[position]
+        column == row && continue
+        if is_adjoint
+            # A fixed-pressure row becomes a column. CPRW inserts both
+            # directions of every well connection in the sparsity pattern.
+            for opposite in rowptr[column]:(rowptr[column + 1] - 1)
+                if columns[opposite] == row
+                    values[opposite] = zero(eltype(values))
+                    break
+                end
+            end
+        else
+            values[position] = zero(eltype(values))
+        end
+    end
+    return nothing
+end
+
+cprw_fix_bhp_controlled_wells!(A_p, rw_map, model, storage, is_adjoint = false) = A_p
 
 # CSC (default) version
 function update_pressure_system!(A_p, p_prec, A, w_p, ctx, executor, ::Nothing)
@@ -517,9 +536,9 @@ end
 
 function update_row_csc!(nz, A_p, w_p, rows, nz_s, col, ::Val{Ncomp}, ::Val{adjoint}) where {Ncomp, adjoint}
     @inbounds for j in nzrange(A_p, col)
-        row = rows[j]
+        entity = ifelse(adjoint, col, rows[j])
         Ji = nz_s[j]
-        nz[j] = reduce_to_pressure(Ji, w_p, col, Ncomp, adjoint)
+        nz[j] = reduce_to_pressure(Ji, w_p, entity, Ncomp, adjoint)
     end
 end
 
@@ -548,7 +567,10 @@ end
 function update_row_csr!(nz, A_p, w_p, cols, nz_s, row, ::Val{Ncomp}, ::Val{adjoint}) where {Ncomp, adjoint}
     @inbounds for j in nzrange(A_p, row)
         Ji = nz_s[j]
-        nz[j] = reduce_to_pressure(Ji, w_p, row, Ncomp, adjoint)
+        # The weights belong to the forward equation row, which becomes the
+        # column of the transposed block.
+        entity = ifelse(adjoint, cols[j], row)
+        nz[j] = reduce_to_pressure(Ji, w_p, entity, Ncomp, adjoint)
     end
 end
 
@@ -574,11 +596,13 @@ function cprw_update_pressure_system!(nz_p, nz_s, A_s, A_p, w_p, well_reservoir_
     (; map_12, map_21, map_22, nzmap_11, nzmap_12, nzmap_21, nzmap_22) = well_reservoir_map
     # Reservoir internal connections
     @assert length(nzmap_11) == length(nz_s)
+    cols = Jutul.colvals(A_s)
     @batch minbatch=tb for cell in 1:ncells
         @inbounds for pos_s in nzrange(A_s, cell)
             pos_p = nzmap_11[pos_s]
             Ji = nz_s[pos_s]
-            nz_p[pos_p] = reduce_to_pressure(Ji, w_p, cell, ncomp, is_adjoint)
+            entity = ifelse(is_adjoint, cols[pos_s], cell)
+            nz_p[pos_p] = reduce_to_pressure(Ji, w_p, entity, ncomp, is_adjoint)
         end
     end
     # Reservoir differentiated wrt wells
@@ -591,7 +615,8 @@ function cprw_update_pressure_system!(nz_p, nz_s, A_s, A_p, w_p, well_reservoir_
         @inbounds for j in eachindex(map_12_i)
             cell = wc[j]
             Ji = nz_12[map_12_i[j]]
-            nz_p[nzmap_12[ix]] = reduce_to_pressure(Ji, w_p, cell, ncomp, is_adjoint)
+            entity = ifelse(is_adjoint, i + ncells, cell)
+            nz_p[nzmap_12[ix]] = reduce_to_pressure(Ji, w_p, entity, ncomp, is_adjoint)
             ix += 1
         end
     end
@@ -603,7 +628,8 @@ function cprw_update_pressure_system!(nz_p, nz_s, A_s, A_p, w_p, well_reservoir_
         @inbounds for j in eachindex(map_21_i)
             well = i + ncells
             Ji = nz_21[map_21_i[j]]
-            nz_p[nzmap_21[ix]] = reduce_to_pressure(Ji, w_p, well, ncomp, is_adjoint)
+            entity = ifelse(is_adjoint, well_reservoir_map.well_cells[i][j], well)
+            nz_p[nzmap_21[ix]] = reduce_to_pressure(Ji, w_p, entity, ncomp, is_adjoint)
             ix += 1
         end
     end
@@ -657,8 +683,17 @@ function apply!(x, cpr::CPRPreconditioner, r0, arg...)
     @tic "cpr pressure stage" apply_cpr_pressure_stage!(cpr, cpr_s, r, arg...)
     # postsmooth
     if cpr.npost > 0
-        correct_residual_and_increment_pressure!(r, x, cpr_s.p, bz, buf, cpr_s.A_ps, cpr_s.p_buffer)
+        if cpr.mode == :adjoint
+            fill!(buf, zero(eltype(buf)))
+            @tic "p increment" increment_adjoint_pressure!(buf, cpr_s.p, bz, cpr_s.w_p, cpr_s.p_buffer)
+            @. x += buf
+            correct_residual!(r, A_ps, buf)
+        else
+            correct_residual_and_increment_pressure!(r, x, cpr_s.p, bz, buf, A_ps, cpr_s.p_buffer)
+        end
         @tic "cpr smoother" apply_cpr_smoother!(x, r, buf, smoother, A_ps, cpr.npost, skip_last = true)
+    elseif cpr.mode == :adjoint
+        @tic "p increment" increment_adjoint_pressure!(x, cpr_s.p, bz, cpr_s.w_p, cpr_s.p_buffer)
     else
         @tic "p increment" increment_pressure!(x, cpr_s.p, bz, cpr_s.p_buffer)
     end
@@ -812,7 +847,8 @@ end
 
 function update_quasi_impes_weights!(
         w, J, r, n, ncomp, scaling, offset, context)
-    return quasi_impes!(w, J, r, n, ncomp, scaling, offset)
+    is_adjoint = Jutul.represented_as_adjoint(matrix_layout(context))
+    return quasi_impes!(w, J, r, n, ncomp, scaling, offset, is_adjoint)
 end
 
 function update_analytical_cpr_weights!(
@@ -929,10 +965,13 @@ function true_impes_gen!(w, acc, r, n, ::Val{bz}, p_scale, scaling) where bz
     end
 end
 
-function quasi_impes!(w, J, r, n, bz, scaling, offset = 0)
+function quasi_impes!(w, J, r, n, bz, scaling, offset = 0, is_adjoint = false)
     r_p = SVector{bz}(r)
     @batch for cell = 1:n
-        J_b = J[cell + offset, cell + offset]'
+        J_b = J[cell + offset, cell + offset]
+        if !is_adjoint
+            J_b = transpose(J_b)
+        end
         invert_w!(w, J_b, r_p, cell, bz, scaling)
     end
 end
@@ -961,7 +1000,7 @@ function update_p_rhs!(r_p, y, ncomp, bz, w_p, p_prec, mode)
         end
     else
         @batch minbatch = 1000 for i in 1:n
-            @inbounds r_p[i] = y[(i-1)*bz + 1]*w_p[1, i]
+            @inbounds r_p[i] = y[(i-1)*bz + 1]
         end
     end
     for i in (n+1):length(r_p)
@@ -999,6 +1038,16 @@ function increment_pressure!(x, Δp, bz, p_buf = missing)
     n = min(length(x)÷bz, length(Δp))
     pressure = view(x, 1:bz:(1 + (n - 1)*bz))
     pressure .+= view(Δp, 1:n)
+    return x
+end
+
+function increment_adjoint_pressure!(x, Δp::AbstractVector, bz, weights, p_buf = missing)
+    # The transpose of the forward weighted restriction lifts the pressure
+    # correction into every mass-component equation.
+    n = min(length(x) ÷ bz, length(Δp))
+    components = size(weights, 1)
+    blocks = reshape(x, bz, :)
+    @views blocks[1:components, 1:n] .+= weights[:, 1:n] .* reshape(Δp[1:n], 1, n)
     return x
 end
 
@@ -1152,35 +1201,25 @@ function cpr_construct_well_reservoir_map(model::MultiModel, lsys, bz)
     end
 
     function weq_positions(J, cell_i, cell_j, row_index, column_index,
-            ::Val{bz}, layout) where bz
+            ::Val{bz}) where bz
         out = @MMatrix zeros(Int64, bz, bz)
         for eq in 1:bz
             for der in 1:bz
                 row = row_index(cell_i, eq)
                 column = column_index(cell_j, der)
-                out[eq, der] = find_sparse_position(J, row, column, layout)
+                position = find_sparse_position(J, row, column)
+                @assert position > 0 "Missing CPRW Jacobian entry at ($row, $column)"
+                out[eq, der] = position
             end
         end
         return SMatrix{bz, bz, Int64, bz*bz}(out)
     end
 
-    function well_positions(wcells, wperf, lsys_block::Jutul.LinearizedBlock{R},
-            row_index, column_index, bz) where R
+    function well_positions(wcells, wperf, lsys_block, row_index, column_index, bz)
         vbz = Val(bz)
-        layout = R()
         jacobian = cpr_host_matrix(lsys_block.jac)
         return map(i -> weq_positions(jacobian,
-            wcells[i], wperf[i], row_index, column_index, vbz, layout),
-            eachindex(wcells))
-    end
-
-    function well_positions(wcells, wperf, lsys::LinearizedSystem,
-            row_index, column_index, bz)
-        vbz = Val(bz)
-        layout = lsys.matrix_layout
-        jacobian = cpr_host_matrix(lsys.jac)
-        return map(i -> weq_positions(jacobian,
-            wcells[i], wperf[i], row_index, column_index, vbz, layout),
+            wcells[i], wperf[i], row_index, column_index, vbz),
             eachindex(wcells))
     end
 

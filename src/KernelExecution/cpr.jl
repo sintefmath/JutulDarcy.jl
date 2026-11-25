@@ -10,30 +10,26 @@ function synchronize_cpr_kernel(backend, event)
 end
 
 @kernel function cprw_zero_offdiagonals_kernel!(values,
-        @Const(rowptr), @Const(columns), first_row)
+        @Const(rowptr), @Const(columns), first_row, is_adjoint)
     index = @index(Global)
     row = first_row + index - 1
-    @inbounds for position in rowptr[row]:(rowptr[row + 1] - 1)
-        if columns[position] != row
-            values[position] = zero(eltype(values))
-        end
-    end
+    cprw_zero_offdiagonals_row!(values, rowptr, columns, row, is_adjoint)
 end
 
 function cprw_zero_offdiagonals!(matrix::Jutul.StaticSparsityMatrixCSR{
         <:Any, <:Any, <:Any, <:Any, <:Any, <:KernelAbstractions.Backend},
-        first_row, count)
+        first_row, count, is_adjoint = false)
     iszero(count) && return matrix
     backend = matrix.backend
     kernel! = cprw_zero_offdiagonals_kernel!(backend, cpr_kernel_block_size(matrix))
     event = kernel!(nonzeros(matrix), matrix.rowptr, Jutul.colvals(matrix),
-        first_row; ndrange = count)
+        first_row, is_adjoint; ndrange = count)
     synchronize_cpr_kernel(backend, event)
     return matrix
 end
 
 @kernel function update_pressure_system_kernel!(
-        pressure_values, @Const(rowptr), @Const(system_values),
+        pressure_values, @Const(rowptr), @Const(columns), @Const(system_values),
         @Const(weights), number_of_components,
         represented_as_adjoint)
     row = @index(Global)
@@ -42,7 +38,7 @@ end
         value = zero(eltype(pressure_values))
         for component in 1:number_of_components
             if represented_as_adjoint
-                value += block[1, component]*weights[component, row]
+                value += block[1, component]*weights[component, columns[position]]
             else
                 value += block[component, 1]*weights[component, row]
             end
@@ -66,7 +62,7 @@ function update_pressure_system!(pressure_matrix::Jutul.StaticSparsityMatrixCSR,
         backend, cpr_kernel_block_size(pressure_matrix))
     event = kernel!(
         nonzeros(pressure_matrix), pressure_matrix.rowptr,
-        nonzeros(system_matrix), weights, size(weights, 1),
+        Jutul.colvals(pressure_matrix), nonzeros(system_matrix), weights, size(weights, 1),
         Jutul.represented_as_adjoint(Jutul.matrix_layout(context));
         ndrange = size(pressure_matrix, 1))
     synchronize_cpr_kernel(backend, event)
@@ -88,14 +84,15 @@ end
 
 @kernel function update_cprw_reservoir_kernel!(pressure_values,
         @Const(pressure_positions), @Const(rowptr),
-        @Const(system_values), @Const(weights), number_of_components,
+        @Const(columns), @Const(system_values), @Const(weights), number_of_components,
         represented_as_adjoint)
     row = @index(Global)
     @inbounds for position in rowptr[row]:(rowptr[row + 1] - 1)
         pressure_position = pressure_positions[position]
         block = system_values[position]
+        entity = ifelse(represented_as_adjoint, columns[position], row)
         pressure_values[pressure_position] = reduce_cpr_block(
-            block, weights, row, number_of_components,
+            block, weights, entity, number_of_components,
             represented_as_adjoint)
     end
 end
@@ -133,7 +130,7 @@ function update_pressure_system!(pressure_matrix::Jutul.StaticSparsityMatrixCSR,
 
     reservoir_kernel! = update_cprw_reservoir_kernel!(backend, block_size)
     event = reservoir_kernel!(pressure_values, backend_data.nzmap_11,
-        system_matrix.rowptr, nonzeros(system_matrix), weights,
+        system_matrix.rowptr, Jutul.colvals(system_matrix), nonzeros(system_matrix), weights,
         number_of_components, represented_as_adjoint;
         ndrange = size(system_matrix, 1))
     synchronize_cpr_kernel(backend, event)
@@ -141,9 +138,9 @@ function update_pressure_system!(pressure_matrix::Jutul.StaticSparsityMatrixCSR,
     cross_kernel! = update_cprw_cross_kernel!(backend, block_size)
     cross_terms = (
         (backend_data.nzmap_12, backend_data.map_12,
-            well_reservoir_map.nzval_12, backend_data.cells_12),
+            well_reservoir_map.nzval_12, backend_data.entities_12),
         (backend_data.nzmap_21, backend_data.map_21,
-            well_reservoir_map.nzval_21, backend_data.wells_21),
+            well_reservoir_map.nzval_21, backend_data.entities_21),
         (backend_data.nzmap_22, backend_data.map_22,
             well_reservoir_map.nzval_22, backend_data.wells_22)
     )
@@ -291,8 +288,7 @@ end
                         weights[component, cell]
                 end
             else
-                @inbounds value = full_rhs[(cell - 1)*block_size + 1]*
-                    weights[1, cell]
+                @inbounds value = full_rhs[(cell - 1)*block_size + 1]
             end
         end
         @inbounds pressure_rhs[cell] = value

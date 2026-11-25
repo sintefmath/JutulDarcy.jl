@@ -100,10 +100,19 @@ function Jutul.apply!(x, cpr::AMGXCPR, r)
     r_p = cpr.pressure_precond.data[:buffer_p]
     w_p = cpr.pressure_precond.data[:w_p]
     ncomp, ncell = size(w_p)
-    @tic "residual reduction" gpu_reduce_residual!(r_p, w_p, r_corrected)
+    bz = cpr.storage.block_size
+    @tic "residual reduction" if cpr.mode == :adjoint
+        @views r_p .= r_corrected[1:bz:(1 + (ncell - 1)*bz)]
+    else
+        gpu_reduce_residual!(r_p, w_p, r_corrected)
+    end
     # Apply pressure preconditioner
     amgx = cpr.pressure_precond
     @tic "AMGX apply" dp = gpu_amgx_solve!(amgx, r_p)
     # Update increments for pressure
-    @tic "increment pressure" gpu_increment_pressure!(x, dp, cpr.storage.block_size)
+    @tic "increment pressure" if cpr.mode == :adjoint
+        JutulDarcy.increment_adjoint_pressure!(x, dp, bz, w_p)
+    else
+        gpu_increment_pressure!(x, dp, bz)
+    end
 end

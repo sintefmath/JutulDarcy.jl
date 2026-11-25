@@ -1,5 +1,6 @@
 using Jutul, JutulDarcy, Test, SparseArrays, CUDA
 using Jutul.KernelExecution: KernelAbstractions
+using LinearAlgebra: dot
 
 function cprw_bhp_test_case(; merged = false)
     bar = si_unit(:bar)
@@ -83,6 +84,57 @@ end
                 JutulDarcy.cprw_fix_bhp_controlled_wells!(matrix, map, case.model, state)
                 @test Matrix(JutulDarcy.cpr_host_matrix(matrix)) == reference
             end
+        end
+    end
+end
+
+@testset "CPR and CPRW adjoint pressure stages" begin
+    case = JutulDarcy.setup_mini_wellcase(:compositional_2ph_3c; nstep = 1, backend = :csr)
+    (; model, state0, parameters, forces) = case
+    # Different weights in each cell expose row/column indexing errors.
+    state0[:Reservoir][:Pressure] .*= [0.9, 1.05, 1.2]
+    state0[:Reservoir][:OverallMoleFractions][:, 3] .= [0.55, 0.30, 0.15]
+    dt = only(case.dt)
+    for use_ka in (false, true)
+        @testset "KA=$use_ka" begin
+            forward = Simulator(model; state0, parameters)
+            adjoint = Simulator(Jutul.adjoint_model_copy(model); state0, parameters)
+            if use_ka
+                forward = transfer_to_backend(forward, KernelAbstractions.CPU())
+                adjoint = Jutul.transfer_adjoint_simulator(adjoint, forward.model)
+            end
+            for sim in (forward, adjoint)
+                Jutul.adjoint_reassemble!(sim, state0, state0, dt, forces, dt)
+            end
+            n = length(Jutul.vector_residual(forward.storage.LinearizedSystem))
+            x = collect(range(0.1, 1.0; length = n))
+            y = cos.(1:n)
+            for variant in (:cpr, :cprw)
+                pressures = Matrix{Float64}[]
+                corrections = Vector{Float64}[]
+                for (mode, sim, residual) in ((:forward, forward, x), (:adjoint, adjoint, y))
+                    cpr = select_reservoir_linear_solver(sim.model, variant; mode).preconditioner
+                    JutulDarcy.update_cpr_internals!(cpr, sim.storage.LinearizedSystem,
+                        sim.model, sim.storage, Jutul.progress_recorder(sim),
+                        Jutul.default_executor(), Float64)
+                    s = cpr.storage
+                    pressure = Matrix(s.A_p)
+                    push!(pressures, pressure)
+                    JutulDarcy.update_p_rhs!(s.r_p, residual, s.number_of_components,
+                        s.block_size, s.w_p, s.A_p, mode)
+                    dp = pressure \ s.r_p
+                    correction = zeros(n)
+                    if mode == :forward
+                        JutulDarcy.increment_pressure!(correction, dp, s.block_size)
+                    else
+                        JutulDarcy.increment_adjoint_pressure!(correction, dp, s.block_size, s.w_p)
+                    end
+                    push!(corrections, correction)
+                end
+                @test pressures[2] ≈ pressures[1]'
+                @test dot(y, corrections[1]) ≈ dot(x, corrections[2])
+            end
+            @test Jutul.select_linear_solver(forward.model; mode = :adjoint).preconditioner.variant == :cprw
         end
     end
 end

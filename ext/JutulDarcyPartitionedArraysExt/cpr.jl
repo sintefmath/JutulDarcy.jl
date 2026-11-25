@@ -30,10 +30,12 @@ function update_pressure_system_hypre_csr!(A_p, A, w_p, helper,
     n = iupper - ilower + 1
     @assert size(A, 1) >= n
     nzval = SparseArrays.nonzeros(A)
+    cols = Jutul.colvals(A)
     @inbounds for row in 1:n
         for position in nzrange(A, row)
+            entity = ifelse(is_adjoint, cols[position], row)
             csr.values[position] = JutulDarcy.reduce_to_pressure(
-                nzval[position], w_p, row, ncomp, is_adjoint)
+                nzval[position], w_p, entity, ncomp, is_adjoint)
         end
     end
     assembler = HYPRE.start_assemble!(A_p)
@@ -68,7 +70,8 @@ function assemble_into_hypre_psystem!(A_p::HYPRE.HYPREMatrix, A::Jutul.StaticSpa
             ri = pos_ix[ki]
             col = cols[ri]
             A_block = nzval[ri]
-            V_buf[ki] = JutulDarcy.reduce_to_pressure(A_block, w_p, row, ncomp, is_adjoint)
+            entity = ifelse(is_adjoint, col, row)
+            V_buf[ki] = JutulDarcy.reduce_to_pressure(A_block, w_p, entity, ncomp, is_adjoint)
             J[ki] = Jutul.executor_index_to_global(executor, col, :column)
             num_added += 1
         end
@@ -92,7 +95,8 @@ function assemble_into_hypre_psystem!(A_p::HYPRE.HYPREMatrix, A::SparseMatrixCSC
             ri = pos_ix[ki]
             row = rows[ri]
             A_block = nzval[ri]
-            V_buf[ki] = JutulDarcy.reduce_to_pressure(A_block, w_p, row, ncomp, is_adjoint)
+            entity = ifelse(is_adjoint, col, row)
+            V_buf[ki] = JutulDarcy.reduce_to_pressure(A_block, w_p, entity, ncomp, is_adjoint)
             I[ki] = Jutul.executor_index_to_global(executor, row, :row)
             num_added += 1
         end
@@ -135,7 +139,7 @@ function inner_hypre_p_rhs!(r_p, y, ncomp, bz, w_p, helper, mode)
         end
     else
         @inbounds for i in eachindex(R_p)
-            R_p[i] = y[(i-1)*bz + 1]*w_p[1, i]
+            R_p[i] = y[(i-1)*bz + 1]
         end
     end
 
@@ -160,4 +164,10 @@ end
 function JutulDarcy.increment_pressure!(x, Δp::HYPRE.HYPREVector, bz, p_buf = get_p_buffer(Δp, p_buf))
     copy!(p_buf, Δp)
     JutulDarcy.increment_pressure!(x, p_buf, bz)
+end
+
+function JutulDarcy.increment_adjoint_pressure!(x, Δp::HYPRE.HYPREVector, bz, weights, p_buf)
+    buffer = get_p_buffer(Δp, p_buf)
+    copy!(buffer, Δp)
+    return JutulDarcy.increment_adjoint_pressure!(x, buffer, bz, weights)
 end
