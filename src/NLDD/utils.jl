@@ -10,6 +10,8 @@ function simulator_config(sim::NLDDSimulator;
         inner_tol_final = 10.0,
         inner_max_timestep_cuts = 2,
         inner_min_nonlinear_iterations = 0,
+        inner_max_nonlinear_iterations = missing,
+        inner_accept_unconverged = false,
         tol_cnv = 1e-3,
         tol_mb = 1e-7,
         tol_cnv_well = 1e-2,
@@ -129,6 +131,11 @@ function simulator_config(sim::NLDDSimulator;
             tol_mb_well = tol_multiplier(inner_tol_mul, :tol_mb_well)*tol_mb_well
         )
         subconfigs[i][:id] = "Ω_$i"
+        if !ismissing(inner_max_nonlinear_iterations) && isnothing(sim.storage[:subdomain_nldd_simulators][i])
+            subconfigs[i][:max_nonlinear_iterations] = inner_max_nonlinear_iterations
+        end
+        add_option!(subconfigs[i], :subdomain_accept_unconverged, inner_accept_unconverged,
+            "Keep the solution of a local solve that did not converge within the maximum number of iterations (no time-step cuts). The global stage then uses Newton rows linearized at this solution for the subdomain.", types = Bool)
         inner = sim.storage[:subdomain_nldd_simulators][i]
         if !isnothing(inner)
             # NLDD as solver for this subdomain. Global convergence must be
@@ -148,7 +155,11 @@ function simulator_config(sim::NLDDSimulator;
                 inc_tol_dz = tol_multiplier(inner_tol_mul, :inc_tol_dz)*inc_tol_dz,
                 subdomain_tol_sufficient = false
             )
-            inner_cfg[:max_nonlinear_iterations] = subconfigs[i][:max_nonlinear_iterations]
+            if ismissing(inner_max_nonlinear_iterations)
+                inner_cfg[:max_nonlinear_iterations] = subconfigs[i][:max_nonlinear_iterations]
+            else
+                inner_cfg[:max_nonlinear_iterations] = inner_max_nonlinear_iterations
+            end
             add_option!(subconfigs[i], :subdomain_nldd, (inner, inner_cfg), "NLDD simulator and config used to solve this subdomain")
         end
     end

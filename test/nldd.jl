@@ -277,6 +277,22 @@ end
         @test ws[:PROD, :bhp] ≈ ws_ref[:PROD, :bhp] rtol = 1e-2
     end
 end
+@testset "NLDD capped subdomain solves" begin
+    f = JutulDarcy.GeoEnergyIO.test_input_file_path("SPE1", "SPE1.DATA")
+    case = setup_case_from_data_file(f, split_wells = true)[1:20]
+    ws_ref, = simulate_reservoir(case, info_level = -1)
+    p = JutulDarcy.partition_reservoir(case, 2, :metis; wells_in_single_block = true)
+    for (nldd_arg, maxit) in [
+            (Dict(:subdomain_solver_blocks => 3), 0),
+            (Dict(:subdomain_solver_blocks => 3), 1),
+            (Dict(), 1),
+        ]
+        ws, = simulate_reservoir(case, method = :aspen, nldd_partition = p, nldd_arg = nldd_arg,
+            inner_max_nonlinear_iterations = maxit, inner_accept_unconverged = true, info_level = -1)
+        @test ws[:PROD, :grat] ≈ ws_ref[:PROD, :grat] rtol = 1e-2
+        @test ws[:PROD, :bhp] ≈ ws_ref[:PROD, :bhp] rtol = 1e-2
+    end
+end
 @testset "NLDD inner_tol_mul" begin
     f = JutulDarcy.GeoEnergyIO.test_input_file_path("SPE1", "SPE1.DATA")
     case = setup_case_from_data_file(f, split_wells = true)

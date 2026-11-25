@@ -69,18 +69,20 @@ end
     end
 end
 
-@testset "MPI NLDD/ASPEN: $name" for (k, (name, method, nldd_arg)) in enumerate([
-        ("ASPEN, one subdomain per process", :aspen, Dict(:no_blocks => 1)),
-        ("ASPEN, one subdomain per process solved with NLDD", :aspen, Dict(:no_blocks => 1, :subdomain_solver_blocks => 2)),
-        ("NLDD, two subdomains per process", :nldd, Dict(:no_blocks => 2)),
-        ("ASPEN, two subdomains per process", :aspen, Dict(:no_blocks => 2)),
+@testset "MPI NLDD/ASPEN: $name" for (k, (name, method, nldd_arg, extra)) in enumerate([
+        ("ASPEN, one subdomain per process", :aspen, Dict(:no_blocks => 1), NamedTuple()),
+        ("ASPEN, one subdomain per process solved with NLDD", :aspen, Dict(:no_blocks => 1, :subdomain_solver_blocks => 2), NamedTuple()),
+        ("ASPEN, one subdomain per process solved with capped NLDD", :aspen, Dict(:no_blocks => 1, :subdomain_solver_blocks => 2),
+            (inner_max_nonlinear_iterations = 1, inner_accept_unconverged = true)),
+        ("NLDD, two subdomains per process", :nldd, Dict(:no_blocks => 2), NamedTuple()),
+        ("ASPEN, two subdomains per process", :aspen, Dict(:no_blocks => 2), NamedTuple()),
     ])
     case = setup_mpi_case()
     options = (info_level = -1, timesteps = :none, failure_cuts_timestep = false,
         error_on_incomplete = true, precond = :cpr, rtol = 1e-8,
         linear_solver_arg = (amg_type = :hypre,))
     result = simulate_reservoir(case; mode = :mpi, method = method,
-        nldd_arg = nldd_arg, output_path = joinpath(only(ARGS), "nldd_$k"), options...)
+        nldd_arg = nldd_arg, output_path = joinpath(only(ARGS), "nldd_$k"), extra..., options...)
     if MPI.Comm_rank(MPI.COMM_WORLD) == 0
         reference = simulate_reservoir(setup_mpi_case(); options...,
             tol_cnv = 1e-7, tol_mb = 1e-10)

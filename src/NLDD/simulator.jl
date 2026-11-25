@@ -418,7 +418,9 @@ function get_solve_status(rep, ok)
         status = local_solve_skipped
     else
         if ok
-            if length(rep) > 1
+            if length(rep) > 1 || get(rep[end], :accepted_unconverged, false)
+                # Several ministeps or an unconverged solution: The global
+                # stage uses Newton rows at the local solution.
                 status = local_solved_in_multiple_steps
             else
                 rep = only(rep)
@@ -810,11 +812,27 @@ function solve_subdomain(sim, i, dt, forces, cfg)
         if haskey(cfg, :subdomain_nldd)
             # Solve the subdomain with NLDD (shares the subdomain simulator)
             inner_sim, inner_cfg = cfg[:subdomain_nldd]
-            f_inner = Jutul.preprocess_forces(inner_sim, f)[:forces]
-            ok, report = Jutul.solve_timestep!(inner_sim, dt, f_inner, inner_cfg[:max_nonlinear_iterations], inner_cfg,
-                finalize = true, prepare = true, update_explicit = false)
+            f_solve = Jutul.preprocess_forces(inner_sim, f)[:forces]
+            max_iter = inner_cfg[:max_nonlinear_iterations]
         else
-            ok, report = Jutul.solve_timestep!(sim, dt, f, max_iter, cfg,
+            inner_sim, inner_cfg, f_solve = sim, cfg, f
+        end
+        if cfg[:subdomain_accept_unconverged]
+            # A single attempt without time-step cuts. The state is kept also
+            # if the solve did not converge.
+            done, ministep_report = Jutul.solve_ministep(inner_sim, dt, f_solve, max_iter, inner_cfg,
+                finalize = false, prepare = true, update_explicit = false)
+            if done
+                Jutul.update_after_step!(inner_sim, dt, f_solve)
+            elseif haskey(ministep_report[:steps][end], :failure_exception)
+                Jutul.reset_state_to_previous_state!(inner_sim)
+            else
+                ministep_report[:accepted_unconverged] = true
+                done = true
+            end
+            ok, report = done, [ministep_report]
+        else
+            ok, report = Jutul.solve_timestep!(inner_sim, dt, f_solve, max_iter, inner_cfg,
                 finalize = true, prepare = true, update_explicit = false)
         end
     catch e
