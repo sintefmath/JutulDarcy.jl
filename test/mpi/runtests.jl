@@ -76,6 +76,8 @@ end
             (inner_max_nonlinear_iterations = 1, inner_accept_unconverged = true)),
         ("NLDD, two subdomains per process", :nldd, Dict(:no_blocks => 2), NamedTuple()),
         ("ASPEN, two subdomains per process", :aspen, Dict(:no_blocks => 2), NamedTuple()),
+        ("ASPEN, one subdomain per process solved with NLDD, relaxation", :aspen, Dict(:no_blocks => 1, :subdomain_solver_blocks => 2),
+            (relaxation = true,)),
     ])
     case = setup_mpi_case()
     options = (info_level = -1, timesteps = :none, failure_cuts_timestep = false,
