@@ -2350,7 +2350,8 @@ end
 
 function partitioner_input(model_or_domain::Union{JutulModel, DataDomain}, parameters = missing;
         conn = :trans,
-        preserve_faults = true
+        preserve_faults = true,
+        well_padding = 0
     )
     res = reservoir_domain(model_or_domain)
     N = res[:neighbors]
@@ -2394,7 +2395,43 @@ function partitioner_input(model_or_domain::Union{JutulModel, DataDomain}, param
         end
     end
     groups = partitioner_well_groups(model_or_domain)
+    groups = pad_partitioner_groups(groups, N, well_padding)
     return (N, T, groups)
+end
+
+"""
+    pad_partitioner_groups(groups, N, layers)
+
+Extend each group of cells with `layers` layers of neighboring cells in the
+graph given by the neighbor list `N`. Groups that overlap after padding are
+merged into one group. Used to keep wells away from the boundaries of the
+blocks of a partition.
+"""
+function pad_partitioner_groups(groups, N, layers::Int)
+    if layers < 1 || isempty(groups)
+        return groups
+    end
+    nc = maximum(N)
+    ng = length(groups)
+    # Cell connectivity, including the cell itself
+    l, r = N[1, :], N[2, :]
+    M = sparse(vcat(l, r, 1:nc), vcat(r, l, 1:nc), 1, nc, nc)
+    # Column g of V indicates the cells of group g
+    rows = reduce(vcat, groups)
+    cols = reduce(vcat, [fill(g, length(c)) for (g, c) in enumerate(groups)])
+    V = sparse(rows, cols, 1, nc, ng)
+    for _ in 1:layers
+        V = Int.(M*V .> 0)
+    end
+    # Merge groups that share cells: C[i, j] is true if group i and j are
+    # connected through overlapping groups (transitive closure).
+    C = V'*V .> 0
+    while true
+        C_next = C*C .> 0
+        C_next == C && break
+        C = C_next
+    end
+    return unique([findall(V*C[:, g] .> 0) for g in 1:ng])
 end
 
 function partitioner_well_groups(model::MultiModel)
