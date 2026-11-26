@@ -6,9 +6,10 @@ using MultiComponentFlash
 using StaticArrays
 
 @testset "Default compositional flash output and JLD2 restart" begin
-    case = JutulDarcy.setup_mini_wellcase(:compositional_2ph_3c;
-        nstep = 2, extra_outputs = false)
-    @test :FlashResults in reservoir_model(case).output_variables
+    case = JutulDarcy.setup_mini_wellcase(:compositional_2ph_3c; nstep = 2)
+    minimal = JutulDarcy.setup_mini_wellcase(:compositional_2ph_3c; nstep = 1, extra_outputs = false)
+    @test (:FlashResults in reservoir_model(case).output_variables,
+        :FlashResults in reservoir_model(minimal).output_variables) == (true, false)
     options = (info_level = -1, output_substates = true, error_on_incomplete = true)
     reference = simulate_reservoir(case; options...)
     mktempdir() do output_path

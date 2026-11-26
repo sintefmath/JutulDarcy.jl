@@ -417,11 +417,14 @@ reservoir and that facility.
 - `upwind=nothing`: Type of upwinding to use. Can be `:spu` or `nothing` for
   standard upwinding or `:weno` for a second-order weighted essentially
   non-oscillatory scheme.
-- `extra_outputs=Symbol[]`: Extra output variables for reservoir model. Defaults
-  to "typical" values seen in reservoir simulation. Valid values: Vector of
-  symbols to be output, `true` for all variables and `false` for the minimal set
-  required to restart simulations. The minimum includes primary variables and
-  component masses, along with `FlashResults` for compositional models.
+- `extra_outputs`: Extra output variables for the reservoir model. The default
+  includes phase mass fractions, black-oil ratios, saturations, and flash
+  results where those variables are defined. These are either kept in memory, or
+  written to disk. Options:
+    - Pass a vector of variable names as `Symbols`: `[:Saturations, :Rs]`
+    - `true` for all variables known to the model (may be a lot of variables!)
+    - `false` for the minimum outputs that define the mode l(typically only
+      primary variables).
 - `diffusion=true`: Enable molecular diffusion when coefficients are present in
   the reservoir domain. Set to `false` to omit diffusion from the model.
 
@@ -521,7 +524,7 @@ function setup_reservoir_model(reservoir::DataDomain, system::JutulSystem;
         thermal = false,
         energy_formulation = :thermal,
         diffusion::Bool = true,
-        extra_outputs = [:LiquidMassFractions, :VaporMassFractions, :Rs, :Rv, :Saturations],
+        extra_outputs = [:LiquidMassFractions, :VaporMassFractions, :Rs, :Rv, :Saturations, :FlashResults],
         split_wells = false,
         assemble_wells_together = true,
         extra_out = false,
