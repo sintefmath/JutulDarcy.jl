@@ -50,6 +50,7 @@ end
 
 @testitem "Multi-model (wells + reservoir)" tags = [:ci_wells, :flow, :wells, :blackoil, :compositional, :immiscible] begin
     include("multimodel.jl")
+    include("history_resv_limits.jl")
 end
 
 @testitem "Closed-loop cross terms (deprecated)" tags = [:ci_well_controls, :wells, :closed_loop] begin

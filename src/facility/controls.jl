@@ -81,7 +81,7 @@ function Jutul.update_before_step_multimodel_backend!(
                 q_t[pos] = valid_surface_rate_for_control(q_t[pos], newctrl)
             end
         end
-        if changed && !new_is_disabled
+        if !new_is_disabled && (changed || newctrl.target isa ReservoirVoidageTarget)
             if isnothing(cfg.limits[key])
                 cfg.limits[key] = as_limit(newctrl.target)
             else
